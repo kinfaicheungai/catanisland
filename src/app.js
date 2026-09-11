@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard}from'./engine.js?v=2.1.0';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard}from'./engine.js?v=2.3.0';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 const sx=x=>260+x*49,sy=y=>245+y*49,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -50,11 +50,13 @@ function setHighlights(){
 
 /* ============ 棋盤點擊 ============ */
 function chooseEdge(id){
+  if(dragged)return;
   if(busy)return;
   if(mode==='initRoad'){if(placeInitialRoad(game,0,id)){mode=null;render();flashEdge(id);sfx.build();setup.idx++;advanceSetup()}return}
   if(mode==='road'){const wasFree=game.freeRoads>0;if(placeRoad(game,0,id)){flashEdge(id);sfx.build();if(wasFree&&game.freeRoads>0){render();toast('免費築路：仲可以起多一條');return}mode=null;render()}}
 }
 function chooseTile(id){
+  if(dragged)return;
   if(busy||mode!=='robber')return;
   const res=moveRobber(game,0,id);if(!res)return;
   mode=null;sfx.build();flashTile(id);render();
@@ -64,6 +66,7 @@ function chooseTile(id){
 function flashTile(id){const el=svg.querySelector(`[data-tile="${id}"]`);if(el){el.classList.add('just');setTimeout(()=>el.classList.remove('just'),800)}}
 function beginRobber(msg){mode='robber';busy=false;game.log=msg||'揀一塊島放置海盜，封鎖佢生產。';$('#ticker').textContent=game.log;render();toast('🏴‍☠️ 揀一塊發光島嶼放海盜')}
 function chooseVertex(id){
+  if(dragged)return;
   if(busy)return;
   if(mode==='initSettle'){if(placeInitialSettlement(game,0,id)){setup.vid=id;mode='initRoad';render();flashVertex(id);sfx.build()}return}
   const ok=mode==='settlement'?placeSettlement(game,0,id):mode==='city'?placeCity(game,0,id):false;
@@ -262,14 +265,17 @@ function confirmPlentyAction(){
 
 /* ============ 其他 UI ============ */
 function fillTrades(){const p=game.players[0];$('#tradeFrom').innerHTML=RESOURCES.map(r=>`<option value="${r}">${ICONS[r]} ${LABELS[r]}（${tradeRatio(p,r)}:1）</option>`).join('');$('#tradeTo').innerHTML=RESOURCES.map(r=>`<option value="${r}">${ICONS[r]} ${LABELS[r]}</option>`).join('')}
-function zoom(d){scale=Math.max(.72,Math.min(1.7,scale+d));$('#mapMover').style.transform=`scale(${scale})`;$('#zoomValue').textContent=Math.round(scale*100)+'%'}
+let pan={x:0,y:0};
+function clampPan(){const vp=$('#viewport'),mx=Math.max(0,(scale-1)*vp.clientWidth/2+24),my=Math.max(0,(scale-1)*vp.clientHeight/2+24);pan.x=Math.max(-mx,Math.min(mx,pan.x));pan.y=Math.max(-my,Math.min(my,pan.y))}
+function applyTransform(){$('#mapMover').style.transform=`translate(${pan.x}px,${pan.y}px) scale(${scale})`;$('#viewport').style.cursor=scale>1?'grab':''}
+function zoom(d){scale=Math.max(.72,Math.min(2.4,scale+d));clampPan();applyTransform();$('#zoomValue').textContent=Math.round(scale*100)+'%'}
 function showEnd(){if(!game||game.winner===null)return;const p=game.players[game.winner];$('#endTitle').textContent=game.winner===0?'你征服咗群島！':`${p.name} 勝出`;$('#endText').textContent=`經過 ${game.round} 輪，${p.name} 率先取得 ${p.score} 勝利點。`;if(!$('#endDialog').open)$('#endDialog').showModal()}
 function toast(t){$('#toast').textContent=t;$('#toast').classList.add('show');setTimeout(()=>$('#toast').classList.remove('show'),1600)}
 
 function start(){initAudio();game=makeGame();const nm=$('#playerName').value.trim();if(nm)game.players[0].name=nm;$('#playerLabel').textContent=game.players[0].name;$('#startDialog').close();beginSetup()}
 
 /* ============ 事件綁定 ============ */
-const VERSION='2.1.0';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;}
+const VERSION='2.3.0';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;}
 $('#startBtn').onclick=start;
 $('#rollBtn').onclick=humanRoll;
 $('#endTurn').onclick=()=>{if(!busy&&game.phase==='action')runOpponents()};
@@ -285,10 +291,24 @@ $('#closePlenty').onclick=()=>$('#plentyDialog').close();
 $('#confirmPlenty').onclick=confirmPlentyAction;
 $('#closeTrade').onclick=()=>$('#tradeDialog').close();
 $('#confirmTrade').onclick=()=>{if(trade(game,0,$('#tradeFrom').value,$('#tradeTo').value)){sfx.coin();$('#tradeDialog').close();render()}};
-$('#zoomIn').onclick=()=>zoom(.16);$('#zoomOut').onclick=()=>zoom(-.16);$('#zoomReset').onclick=()=>{scale=1;zoom(0)};
-let pinch=null;
-$('#viewport').addEventListener('touchstart',e=>{if(e.touches.length===2)pinch=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY)},{passive:true});
-$('#viewport').addEventListener('touchmove',e=>{if(e.touches.length===2&&pinch){const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);zoom((d-pinch)/350);pinch=d}},{passive:true});
+$('#zoomIn').onclick=()=>zoom(.2);$('#zoomOut').onclick=()=>zoom(-.2);$('#zoomReset').onclick=()=>{scale=1;pan={x:0,y:0};zoom(0)};
+let gesture=null,drag=null,dragged=false;
+const _vp=$('#viewport'),_mm=()=>$('#mapMover');
+// 兩指：同時縮放 + 平移（單指保持純點擊，唔會誤觸）
+_vp.addEventListener('touchstart',e=>{
+  if(e.touches.length===2){const[a,b]=e.touches;gesture={d:Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY),mx:(a.clientX+b.clientX)/2,my:(a.clientY+b.clientY)/2,sc:scale,px:pan.x,py:pan.y};_mm().style.transition='none'}
+},{passive:false});
+_vp.addEventListener('touchmove',e=>{
+  if(e.touches.length===2&&gesture){const[a,b]=e.touches,d=Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY),mx=(a.clientX+b.clientX)/2,my=(a.clientY+b.clientY)/2;
+    scale=Math.max(.72,Math.min(2.4,gesture.sc*d/gesture.d));
+    pan.x=gesture.px+(mx-gesture.mx);pan.y=gesture.py+(my-gesture.my);
+    clampPan();applyTransform();$('#zoomValue').textContent=Math.round(scale*100)+'%';e.preventDefault()}
+},{passive:false});
+_vp.addEventListener('touchend',e=>{if(e.touches.length<2){gesture=null;_mm().style.transition=''}});
+// 桌面：放大後滑鼠拖曳平移
+_vp.addEventListener('mousedown',e=>{if(scale>1){drag={x:e.clientX,y:e.clientY,px:pan.x,py:pan.y};dragged=false;_mm().style.transition='none';e.preventDefault()}});
+window.addEventListener('mousemove',e=>{if(drag){const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(Math.abs(dx)+Math.abs(dy)>4)dragged=true;pan.x=drag.px+dx;pan.y=drag.py+dy;clampPan();applyTransform()}});
+window.addEventListener('mouseup',()=>{if(drag){drag=null;_mm().style.transition='';applyTransform()}});
 $('#rulesBtn').onclick=()=>$('#rulesDialog').showModal();$('#closeRules').onclick=()=>$('#rulesDialog').close();
 $('#soundBtn').onclick=()=>{muted=!muted;$('#soundBtn').textContent=muted?'🔇':'🔊';if(!muted)initAudio()};
 $('#newGameBtn').onclick=$('#playAgain').onclick=()=>location.reload();
