@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard}from'./engine.js?v=2.3.0';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard}from'./engine.js?v=2.4.0';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 const sx=x=>260+x*49,sy=y=>245+y*49,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -275,7 +275,7 @@ function toast(t){$('#toast').textContent=t;$('#toast').classList.add('show');se
 function start(){initAudio();game=makeGame();const nm=$('#playerName').value.trim();if(nm)game.players[0].name=nm;$('#playerLabel').textContent=game.players[0].name;$('#startDialog').close();beginSetup()}
 
 /* ============ 事件綁定 ============ */
-const VERSION='2.3.0';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;}
+const VERSION='2.4.0';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;}
 $('#startBtn').onclick=start;
 $('#rollBtn').onclick=humanRoll;
 $('#endTurn').onclick=()=>{if(!busy&&game.phase==='action')runOpponents()};
