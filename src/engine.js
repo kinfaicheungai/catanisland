@@ -33,7 +33,7 @@ export function makeGame(rng=Math.random){
   const players=NAMES.map((name,id)=>({id,name,score:0,roads:0,cards:[],knights:0,resources:{wood:2,brick:2,grain:2,wool:2,ore:1},ports:[]}));
   const coast=topo.edges.filter(e=>edgeTileCount(topo,e.id)===1),portKinds=['wood','brick','grain','wool','ore','any','any','any','any'],ports=[];
   for(let i=0;i<9;i++){const e=coast[Math.floor(i*coast.length/9)];ports.push({edge:e.id,a:e.a,b:e.b,kind:portKinds[i],ratio:portKinds[i]==='any'?3:2})}
-  return{round:1,turn:0,phase:'setup',...topo,players,ports,winner:null,lastRoll:null,dice:null,production:[],robber:topo.tiles.find(t=>t.type==='desert').id,log:'開局：每支隊伍揀選一座村莊同一條相連航線嘅位置。'}
+  return{round:1,turn:0,phase:'setup',...topo,players,ports,winner:null,lastRoll:null,dice:null,production:[],robber:topo.tiles.find(t=>t.type==='desert').id,discards:null,robberPending:false,robberFromCard:false,freeRoads:0,steal:null,log:'開局：每支隊伍揀選一座村莊同一條相連航線嘅位置。'}
 }
 
 /* ---------- 開局選址（初始擺放）---------- */
@@ -68,16 +68,65 @@ export function pickAiInitialSettlement(g,id,rng=Math.random){
 export function roll(g,rng=Math.random){
   if(g.phase!=='roll')return null;
   const a=1+Math.floor(rng()*6),b=1+Math.floor(rng()*6),n=a+b;
-  g.dice=[a,b];g.lastRoll=n;g.production=[];
+  g.dice=[a,b];g.lastRoll=n;g.production=[];g.steal=null;
   if(n===7){
-    for(const p of g.players){let total=countResources(p);if(total>7){let loss=Math.floor(total/2);while(loss--){const r=RESOURCES.find(x=>p.resources[x]>0);p.resources[r]--}}}
-    g.log='海盜掠過群島！物資超過 7 份嘅隊伍棄掉一半。'
+    // 唔即刻自動棄牌：記低邊個要棄幾多，交由玩家自選；擲骰者之後移動海盜。
+    g.discards={};
+    for(const p of g.players){const t=countResources(p);if(t>7)g.discards[p.id]=Math.floor(t/2)}
+    if(Object.keys(g.discards).length===0)g.discards=null;
+    g.robberPending=true;g.robberFromCard=false;
+    g.log='海盜嚟襲！物資多過 7 份嘅隊伍要棄一半，擲骰者移動海盜封鎖島嶼。'
   }else{
     for(const tile of g.tiles.filter(t=>t.num===n&&t.id!==g.robber))
       for(const vid of tile.vertices){const v=g.vertices[vid];if(v.owner!==null){g.players[v.owner].resources[tile.type]+=v.level;g.production.push({id:v.owner,tile:tile.id,type:tile.type,amount:v.level})}}
     g.log=`擲出 ${n}：相同數字嘅島嶼完成生產。`
   }
   g.phase='action';return n
+}
+/* ---------- 7 點棄牌 ---------- */
+export function discardNeeded(g,id){return (g.discards&&g.discards[id])||0}
+export function pendingDiscards(g){return g.discards?Object.keys(g.discards).map(Number):[]}
+export function discardCards(g,id,sel){
+  const need=discardNeeded(g,id);if(!need)return false;
+  const p=g.players[id],tot=RESOURCES.reduce((s,r)=>s+(sel[r]||0),0);
+  if(tot!==need)return false;
+  for(const r of RESOURCES)if((sel[r]||0)>p.resources[r])return false;
+  for(const r of RESOURCES)p.resources[r]-=(sel[r]||0);
+  delete g.discards[id];if(Object.keys(g.discards).length===0)g.discards=null;return true
+}
+export function autoDiscard(g,id,rng=Math.random){
+  let need=discardNeeded(g,id);if(!need)return;const p=g.players[id];
+  while(need>0){const r=RESOURCES.slice().sort((a,b)=>p.resources[b]-p.resources[a]).find(x=>p.resources[x]>0);if(!r)break;p.resources[r]--;need--}
+  delete g.discards[id];if(g.discards&&Object.keys(g.discards).length===0)g.discards=null
+}
+/* ---------- 海盜移動同掠奪 ---------- */
+export function legalRobberTiles(g){return g.tiles.filter(t=>t.id!==g.robber).map(t=>t.id)}
+export function robberVictims(g,id,tileId){
+  const t=g.tiles[tileId],set=new Set();
+  for(const vid of t.vertices){const o=g.vertices[vid].owner;if(o!==null&&o!==id&&countResources(g.players[o])>0)set.add(o)}
+  return[...set]
+}
+export function moveRobber(g,id,tileId,rng=Math.random){
+  if(!g.robberPending||tileId===g.robber)return null;
+  g.robber=tileId;g.robberPending=false;g.robberFromCard=false;
+  const vics=robberVictims(g,id,tileId);let steal=null;
+  if(vics.length){const vid=vics[Math.floor(rng()*vics.length)],p=g.players[vid],pool=[];
+    for(const r of RESOURCES)for(let k=0;k<p.resources[r];k++)pool.push(r);
+    const r=pool[Math.floor(rng()*pool.length)];p.resources[r]--;g.players[id].resources[r]++;steal={from:vid,to:id,res:r}}
+  g.steal=steal;
+  g.log=steal?`${g.players[id].name} 移動海盜，掠奪 ${g.players[steal.from].name} 一份${LABELS[steal.res]}。`:`${g.players[id].name} 移動海盜，封鎖該島嶼生產。`;
+  return{tileId,steal}
+}
+// 電腦自動選最傷對手嘅島（優先擋住玩家、避開自己）
+export function aiChooseRobber(g,id){
+  const w=n=>n?6-Math.abs(7-n):0;let best=null,bs=-1;
+  for(const t of g.tiles){if(t.id===g.robber||t.type==='desert')continue;
+    const owners=t.vertices.map(v=>g.vertices[v].owner).filter(o=>o!==null);
+    if(owners.includes(id))continue; // 唔擋自己
+    let s=0;for(const o of owners)s+=w(t.num)*(o===0?1.6:1); // 特別針對人類（id 0）
+    if(owners.length&&s>bs){bs=s;best=t.id}}
+  if(best===null){const alt=g.tiles.find(t=>t.id!==g.robber&&t.type!=='desert');best=alt?alt.id:g.tiles.find(t=>t.id!==g.robber).id}
+  return best
 }
 export function countResources(p){return RESOURCES.reduce((s,r)=>s+p.resources[r],0)}
 export function canAfford(p,cost){return Object.entries(cost).every(([r,n])=>p.resources[r]>=n)}
@@ -87,31 +136,52 @@ function pay(p,cost){for(const[r,n]of Object.entries(cost))p.resources[r]-=n}
 export function legalRoads(g,id){if(g.phase!=='action')return[];return g.edges.filter(e=>e.owner===null&&([e.a,e.b].some(v=>g.vertices[v].owner===id)||g.edges.some(o=>o.owner===id&&(o.a===e.a||o.a===e.b||o.b===e.a||o.b===e.b)))).map(e=>e.id)}
 export function legalSettlements(g,id){if(g.phase!=='action')return[];const linked=new Set();for(const e of g.edges.filter(e=>e.owner===id)){linked.add(e.a);linked.add(e.b)}return g.vertices.filter(v=>v.owner===null&&linked.has(v.id)&&g.adjacency[v.id].every(n=>g.vertices[n].owner===null)).map(v=>v.id)}
 export function legalCities(g,id){return g.phase==='action'?g.vertices.filter(v=>v.owner===id&&v.level===1).map(v=>v.id):[]}
-export function placeRoad(g,id,eid,free=false){const e=g.edges[eid],p=g.players[id];if(!e||!legalRoads(g,id).includes(eid)||(!free&&!canAfford(p,COSTS.road)))return false;if(!free)pay(p,COSTS.road);e.owner=id;p.roads++;g.log=`${p.name} 建立一條新航線。`;return true}
-export function placeSettlement(g,id,vid){const v=g.vertices[vid],p=g.players[id];if(!v||!legalSettlements(g,id).includes(vid)||!canAfford(p,COSTS.settlement))return false;pay(p,COSTS.settlement);v.owner=id;v.level=1;p.score++;awardPorts(g,id,vid);g.log=`${p.name} 建立一座新村莊。`;return true}
-export function placeCity(g,id,vid){const v=g.vertices[vid],p=g.players[id];if(!v||!legalCities(g,id).includes(vid)||!canAfford(p,COSTS.city))return false;pay(p,COSTS.city);v.level=2;p.score++;g.log=`${p.name} 將村莊升級成港城。`;return true}
+export function blocked(g){return !!(g.robberPending||g.discards)}
+export function placeRoad(g,id,eid){const e=g.edges[eid],p=g.players[id];if(blocked(g)||!e||!legalRoads(g,id).includes(eid))return false;const free=g.freeRoads>0;if(!free&&!canAfford(p,COSTS.road))return false;if(free)g.freeRoads--;else pay(p,COSTS.road);e.owner=id;p.roads++;g.log=free?`${p.name} 免費建立一條新航線。`:`${p.name} 建立一條新航線。`;return true}
+export function placeSettlement(g,id,vid){const v=g.vertices[vid],p=g.players[id];if(blocked(g)||!v||!legalSettlements(g,id).includes(vid)||!canAfford(p,COSTS.settlement))return false;pay(p,COSTS.settlement);v.owner=id;v.level=1;p.score++;awardPorts(g,id,vid);g.log=`${p.name} 建立一座新村莊。`;return true}
+export function placeCity(g,id,vid){const v=g.vertices[vid],p=g.players[id];if(blocked(g)||!v||!legalCities(g,id).includes(vid)||!canAfford(p,COSTS.city))return false;pay(p,COSTS.city);v.level=2;p.score++;g.log=`${p.name} 將村莊升級成港城。`;return true}
 function awardPorts(g,id,vid){for(const port of g.ports.filter(p=>p.a===vid||p.b===vid))if(!g.players[id].ports.includes(port.kind))g.players[id].ports.push(port.kind)}
 
 export function tradeRatio(p,from){return p.ports.includes(from)?2:p.ports.includes('any')?3:4}
-export function trade(g,id,from,to){const p=g.players[id],ratio=tradeRatio(p,from);if(g.phase!=='action'||from===to||p.resources[from]<ratio)return false;p.resources[from]-=ratio;p.resources[to]++;g.log=`${p.name} 喺港口以 ${ratio}:1 換取${LABELS[to]}。`;return true}
+export function trade(g,id,from,to){const p=g.players[id],ratio=tradeRatio(p,from);if(blocked(g)||g.phase!=='action'||from===to||p.resources[from]<ratio)return false;p.resources[from]-=ratio;p.resources[to]++;g.log=`${p.name} 喺港口以 ${ratio}:1 換取${LABELS[to]}。`;return true}
 
+// 買一張航海卡入手牌（只有「勝利點」即時計分，其餘要之後打出）。
+export const CARD_TYPES=['騎士','豐收','築路','勝利點'];
 export function drawCard(g,id,rng=Math.random){
-  const p=g.players[id];if(g.phase!=='action'||!canAfford(p,COSTS.card))return null;
-  pay(p,COSTS.card);const cards=['騎士','豐收','築路','勝利點'],card=cards[Math.floor(rng()*cards.length)];p.cards.push(card);
+  const p=g.players[id];if(blocked(g)||g.phase!=='action'||!canAfford(p,COSTS.card))return null;
+  pay(p,COSTS.card);const card=CARD_TYPES[Math.floor(rng()*CARD_TYPES.length)];p.cards.push(card);
   if(card==='勝利點')p.score++;
-  if(card==='豐收')p.resources[RESOURCES[Math.floor(rng()*5)]]+=2;
-  if(card==='築路'){const e=legalRoads(g,id)[0];if(e!==undefined)placeRoad(g,id,e,true)}
-  if(card==='騎士'){p.knights++;const victim=g.players.filter(x=>x.id!==id&&countResources(x)>0).sort((a,b)=>countResources(b)-countResources(a))[0];if(victim){const r=RESOURCES.find(x=>victim.resources[x]>0);victim.resources[r]--;p.resources[r]++}}
-  g.log=`${p.name} 抽到「${card}」航海卡！`;checkWinner(g);return card
+  g.log=`${p.name} 抽到一張航海卡。`;checkWinner(g);return card
+}
+export function playableCards(g,id){const p=g.players[id];return p.cards.map((c,i)=>({card:c,idx:i})).filter(x=>x.card!=='勝利點')}
+// 打出手牌。騎士→觸發移動海盜；豐收→opts.picks 兩種資源；築路→之後免費建兩條路。
+export function playCard(g,id,idx,opts={}){
+  const p=g.players[id];if(g.phase!=='action'||blocked(g))return null;
+  const card=p.cards[idx];if(!card||card==='勝利點')return null;
+  if(card==='騎士'){p.cards.splice(idx,1);p.knights++;g.robberPending=true;g.robberFromCard=true;g.log=`${p.name} 打出騎士，移動海盜。`;return{card}}
+  if(card==='豐收'){const picks=(opts.picks||[]).filter(r=>RESOURCES.includes(r));if(picks.length!==2)return null;p.cards.splice(idx,1);for(const r of picks)p.resources[r]++;g.log=`${p.name} 打出豐收，取得${LABELS[picks[0]]}同${LABELS[picks[1]]}。`;return{card,picks}}
+  if(card==='築路'){p.cards.splice(idx,1);g.freeRoads=2;g.log=`${p.name} 打出築路，可免費建造兩條航線。`;return{card}}
+  return null
 }
 export function checkWinner(g){const w=g.players.find(p=>p.score>=10);if(w){g.winner=w.id;g.phase='end'}return w||null}
 
 /* ---------- 電腦決策（拆成單步，方便逐步演示）---------- */
+// 電腦自動解決棄牌同海盜（棄牌一律自動；海盜由當前擲骰／出騎士嘅電腦移動）。
+export function aiResolve(g,id,rng=Math.random){
+  if(g.discards)for(const pid of pendingDiscards(g))autoDiscard(g,pid,rng);
+  if(g.robberPending)moveRobber(g,id,aiChooseRobber(g,id),rng)
+}
 export function aiPlan(g,id){
-  const p=g.players[id],c=legalCities(g,id)[0],s=legalSettlements(g,id)[0],r=legalRoads(g,id)[0];
+  if(blocked(g))return null;
+  const p=g.players[id],c=legalCities(g,id)[0],s=legalSettlements(g,id)[0],r=legalRoads(g,id)[0],held=p.cards;
   if(c!==undefined&&canAfford(p,COSTS.city))return{type:'city',vid:c};
   if(s!==undefined&&canAfford(p,COSTS.settlement))return{type:'settlement',vid:s};
+  // 打出手牌：豐收補資源、築路免費起路、騎士騷擾對手
+  if(held.includes('豐收')){const need=RESOURCES.filter(x=>p.resources[x]===0);if(need.length)return{type:'plenty',idx:held.indexOf('豐收'),picks:[need[0],need[1]||need[0]]}}
+  if(g.freeRoads>0&&r!==undefined)return{type:'road',eid:r};
+  if(held.includes('築路')&&legalRoads(g,id).length)return{type:'roadcard',idx:held.indexOf('築路')};
   if(r!==undefined&&canAfford(p,COSTS.road))return{type:'road',eid:r};
+  if(held.includes('騎士'))return{type:'knight',idx:held.indexOf('騎士')};
   if(canAfford(p,COSTS.card))return{type:'card'};
   const rich=RESOURCES.find(x=>p.resources[x]>=tradeRatio(p,x)),need=RESOURCES.find(x=>p.resources[x]===0);
   if(rich&&need)return{type:'trade',from:rich,to:need};
@@ -122,14 +192,17 @@ export function applyAiAction(g,id,act,rng=Math.random){
   if(act.type==='city')return placeCity(g,id,act.vid);
   if(act.type==='settlement')return placeSettlement(g,id,act.vid);
   if(act.type==='road')return placeRoad(g,id,act.eid);
-  if(act.type==='card'){return drawCard(g,id,rng)!==null}
+  if(act.type==='card')return drawCard(g,id,rng)!==null;
   if(act.type==='trade')return trade(g,id,act.from,act.to);
+  if(act.type==='plenty')return !!playCard(g,id,act.idx,{picks:act.picks});
+  if(act.type==='roadcard')return !!playCard(g,id,act.idx);
+  if(act.type==='knight'){if(!playCard(g,id,act.idx))return false;moveRobber(g,id,aiChooseRobber(g,id),rng);return true}
   return false
 }
 export function aiTurn(g,id,rng=Math.random){
-  g.turn=id;g.phase='roll';roll(g,rng);
+  g.turn=id;g.phase='roll';roll(g,rng);aiResolve(g,id,rng);
   let guard=0,act;
-  while((act=aiPlan(g,id))&&guard++<6){if(!applyAiAction(g,id,act,rng))break}
+  while((act=aiPlan(g,id))&&guard++<9){if(!applyAiAction(g,id,act,rng))break}
   return checkWinner(g)
 }
 export function endHumanTurn(g,rng=Math.random){
