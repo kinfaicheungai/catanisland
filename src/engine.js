@@ -9,7 +9,10 @@ function rowsToAxial(rows){const out=[],top=-Math.floor(rows.length/2);rows.forE
 export const LAYOUTS={
   standard:()=>rowsToAxial([3,4,5,4,3]),   // 正六島 19 格
   large:()=>rowsToAxial([4,5,6,5,4]),      // 大島 24 格
+  cross:()=>crossAxial(),                    // 十字島 15 格
 };
+// 十字（「十」字輪廓）：一條水平臂 + 一條垂直臂
+function crossAxial(){const out=[];for(let r=-3;r<=3;r++)for(let q=-3;q<=3;q++){const cx=Math.sqrt(3)*(q+r/2),cy=1.5*r;if((Math.abs(cx)<=1.0&&Math.abs(cy)<=4.6)||(Math.abs(cy)<=0.95&&Math.abs(cx)<=3.7))out.push([q,r])}return out}
 const HEXDIRS=[[1,0],[-1,0],[0,1],[0,-1],[1,-1],[-1,1]];
 function irregularAxial(rng){
   const set=new Set(rowsToAxial([3,4,5,4,3]).map(([q,r])=>`${q},${r}`)),base=set.size;
@@ -39,8 +42,9 @@ export function createTopology(axial=LAYOUTS.standard()){
 function edgeTileCount(g,id){return g.tiles.reduce((n,t)=>n+(t.edges.includes(id)?1:0),0)}
 
 export function makeGame(rng=Math.random,opts={}){
-  const kind=opts.layout&&(opts.layout==='irregular'||LAYOUTS[opts.layout])?opts.layout:'standard';
-  const axial=kind==='irregular'?irregularAxial(rng):LAYOUTS[kind]();
+  let axial,kind;
+  if(Array.isArray(opts.axial)&&opts.axial.length){axial=opts.axial;kind=opts.layout||'custom'}
+  else{kind=opts.layout&&(opts.layout==='irregular'||LAYOUTS[opts.layout])?opts.layout:'standard';axial=kind==='irregular'?irregularAxial(rng):LAYOUTS[kind]()}
   const topo=createTopology(axial);
   const N=topo.tiles.length,desertCount=N>=24?2:1,land=N-desertCount;
   // 資源類型平均分配到陸地格
@@ -51,10 +55,12 @@ export function makeGame(rng=Math.random,opts={}){
   while(numPool.length<land)numPool.push(weighted[numPool.length%weighted.length]);
   shuffle(numPool,rng);let np=0;
   topo.tiles.forEach((t,i)=>{t.type=allTypes[i];t.num=t.type==='desert'?7:numPool[np++]});
-  const players=NAMES.map((name,id)=>({id,name,score:0,roads:0,cards:[],knights:0,resources:{wood:2,brick:2,grain:2,wool:2,ore:1},ports:[]}));
+  const names=opts.names&&opts.names.length===4?opts.names:NAMES;
+  const cols=opts.colors&&opts.colors.length===4?opts.colors:COLORS;
+  const players=names.map((name,id)=>({id,name,color:cols[id],score:0,roads:0,cards:[],knights:0,resources:{wood:2,brick:2,grain:2,wool:2,ore:1},ports:[]}));
   const coast=topo.edges.filter(e=>edgeTileCount(topo,e.id)===1),nPorts=Math.min(9,Math.max(6,Math.floor(coast.length/3))),portKinds=['wood','brick','grain','wool','ore','any','any','any','any','any','any'],ports=[];
   for(let i=0;i<nPorts;i++){const e=coast[Math.floor(i*coast.length/nPorts)];ports.push({edge:e.id,a:e.a,b:e.b,kind:portKinds[i%portKinds.length],ratio:portKinds[i%portKinds.length]==='any'?3:2})}
-  return{round:1,turn:0,phase:'setup',layout:kind,target:kind==='large'?12:10,...topo,players,ports,winner:null,largestArmy:null,longestRoad:null,lastRoll:null,dice:null,production:[],robber:topo.tiles.find(t=>t.type==='desert').id,discards:null,robberPending:false,robberFromCard:false,freeRoads:0,steal:null,log:'開局：每支隊伍揀選一座村莊同一條相連航線嘅位置。'}
+  return{round:1,turn:0,phase:'setup',layout:kind,target:(kind==='large'||N>=22)?12:10,...topo,players,ports,winner:null,largestArmy:null,longestRoad:null,lastRoll:null,dice:null,production:[],robber:topo.tiles.find(t=>t.type==='desert').id,discards:null,robberPending:false,robberFromCard:false,freeRoads:0,steal:null,log:'開局：每支隊伍揀選一座村莊同一條相連航線嘅位置。'}
 }
 
 /* ---------- 開局選址（初始擺放）---------- */
@@ -215,6 +221,8 @@ export function updateBonuses(g){
 }
 export function bonusPoints(g,id){return (g.largestArmy===id?2:0)+(g.longestRoad===id?2:0)}
 export function totalScore(g,id){return g.players[id].score+bonusPoints(g,id)}
+// 名次：由高分到低分（勝者總分必最高），平手用回合物資做次序
+export function finishOrder(g){return g.players.map(p=>p.id).sort((a,b)=>totalScore(g,b)-totalScore(g,a)||countResources(g.players[b])-countResources(g.players[a])||a-b)}
 export function checkWinner(g){updateBonuses(g);const t=g.target||10,w=g.players.find(p=>totalScore(g,p.id)>=t);if(w){g.winner=w.id;g.phase='end'}return w||null}
 
 /* ---------- 電腦決策（拆成單步，方便逐步演示）---------- */

@@ -1,5 +1,5 @@
 /* 拓荒群島 離線快取 Service Worker */
-const CACHE='frontier-2.5.1';
+const CACHE='frontier-2.7.1';
 const ASSETS=[
   './','index.html','styles.css','manifest.webmanifest',
   'src/app.js','src/engine.js',
