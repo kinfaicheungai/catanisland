@@ -63,8 +63,8 @@
 .tag{font-size:10px;color:#8a7c52;background:#efe3bd;padding:6px 10px;border-radius:8px;flex:none}
 
 /* v2.5：獎盃徽章 + 版圖選擇 */
-.trophy{font-size:.95em;filter:drop-shadow(0 1px 1px #0004)}
-.rivals .trophy{font-size:8px}
+.trophy{display:inline-block;font-size:12px;background:#fff2c2;border:1px solid #e6c25a;border-radius:6px;padding:0 3px;margin:0 1px;filter:drop-shadow(0 1px 1px #0003)}
+.rivals .trophy{font-size:8px;padding:0 2px;border-radius:4px}
 .mapchoice{margin:12px 0;text-align:left}
 .mc-title{font-size:11px;font-weight:700;color:#5a6c6a;display:block;margin-bottom:6px}
 .mc-opts{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}

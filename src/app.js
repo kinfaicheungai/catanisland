@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard}from'./engine.js?v=2.5.0';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard}from'./engine.js?v=2.5.1';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 let VX=260,VY=245,VS=49;const sx=x=>VX+x*VS,sy=y=>VY+y*VS,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -127,12 +127,13 @@ function render(){
   if(prevArmy!==game.largestArmy){if(game.largestArmy!=null&&game.phase!=='setup')toast(`${game.players[game.largestArmy].name} 奪得最大軍閥 🛡 +2`);prevArmy=game.largestArmy}
   if(prevRoad!==game.longestRoad){if(game.longestRoad!=null&&game.phase!=='setup')toast(`${game.players[game.longestRoad].name} 奪得最長道路 🏅 +2`);prevRoad=game.longestRoad}
   $('#round').textContent=game.round;
-  $('#score').textContent=totalScore(game,0);$('#roads').textContent=me.roads;$('#cards').textContent=me.cards.length;
+  $('#score').textContent=totalScore(game,0);$('#cards').textContent=me.cards.length;
+  $('#army').textContent=me.knights;$('#longest').textContent=longestRoadLength(game,0);
   $('#target').textContent=game.target;$('#trophies').innerHTML=trophy(0);
   $('#handCount').textContent=me.cards.length;
   $('#ticker').textContent=mode?modePrompt():game.log;
   $('#dice').textContent=game.dice?game.dice.map(face).join(' '):'⚄ ⚂';
-  $('#rivals').innerHTML=game.players.slice(1).map(p=>`<article class="rv${p.id}${game.turn===p.id&&busy?' active':''}"><span style="--pc:${COLORS[p.id]}">${p.name[0]}</span><div><b>${p.name} ${trophy(p.id)}</b><small>${totalScore(game,p.id)} 分 · ${countResources(p)} 物資 · 🃏${p.cards.length}</small></div></article>`).join('');
+  $('#rivals').innerHTML=game.players.slice(1).map(p=>`<article class="rv${p.id}${game.turn===p.id&&busy?' active':''}"><span style="--pc:${COLORS[p.id]}">${p.name[0]}</span><div><b>${p.name} ${trophy(p.id)}</b><small>${totalScore(game,p.id)}分 · ⚔${p.knights} · 🃏${p.cards.length} · ${countResources(p)}物</small></div></article>`).join('');
   $('#resources').innerHTML=RESOURCES.map(r=>`<div data-res="${r}"><span>${ICONS[r]}</span><b>${me.resources[r]}</b><small>${LABELS[r]}</small></div>`).join('');
   // 只顯示當前階段主掣（慳位）
   $('#rollBtn').hidden=game.phase!=='roll';$('#endTurn').hidden=game.phase==='roll';
@@ -293,7 +294,7 @@ function playHandCard(card){
   if(card==='豐收'){$('#handDialog').close();openPlenty(idx);return}
   const r=playCard(game,0,idx);if(!r)return;
   $('#handDialog').close();sfx.card();render();
-  if(card==='騎士')beginRobber('打出騎士：揀一塊島放海盜並掠奪。');
+  if(card==='騎士')beginRobber(`⚔ 打出騎士（軍隊 ${me.knights}）：揀一塊島放海盜並掠奪。`);
   else if(card==='築路'){mode='road';toast('免費築路：喺發光航線建造兩條');render()}
 }
 function openPlenty(idx){
@@ -317,7 +318,7 @@ function toast(t){$('#toast').textContent=t;$('#toast').classList.add('show');se
 function start(){initAudio();prevArmy=null;prevRoad=null;game=makeGame(undefined,{layout:mapChoice});const nm=$('#playerName').value.trim();if(nm)game.players[0].name=nm;$('#playerLabel').textContent=game.players[0].name;$('#startDialog').close();beginSetup()}
 
 /* ============ 事件綁定 ============ */
-const VERSION='2.5.0';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;}
+const VERSION='2.5.1';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;}
 $('#startBtn').onclick=start;
 $('#mapChoice')?.addEventListener('click',e=>{const b=e.target.closest('[data-map]');if(!b)return;mapChoice=b.dataset.map;$$('#mapChoice [data-map]').forEach(x=>x.classList.toggle('on',x===b))});
 $('#rollBtn').onclick=humanRoll;
