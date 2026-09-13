@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS}from'./engine.js?v=2.9.1';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS}from'./engine.js?v=2.9.2';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 let VX=260,VY=245,VS=49;const sx=x=>VX+x*VS,sy=y=>VY+y*VS,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -513,6 +513,12 @@ function renderRecords(){
       (r?`<span class="rc-hold"><span class="dot" style="background:${r.color}"></span>${r.name}</span><b class="rc-r">${r.rounds} 輪</b>`
         :`<span class="rc-hold none">未有紀錄</span><b class="rc-r">—</b>`)+`</div>`}).join('');
 }
+function renameTeam(){
+  if(!league){toast('未有進行中嘅賽季');return}
+  const n=(window.prompt('新車隊名（最多 12 字）',league.drivers[0].name)||'').trim().slice(0,12);
+  if(!n)return;
+  league.drivers[0].name=n;saveLeague();$('#playerLabel').textContent=n;renderHub();toast('已改名：'+n);
+}
 function backupPayload(){return JSON.stringify({app:'frontier-isles',v:1,at:new Date().toISOString(),league,records,ratings:loadRatings()})}
 function openBackup(){$('#backupText').value=league?backupPayload():'（未有進行中嘅賽季）';$('#backupDialog').showModal()}
 function copyBackup(){const t=$('#backupText').value;if(navigator.clipboard?.writeText)navigator.clipboard.writeText(t).then(()=>toast('已複製到剪貼簿')).catch(()=>{$('#backupText').removeAttribute('readonly');$('#backupText').select();toast('請手動長按複製')});else{$('#backupText').removeAttribute('readonly');$('#backupText').select();toast('請手動複製')}}
@@ -550,7 +556,7 @@ function startExhibition(){
 }
 
 /* ============ 事件綁定 ============ */
-const VERSION='2.9.1';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;}
+const VERSION='2.9.2';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;}
 $('#exhibitBtn').onclick=startExhibition;
 $('#leagueBtn').onclick=openLeague;
 $('#colorPick')?.addEventListener('click',e=>{const b=e.target.closest('[data-color]');if(!b)return;pickedColor=b.dataset.color;$$('#colorPick [data-color]').forEach(x=>x.classList.toggle('on',x===b))});
@@ -567,6 +573,9 @@ $('#resetLeague')?.addEventListener('click',()=>{if(confirm('確定放棄呢個�
 $('#recordsBtn')?.addEventListener('click',()=>{renderRecords();$('#recordsDialog').showModal()});
 $('#closeRecords')?.addEventListener('click',()=>$('#recordsDialog').close());
 $('#backupBtn')?.addEventListener('click',openBackup);
+$('#renameBtn')?.addEventListener('click',renameTeam);
+$('#fileBackup')?.addEventListener('click',()=>$('#backupFile').click());
+$('#backupFile')?.addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{$('#backupText').value=r.result;importBackup()};r.readAsText(f);e.target.value=''});
 $('#closeBackup')?.addEventListener('click',()=>$('#backupDialog').close());
 $('#copyBackup')?.addEventListener('click',copyBackup);
 $('#dlBackup')?.addEventListener('click',downloadBackup);
