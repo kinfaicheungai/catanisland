@@ -57,7 +57,15 @@ export function makeGame(rng=Math.random,opts={}){
   topo.tiles.forEach((t,i)=>{t.type=allTypes[i];t.num=t.type==='desert'?7:numPool[np++]});
   const names=opts.names&&opts.names.length===4?opts.names:NAMES;
   const cols=opts.colors&&opts.colors.length===4?opts.colors:COLORS;
-  const players=names.map((name,id)=>({id,name,color:cols[id],score:0,roads:0,cards:[],knights:0,resources:{wood:2,brick:2,grain:2,wool:2,ore:1},ports:[]}));
+  const strs=opts.strengths&&opts.strengths.length===4?opts.strengths:[3,3,3,3];
+  const bonus=opts.bonusRes&&opts.bonusRes.length===4?opts.bonusRes:[null,null,null,null];
+  const pen=opts.penalties&&opts.penalties.length===4?opts.penalties:[0,0,0,0];
+  const players=names.map((name,id)=>{
+    const res={wood:2,brick:2,grain:2,wool:2,ore:1},b=bonus[id];
+    if(b&&b.type&&res[b.type]!=null)res[b.type]+=b.amount;                     // 資源型車隊：開局多幾張
+    let dock=pen[id]||0;for(const r of ['wool','grain','brick','wood','ore']){while(dock>0&&res[r]>0){res[r]--;dock--}} // 上場贏家：扣起始資源
+    return{id,name,color:cols[id],strength:strs[id],score:0,roads:0,cards:[],knights:0,resources:res,ports:[]}
+  });
   const coast=topo.edges.filter(e=>edgeTileCount(topo,e.id)===1),nPorts=Math.min(9,Math.max(6,Math.floor(coast.length/3))),portKinds=['wood','brick','grain','wool','ore','any','any','any','any','any','any'],ports=[];
   for(let i=0;i<nPorts;i++){const e=coast[Math.floor(i*coast.length/nPorts)];ports.push({edge:e.id,a:e.a,b:e.b,kind:portKinds[i%portKinds.length],ratio:portKinds[i%portKinds.length]==='any'?3:2})}
   return{round:1,turn:0,phase:'setup',layout:kind,target:(kind==='large'||N>=22)?12:10,...topo,players,ports,winner:null,largestArmy:null,longestRoad:null,lastRoll:null,dice:null,production:[],robber:topo.tiles.find(t=>t.type==='desert').id,discards:null,robberPending:false,robberFromCard:false,freeRoads:0,steal:null,log:'開局：每支隊伍揀選一座村莊同一條相連航線嘅位置。'}
@@ -85,9 +93,9 @@ export function placeInitialRoad(g,id,eid){
 }
 // 電腦開局揀分數最高嘅交點（相鄰地塊生產機率愈高愈好）。
 export function pickAiInitialSettlement(g,id,rng=Math.random){
-  const legal=legalInitialSettlements(g),w=n=>n?6-Math.abs(7-n):0;
+  const legal=legalInitialSettlements(g),w=n=>n?6-Math.abs(7-n):0,noise=Math.max(.25,4-(g.players[id].strength||3)*0.72);
   let best=legal[0],bs=-1;
-  for(const v of legal){let s=0;for(const t of g.tiles)if(t.vertices.includes(v)&&t.type!=='desert')s+=w(t.num);s+=rng()*1.5;if(s>bs){bs=s;best=v}}
+  for(const v of legal){let s=0;for(const t of g.tiles)if(t.vertices.includes(v)&&t.type!=='desert')s+=w(t.num);s+=rng()*noise;if(s>bs){bs=s;best=v}}
   return best
 }
 
@@ -106,6 +114,8 @@ export function roll(g,rng=Math.random){
   }else{
     for(const tile of g.tiles.filter(t=>t.num===n&&t.id!==g.robber))
       for(const vid of tile.vertices){const v=g.vertices[vid];if(v.owner!==null){g.players[v.owner].resources[tile.type]+=v.level;g.production.push({id:v.owner,tile:tile.id,type:tile.type,amount:v.level})}}
+    // 車隊實力：收到資源時有機率額外 +1（強隊跑得快啲）
+    for(const p of g.players){const mine=g.production.filter(x=>x.id===p.id);if(mine.length){const ch=((p.strength||3)-1)*0.07;if(rng()<ch){const pk=mine[Math.floor(rng()*mine.length)];p.resources[pk.type]++;g.production.push({id:p.id,tile:pk.tile,type:pk.type,amount:1,bonus:true})}}}
     g.log=`擲出 ${n}：相同數字嘅島嶼完成生產。`
   }
   g.phase='action';return n

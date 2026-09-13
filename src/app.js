@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS}from'./engine.js?v=2.8.1';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS}from'./engine.js?v=2.9.0';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 let VX=260,VY=245,VS=49;const sx=x=>VX+x*VS,sy=y=>VY+y*VS,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -11,7 +11,22 @@ const AI_NAMES=['Toyota','Mercedes','BMW','Volkswagen','Ford','Honda','Nissan','
 const AI_COLORS=['#0f8a76','#b83b8f','#c0562e','#4a63c9','#6aa02f','#c99a1e','#8a4fb0','#d24b6a','#2f9ec4','#7d8a2e','#b5462f','#5566cc','#3ba06e','#a24bb0','#cc7a2a','#4aa0a8','#9b4a3a','#5a7d2e','#c23f7a'];
 // 各廠實力（1–5★），似 F1 車隊強弱梯度
 const AI_STR=[5,5,4,4,3,4,3,3,4,5,5,2,2,2,3,2,3,3,4];
+// 資源型車隊：頂級隊開局多幾張對應資源（4★+1、5★+2）
+const AI_AFFINITY=['grain','ore','wool','wood','brick','wood','grain','wool','ore','brick','ore','grain','wood','wool','brick','grain','wood','ore','ore'];
+const RESICON={wood:'🌲',brick:'🧱',grain:'🌾',wool:'🐑',ore:'⛏️'};
 const stars=n=>'★'.repeat(n)+'☆'.repeat(5-n);
+const RATKEY='frontier-ratings-v1';
+function loadRatings(){try{return JSON.parse(localStorage.getItem(RATKEY))||{}}catch{return{}}}
+function saveRatings(r){try{localStorage.setItem(RATKEY,JSON.stringify(r))}catch{}}
+// 加權出場次序（排位賽）：實力越高越大機率先手揀位
+function gridOrder(g){return g.players.map((p,i)=>({i,k:-Math.log(Math.random()+1e-9)/(p.strength||3)})).sort((a,b)=>a.k-b.k).map(x=>x.i)}
+// 車隊資源型加成（只有 4★+ 先有）
+function bonusFor(d){return d.strength>=4?{type:d.affinity,amount:d.strength>=5?2:1}:null}
+// 一場比賽嘅 makeGame 選項（名/色/實力/資源型加成/上場贏家扣資源）
+function raceOpts(ids,usePenalty){return{
+  names:ids.map(i=>league.drivers[i].name),colors:ids.map(i=>league.drivers[i].color),
+  strengths:ids.map(i=>league.drivers[i].strength),bonusRes:ids.map(i=>bonusFor(league.drivers[i])),
+  penalties:ids.map(i=>usePenalty&&league.drivers[i].wonLast?1:0)}}
 // 招牌島形：每個城市一個固定、企正、連通嘅獨特輪廓（六角磚砌唔到真實衛星地形，改為各具性格嘅剪影）
 const rc=cs=>{const out=[],top=-Math.floor(cs.length/2);cs.forEach((c,i)=>{const r=top+i,q0=Math.round(-r/2-(c-1)/2);for(let k=0;k<c;k++)out.push([q0+k,r])});return out};
 const rmTiles=(arr,drop)=>arr.filter(([q,r])=>!drop.some(([a,b])=>a===q&&b===r));
@@ -26,15 +41,23 @@ const CITY_POOL=[['摩納哥','diamond'],['新加坡','wide'],['鈴鹿','cross']
 const SEASON_LEN=10;   // 每賽季站數
 const LAYOUT_NAME={standard:'標準六島',large:'大島',cross:'十字島',irregular:'不規則島'};
 const PTS=[3,1];        // 冠軍 3 分、亞軍 1 分
-const LKEY='frontier-league-v5';
+const LKEY='frontier-league-v6';
 let pickedColor=HUMAN_COLORS[0],humanTier=3,league=null,leagueActive=false,raceDrivers=null,endHandled=false,playoffStage=null;
 function shuffleArr(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
 function newLeague(name,color){
-  const drivers=[{name,color,strength:humanTier,pts:0,wins:0,races:0,margin:0,fastest:null}];
-  for(let i=0;i<19;i++)drivers.push({name:AI_NAMES[i],color:AI_COLORS[i],strength:AI_STR[i],pts:0,wins:0,races:0,margin:0,fastest:null});
+  const rat=loadRatings();
+  const drivers=[{name,color,strength:rat.__you??humanTier,affinity:'grain',wonLast:false,pts:0,wins:0,races:0,margin:0,fastest:null}];
+  for(let i=0;i<19;i++)drivers.push({name:AI_NAMES[i],color:AI_COLORS[i],strength:rat[AI_NAMES[i]]??AI_STR[i],affinity:AI_AFFINITY[i],wonLast:false,pts:0,wins:0,races:0,margin:0,fastest:null});
   const cities=shuffleArr(CITY_POOL.map(c=>c)).slice(0,SEASON_LEN);   // 20 抽 10，每季唔同
   const schedule=cities.map(()=>{const order=shuffleArr(drivers.map((_,i)=>i)),quads=[];for(let i=0;i<order.length;i+=4)quads.push(order.slice(i,i+4));return quads});
-  return{drivers,cities,schedule,round:0,done:false,playoff:null}
+  return{drivers,cities,schedule,round:0,done:false,playoff:null,drifted:false}
+}
+// 賽季結束按名次升降星級（跨季制衡）：前三 −1★、尾三 +1★
+function driftRatings(){
+  if(league.drifted)return;league.drifted=true;
+  const rank=standingsSorted(),rat=loadRatings(),n=rank.length;
+  rank.forEach((d,idx)=>{let s=league.drivers[d.i].strength;if(idx<3)s=Math.max(1,s-1);else if(idx>=n-3)s=Math.min(5,s+1);rat[d.i===0?'__you':d.name]=s});
+  saveRatings(rat);
 }
 function saveLeague(){try{localStorage.setItem(LKEY,JSON.stringify(league))}catch{}}
 function loadLeague(){try{const s=localStorage.getItem(LKEY);return s?JSON.parse(s):null}catch{return null}}
@@ -61,12 +84,14 @@ function resolveStation(){
   for(const r of fast)league.drivers[r.order[0]].pts++;               // 最速獲勝 +1
   const champ=league.drivers[fast[0].order[0]],prev=records[city];let broke=false;
   if(!prev||minR<prev.rounds){records[city]={rounds:minR,name:champ.name,color:champ.color};saveRecords();broke=true}
+  league.drivers.forEach(d=>d.wonLast=false);                          // 上場贏家 → 下站扣一張資源
+  for(const res of results)league.drivers[res.order[0]].wonLast=true;
   const my=results[0],myFast=my.rounds===minR&&my.order[0]===0;
   return{city,minR,myFast,broke,recName:records[city].name}
 }
 function simRace(quad,axial){
-  const g=makeGame(Math.random,{axial,names:quad.map(i=>league.drivers[i].name),colors:quad.map(i=>league.drivers[i].color),strengths:quad.map(i=>league.drivers[i].strength)});
-  for(let id=0;id<4;id++){const vid=pickAiInitialSettlement(g,id);placeInitialSettlement(g,id,vid);const r=legalInitialRoads(g,id,vid);placeInitialRoad(g,id,r[Math.floor(Math.random()*r.length)])}
+  const g=makeGame(Math.random,{axial,...raceOpts(quad,true)});
+  for(const id of gridOrder(g)){const vid=pickAiInitialSettlement(g,id);placeInitialSettlement(g,id,vid);const r=legalInitialRoads(g,id,vid);placeInitialRoad(g,id,r[Math.floor(Math.random()*r.length)])}
   g.phase='action';g.turn=0;let n=0;
   while(g.winner===null&&n<600){for(let id=0;id<4&&g.winner===null;id++)aiTurn(g,id);if(g.winner===null)g.round++;n++}
   return gameResult(g,bid=>quad[bid])
@@ -251,16 +276,16 @@ function flashVertex(vid){const el=svg.querySelector(`[data-vertex="${vid}"]`);i
 function flashEdge(eid){const el=svg.querySelector(`[data-edge="${eid}"]`);if(el){el.classList.add('just');setTimeout(()=>el.classList.remove('just'),700)}}
 
 /* ============ 開局選址流程 ============ */
-async function beginSetup(){setup={idx:0,vid:null};await advanceSetup()}
+async function beginSetup(){setup={idx:0,vid:null,order:gridOrder(game)};await advanceSetup()}
 async function advanceSetup(){
   if(!setup)return;
   if(setup.idx>3){endSetup();return}
-  const id=setup.idx;game.turn=id;
-  if(id===0){mode='initSettle';game.log='開局：輪到你揀選位置。';render();return}
+  const id=setup.order[setup.idx];game.turn=id;
+  if(id===0){mode='initSettle';game.log=`排位第 ${setup.idx+1} 位：輪到你揀選位置。`;render();return}
   // 電腦自動選址，逐步顯示
-  busy=true;mode=null;game.log=`${game.players[id].name} 正在選擇開局位置…`;render();await sleep(680);
-  const vid=pickAiInitialSettlement(game,id);placeInitialSettlement(game,id,vid);render();flashVertex(vid);sfx.build();await sleep(680);
-  const roads=legalInitialRoads(game,id,vid),eid=roads[Math.floor(Math.random()*roads.length)];placeInitialRoad(game,id,eid);render();flashEdge(eid);sfx.build();await sleep(660);
+  busy=true;mode=null;game.log=`${game.players[id].name} 正在選擇開局位置…`;render();await sleep(560);
+  const vid=pickAiInitialSettlement(game,id);placeInitialSettlement(game,id,vid);render();flashVertex(vid);sfx.build();await sleep(560);
+  const roads=legalInitialRoads(game,id,vid),eid=roads[Math.floor(Math.random()*roads.length)];placeInitialRoad(game,id,eid);render();flashEdge(eid);sfx.build();await sleep(520);
   setup.idx++;busy=false;advanceSetup()
 }
 function endSetup(){setup=null;mode=null;busy=false;game.turn=0;game.phase='roll';game.log='開局完成！輪到你擲骰，開始拓荒。';render()}
@@ -415,6 +440,7 @@ function showEnd(){
 }
 /* ---- 季後賽（前 8 名大獎盃）---- */
 function enterPlayoff(){
+  league.drivers.forEach(d=>d.wonLast=false);            // 季後賽唔帶常規賽扣分
   const seed=standingsSorted().slice(0,8).map(d=>d.i);   // 前 8 車手（種子序）
   league.playoff={semiA:[seed[0],seed[1],seed[6],seed[7]],semiB:[seed[2],seed[3],seed[4],seed[5]],
     results:{semiA:null,semiB:null,final:null},finalists:null,champion:null};
@@ -426,29 +452,29 @@ function playoffStagePending(){
   for(const st of ['semiA','semiB']){if(!P.results[st]){if(P[st].includes(0))return{stage:st,participants:P[st]};P.results[st]=simRace(P[st],SHAPES.big).order}}
   if(!P.finalists)P.finalists=[...P.results.semiA.slice(0,2),...P.results.semiB.slice(0,2)];
   if(!P.results.final){if(P.finalists.includes(0))return{stage:'final',participants:P.finalists};P.results.final=simRace(P.finalists,SHAPES.big).order}
-  if(P.champion==null){P.champion=P.results.final[0];league.done=true}
+  if(P.champion==null){P.champion=P.results.final[0];league.done=true;driftRatings()}
   return null;
 }
 function playPlayoffRace(pending){
   const others=pending.participants.filter(i=>i!==0);raceDrivers=[0,...others];
-  const names=raceDrivers.map(i=>league.drivers[i].name),colors=raceDrivers.map(i=>league.drivers[i].color),strengths=raceDrivers.map(i=>league.drivers[i].strength);
   initAudio();endHandled=false;prevArmy=null;prevRoad=null;leagueActive=true;playoffStage=pending.stage;
-  game=makeGame(undefined,{axial:SHAPES.big,names,colors,strengths});
-  $('#playerLabel').textContent=names[0];$('#leagueDialog').close();beginSetup();
+  const opt=raceOpts(raceDrivers,false);                 // 季後賽：有資源型加成，無扣分
+  game=makeGame(undefined,{axial:SHAPES.big,...opt});
+  $('#playerLabel').textContent=opt.names[0];$('#leagueDialog').close();beginSetup();
 }
 function toast(t){$('#toast').textContent=t;$('#toast').classList.add('show');setTimeout(()=>$('#toast').classList.remove('show'),1600)}
 
 /* ---- 聯賽榜介面 ---- */
 function renderStandingsPanel(){
-  const rows=standingsSorted().map((d,idx)=>`<div class="strow${d.i===0?' me':''}"><b>${idx+1}</b><span class="dot" style="background:${d.color}"></span><span class="nm">${d.name} <i class="st">${'★'.repeat(d.strength)}</i></span><small>${d.wins}勝·得失${d.margin||0}${d.fastest?('·'+d.fastest+'輪'):''}</small><b class="pts">${d.pts}</b></div>`).join('');
+  const rows=standingsSorted().map((d,idx)=>`<div class="strow${d.i===0?' me':''}"><b>${idx+1}</b><span class="dot" style="background:${d.color}"></span><span class="nm">${d.name} <i class="st">${'★'.repeat(d.strength)}${d.strength>=4?RESICON[d.affinity]:''}</i></span><small>${d.wins}勝·得失${d.margin||0}${d.fastest?('·'+d.fastest+'輪'):''}</small><b class="pts">${d.pts}</b></div>`).join('');
   $('#standings').innerHTML=`<div class="strow head"><b>#</b><span class="dot"></span><span class="nm">車手</span><small>勝·得失·最速</small><b class="pts">分</b></div>`+rows;
 }
 function renderHub(){
   if(league.playoff){renderPlayoffHub();return;}
-  const [city,ly]=league.cities[league.round],quad=humanQuad(),opp=quad.filter(i=>i!==0).map(i=>`<span class="dchip" style="--dc:${league.drivers[i].color}">${league.drivers[i].name} <i class="st">${'★'.repeat(league.drivers[i].strength)}</i></span>`).join('');
+  const [city,ly]=league.cities[league.round],quad=humanQuad(),opp=quad.filter(i=>i!==0).map(i=>`<span class="dchip" style="--dc:${league.drivers[i].color}">${league.drivers[i].name} <i class="st">${'★'.repeat(league.drivers[i].strength)}${league.drivers[i].strength>=4?RESICON[league.drivers[i].affinity]:''}</i></span>`).join('');
   $('#leagueTitle').textContent=`第 ${league.round+1} / ${league.cities.length} 站`;
   $('#leagueSub').textContent=`${city}分站 · ${SHAPE_NAME[ly]}`;
-  $('#nextRace').innerHTML=`<div class="nr-city">🏁 ${city}</div><div class="nr-you"><span class="dchip you" style="--dc:${league.drivers[0].color}">你：${league.drivers[0].name} <i class="st">${'★'.repeat(league.drivers[0].strength)}</i></span></div><div class="nr-vs">對陣</div><div class="nr-opp">${opp}</div>`;
+  $('#nextRace').innerHTML=`<div class="nr-city">🏁 ${city}</div><div class="nr-you"><span class="dchip you" style="--dc:${league.drivers[0].color}">你：${league.drivers[0].name} <i class="st">${'★'.repeat(league.drivers[0].strength)}${league.drivers[0].strength>=4?RESICON[league.drivers[0].affinity]:''}</i></span></div><div class="nr-vs">對陣</div><div class="nr-opp">${opp}</div>`;
   $('#raceBtn').style.display='';$('#raceBtn').textContent='出賽 →';
   renderStandingsPanel();
 }
@@ -478,21 +504,22 @@ function openLeague(){initAudio();const saved=loadLeague();
 function playLeagueRace(){
   const quad=humanQuad(),others=quad.filter(i=>i!==0);
   raceDrivers=[0,...others];
-  const names=raceDrivers.map(i=>league.drivers[i].name),colors=raceDrivers.map(i=>league.drivers[i].color),strengths=raceDrivers.map(i=>league.drivers[i].strength);
   initAudio();endHandled=false;prevArmy=null;prevRoad=null;leagueActive=true;playoffStage=null;
-  game=makeGame(undefined,{axial:SHAPES[league.cities[league.round][1]],names,colors,strengths});
-  $('#playerLabel').textContent=names[0];$('#leagueDialog').close();beginSetup()
+  const opt=raceOpts(raceDrivers,true);                  // 常規賽：資源型加成 + 上場贏家扣分
+  game=makeGame(undefined,{axial:SHAPES[league.cities[league.round][1]],...opt});
+  $('#playerLabel').textContent=opt.names[0];$('#leagueDialog').close();beginSetup()
 }
 function startExhibition(){
-  initAudio();endHandled=false;leagueActive=false;prevArmy=null;prevRoad=null;
+  initAudio();endHandled=false;leagueActive=false;playoffStage=null;prevArmy=null;prevRoad=null;
   const nm=$('#playerName').value.trim()||'珊瑚拓荒團';
-  const names=[nm,AI_NAMES[0],AI_NAMES[1],AI_NAMES[2]],colors=[pickedColor,AI_COLORS[0],AI_COLORS[1],AI_COLORS[2]],strengths=[humanTier,AI_STR[0],AI_STR[1],AI_STR[2]];
-  game=makeGame(undefined,{layout:mapChoice,names,colors,strengths});
+  const names=[nm,AI_NAMES[0],AI_NAMES[1],AI_NAMES[2]],colors=[pickedColor,AI_COLORS[0],AI_COLORS[1],AI_COLORS[2]],strengths=[humanTier,AI_STR[0],AI_STR[1],AI_STR[2]],affs=['grain',AI_AFFINITY[0],AI_AFFINITY[1],AI_AFFINITY[2]];
+  const bonusRes=strengths.map((s,k)=>s>=4?{type:affs[k],amount:s>=5?2:1}:null);
+  game=makeGame(undefined,{layout:mapChoice,names,colors,strengths,bonusRes});
   $('#playerLabel').textContent=nm;$('#startDialog').close();beginSetup()
 }
 
 /* ============ 事件綁定 ============ */
-const VERSION='2.8.1';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;}
+const VERSION='2.9.0';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;}
 $('#exhibitBtn').onclick=startExhibition;
 $('#leagueBtn').onclick=openLeague;
 $('#colorPick')?.addEventListener('click',e=>{const b=e.target.closest('[data-color]');if(!b)return;pickedColor=b.dataset.color;$$('#colorPick [data-color]').forEach(x=>x.classList.toggle('on',x===b))});
