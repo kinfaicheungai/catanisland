@@ -60,11 +60,13 @@ export function makeGame(rng=Math.random,opts={}){
   const strs=opts.strengths&&opts.strengths.length===4?opts.strengths:[3,3,3,3];
   const bonus=opts.bonusRes&&opts.bonusRes.length===4?opts.bonusRes:[null,null,null,null];
   const pen=opts.penalties&&opts.penalties.length===4?opts.penalties:[0,0,0,0];
+  const styl=opts.styles&&opts.styles.length===4?opts.styles:null;
+  const alts=opts.alts&&opts.alts.length===4?opts.alts:null;
   const players=names.map((name,id)=>{
     const res={wood:2,brick:2,grain:2,wool:2,ore:1},b=bonus[id];
     if(b&&b.type&&res[b.type]!=null)res[b.type]+=b.amount;                     // 資源型車隊：開局多幾張
     let dock=pen[id]||0;for(const r of ['wool','grain','brick','wood','ore']){while(dock>0&&res[r]>0){res[r]--;dock--}} // 上場贏家：扣起始資源
-    return{id,name,color:cols[id],strength:strs[id],score:0,roads:0,cards:[],knights:0,resources:res,ports:[]}
+    return{id,name,color:cols[id],style:styl?styl[id]:'solid',alt:alts?alts[id]:null,strength:strs[id],score:0,roads:0,cards:[],knights:0,resources:res,ports:[]}
   });
   const coast=topo.edges.filter(e=>edgeTileCount(topo,e.id)===1),nPorts=Math.min(9,Math.max(6,Math.floor(coast.length/3))),portKinds=['wood','brick','grain','wool','ore','any','any','any','any','any','any'],ports=[];
   for(let i=0;i<nPorts;i++){const e=coast[Math.floor(i*coast.length/nPorts)];ports.push({edge:e.id,a:e.a,b:e.b,kind:portKinds[i%portKinds.length],ratio:portKinds[i%portKinds.length]==='any'?3:2})}
@@ -230,6 +232,9 @@ export function updateBonuses(g){
     else if(!(g.longestRoad!=null&&Ls[g.longestRoad]>=LONGEST_ROAD_MIN))g.longestRoad=top[0]}
 }
 export function bonusPoints(g,id){return (g.largestArmy===id?2:0)+(g.longestRoad===id?2:0)}
+// 拆卸包：拆對手一座村莊 / 一條航線
+export function demolishSettlement(g,vid){const v=g.vertices[vid];if(v.owner===null||v.level!==1)return false;const o=v.owner;g.players[o].score=Math.max(0,g.players[o].score-1);v.owner=null;v.level=0;updateBonuses(g);return o}
+export function demolishRoad(g,eid){const e=g.edges[eid];if(!e||e.owner===null)return false;const o=e.owner;g.players[o].roads=Math.max(0,g.players[o].roads-1);e.owner=null;updateBonuses(g);return o}
 export function totalScore(g,id){return g.players[id].score+bonusPoints(g,id)}
 // 名次：由高分到低分（勝者總分必最高），平手用回合物資做次序
 export function finishOrder(g){return g.players.map(p=>p.id).sort((a,b)=>totalScore(g,b)-totalScore(g,a)||countResources(g.players[b])-countResources(g.players[a])||a-b)}
@@ -241,19 +246,27 @@ export function aiResolve(g,id,rng=Math.random){
   if(g.discards)for(const pid of pendingDiscards(g))autoDiscard(g,pid,rng);
   if(g.robberPending)moveRobber(g,id,aiChooseRobber(g,id),rng)
 }
+// 交點產能估值：相鄰非沙漠地塊嘅骰點權重 + 資源多樣性
+function vVal(g,vid){let s=0;const kinds=new Set();for(const t of g.tiles)if(t.type!=='desert'&&t.vertices.includes(vid)){s+=(t.num?6-Math.abs(7-t.num):0);kinds.add(t.type)}return s+kinds.size*0.6}
+function bestBy(list,fn){let best=list[0],bv=-Infinity;for(const x of list){const v=fn(x);if(v>bv){bv=v;best=x}}return best}
 export function aiPlan(g,id){
   if(blocked(g))return null;
-  const p=g.players[id],c=legalCities(g,id)[0],s=legalSettlements(g,id)[0],r=legalRoads(g,id)[0],held=p.cards;
-  if(c!==undefined&&canAfford(p,COSTS.city))return{type:'city',vid:c};
-  if(s!==undefined&&canAfford(p,COSTS.settlement))return{type:'settlement',vid:s};
-  // 打出手牌：豐收補資源、築路免費起路、騎士騷擾對手
+  const p=g.players[id],smart=(p.strength||3)>=4,held=p.cards;
+  const cities=legalCities(g,id),setts=legalSettlements(g,id),roads=legalRoads(g,id);
+  if(cities.length&&canAfford(p,COSTS.city))return{type:'city',vid:smart?bestBy(cities,v=>vVal(g,v)):cities[0]};
+  if(setts.length&&canAfford(p,COSTS.settlement))return{type:'settlement',vid:smart?bestBy(setts,v=>vVal(g,v)):setts[0]};
   if(held.includes('豐收')){const need=RESOURCES.filter(x=>p.resources[x]===0);if(need.length)return{type:'plenty',idx:held.indexOf('豐收'),picks:[need[0],need[1]||need[0]]}}
-  if(g.freeRoads>0&&r!==undefined)return{type:'road',eid:r};
-  if(held.includes('築路')&&legalRoads(g,id).length)return{type:'roadcard',idx:held.indexOf('築路')};
-  if(r!==undefined&&canAfford(p,COSTS.road))return{type:'road',eid:r};
+  // 揀通往最高產能空位嘅路
+  const roadPick=()=>{if(!smart)return roads[0];let best=roads[0],bv=-1;for(const eid of roads){const e=g.edges[eid];for(const vv of[e.a,e.b])if(g.vertices[vv].owner===null){const val=vVal(g,vv);if(val>bv){bv=val;best=eid}}}return best};
+  if(g.freeRoads>0&&roads.length)return{type:'road',eid:roadPick()};
+  if(held.includes('築路')&&roads.length)return{type:'roadcard',idx:held.indexOf('築路')};
+  // 智能隊：而家起到村就唔浪費資源鋪路，慳住升級/擴張；起唔到村先鋪路開拓
+  if(roads.length&&canAfford(p,COSTS.road)&&(!smart||setts.length===0))return{type:'road',eid:roadPick()};
   if(held.includes('騎士'))return{type:'knight',idx:held.indexOf('騎士')};
   if(canAfford(p,COSTS.card))return{type:'card'};
-  const rich=RESOURCES.find(x=>p.resources[x]>=tradeRatio(p,x)),need=RESOURCES.find(x=>p.resources[x]===0);
+  // 智能交易：優先湊夠起村/升級嘅資源
+  const need=smart?(RESOURCES.find(x=>p.resources[x]<(COSTS.settlement[x]||0))||RESOURCES.find(x=>p.resources[x]===0)):RESOURCES.find(x=>p.resources[x]===0);
+  const rich=RESOURCES.find(x=>p.resources[x]>=tradeRatio(p,x)&&x!==need);
   if(rich&&need)return{type:'trade',from:rich,to:need};
   return null
 }
