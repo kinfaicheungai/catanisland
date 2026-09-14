@@ -233,7 +233,9 @@ export function updateBonuses(g){
 }
 export function bonusPoints(g,id){return (g.largestArmy===id?2:0)+(g.longestRoad===id?2:0)}
 // 拆卸包：拆對手一座村莊 / 一條航線
-export function demolishSettlement(g,vid){const v=g.vertices[vid];if(v.owner===null||v.level!==1)return false;const o=v.owner;g.players[o].score=Math.max(0,g.players[o].score-1);v.owner=null;v.level=0;updateBonuses(g);return o}
+export function demolishSettlement(g,vid){const v=g.vertices[vid];if(v.owner===null||v.level!==1)return false;const o=v.owner;
+  if(g.vertices.filter(x=>x.owner===o).length<=1)return false;   // 保留至少一座建築，確保仲有收成
+  g.players[o].score=Math.max(0,g.players[o].score-1);v.owner=null;v.level=0;updateBonuses(g);return o}
 export function demolishRoad(g,eid){const e=g.edges[eid];if(!e||e.owner===null)return false;const o=e.owner;g.players[o].roads=Math.max(0,g.players[o].roads-1);e.owner=null;updateBonuses(g);return o}
 export function totalScore(g,id){return g.players[id].score+bonusPoints(g,id)}
 // 名次：由高分到低分（勝者總分必最高），平手用回合物資做次序

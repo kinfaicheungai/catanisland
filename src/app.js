@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad}from'./engine.js?v=2.9.5';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad}from'./engine.js?v=2.9.6';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 let VX=260,VY=245,VS=49;const sx=x=>VX+x*VS,sy=y=>VY+y*VS,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -48,7 +48,7 @@ const CITY_POOL=[['摩納哥','diamond'],['新加坡','wide'],['鈴鹿','cross']
 const SEASON_LEN=10;   // 每賽季站數
 const LAYOUT_NAME={standard:'標準六島',large:'大島',cross:'十字島',irregular:'不規則島'};
 const PTS=[3,1];        // 冠軍 3 分、亞軍 1 分
-let pickedColor=HUMAN_COLORS[0],humanTier=3,league=null,leagueActive=false,raceDrivers=null,endHandled=false,playoffStage=null,kitArmed=false,forceDesert=false;
+let pickedColor=HUMAN_COLORS[0],humanTier=3,league=null,leagueActive=false,raceDrivers=null,endHandled=false,playoffStage=null,kitArmed=false,forceDesert=false,aiKitUsedThisRace=false;
 function shuffleArr(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
 function newLeague(name,color){
   const rat=loadRatings();
@@ -129,8 +129,14 @@ let AC=null;
 function initAudio(){try{if(!AC)AC=new(window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume()}catch{}}
 function tone(freq,dur,type='sine',vol=.2,delay=0){if(muted||!AC)return;const t=AC.currentTime+delay,o=AC.createOscillator(),g=AC.createGain();o.type=type;o.frequency.value=freq;o.connect(g);g.connect(AC.destination);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(vol,t+.012);g.gain.exponentialRampToValueAtTime(.0001,t+dur);o.start(t);o.stop(t+dur+.02)}
 function clack(vol=.28,delay=0){if(muted||!AC)return;const t=AC.currentTime+delay,len=.05,buf=AC.createBuffer(1,AC.sampleRate*len,AC.sampleRate),d=buf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*(1-i/d.length);const src=AC.createBufferSource();src.buffer=buf;const g=AC.createGain(),f=AC.createBiquadFilter();f.type='highpass';f.frequency.value=900;g.gain.value=vol;src.connect(f);f.connect(g);g.connect(AC.destination);src.start(t)}
+function engineRev(){if(muted||!AC)return;const t=AC.currentTime,o=AC.createOscillator(),o2=AC.createOscillator(),g=AC.createGain(),f=AC.createBiquadFilter();
+  o.type='sawtooth';o2.type='square';f.type='lowpass';f.frequency.setValueAtTime(700,t);f.frequency.exponentialRampToValueAtTime(2600,t+.5);
+  o.frequency.setValueAtTime(70,t);o.frequency.exponentialRampToValueAtTime(340,t+.5);o.frequency.exponentialRampToValueAtTime(190,t+.72);
+  o2.frequency.setValueAtTime(105,t);o2.frequency.exponentialRampToValueAtTime(510,t+.5);o2.frequency.exponentialRampToValueAtTime(285,t+.72);
+  g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.17,t+.06);g.gain.exponentialRampToValueAtTime(.12,t+.5);g.gain.exponentialRampToValueAtTime(.0001,t+.78);
+  o.connect(f);o2.connect(f);f.connect(g);g.connect(AC.destination);o.start(t);o2.start(t);o.stop(t+.82);o2.stop(t+.82)}
 const sfx={
-  dice(){for(let i=0;i<6;i++)clack(.26,i*.09)},
+  dice(){engineRev()},                              // 引擎加速聲（F1 感）
   build(){tone(190,.16,'triangle',.32);tone(120,.22,'sine',.26,.05)},
   card(){tone(680,.11,'sine',.16);tone(920,.12,'sine',.14,.06)},
   coin(){tone(1046,.08,'square',.1);tone(1318,.1,'square',.09,.07)},
@@ -212,7 +218,7 @@ function setHighlights(){
   else if(mode==='road')for(const id of legalRoads(game,0))svg.querySelector(`[data-edge="${id}"]`)?.classList.add('legal');
   else if(mode==='settlement')for(const id of legalSettlements(game,0))svg.querySelector(`[data-vertex="${id}"]`)?.classList.add('legal');
   else if(mode==='city')for(const id of legalCities(game,0))svg.querySelector(`[data-vertex="${id}"]`)?.classList.add('legal')
-  else if(mode==='demoSettle')game.vertices.forEach(v=>{if(v.owner!=null&&v.owner!==0&&v.level===1)svg.querySelector(`[data-vertex="${v.id}"]`)?.classList.add('legal')})
+  else if(mode==='demoSettle')game.vertices.forEach(v=>{if(v.owner!=null&&v.owner!==0&&v.level===1&&game.vertices.filter(x=>x.owner===v.owner).length>1)svg.querySelector(`[data-vertex="${v.id}"]`)?.classList.add('legal')})
   else if(mode==='demoRoad')game.edges.forEach(e=>{if(e.owner!=null&&e.owner!==0)svg.querySelector(`[data-edge="${e.id}"]`)?.classList.add('legal')})
 }
 
@@ -377,13 +383,13 @@ async function playAiTurn(id){
   if(n===7){toast('🏴‍☠️ 海盜嚟襲！');for(const pid of pendingDiscards(game))autoDiscard(game,pid);render();await sleep(360);await aiMoveRobber(id);
     // 電腦用拆卸包（偏向拆人類）
     const drv=leagueActive&&raceDrivers?league.drivers[raceDrivers[id]]:null;
-    if(drv&&drv.kit&&game.round>=3&&Math.random()<0.6){
-      let bv=-1,bvid=null;game.vertices.forEach(v=>{if(v.owner!=null&&v.owner!==id&&v.level===1){const val=vValApp(v.id)*(v.owner===0?1.5:1);if(val>bv){bv=val;bvid=v.id}}});
+    if(drv&&drv.kit&&!playoffStage&&!aiKitUsedThisRace&&game.round>=3&&Math.random()<0.55){
+      let bv=-1,bvid=null;game.vertices.forEach(v=>{if(v.owner!=null&&v.owner!==id&&v.level===1&&game.vertices.filter(x=>x.owner===v.owner).length>1){const val=vValApp(v.id)*(v.owner===0?1.5:1);if(val>bv){bv=val;bvid=v.id}}});
       let did=false;if(bvid!=null&&demolishSettlement(game,bvid)!==false){did=true;flashVertex(bvid)}
       const led=game.players.filter(pp=>pp.id!==id).sort((a,b)=>totalScore(game,b.id)-totalScore(game,a.id))[0];
       let eid=null;for(const e of game.edges)if(e.owner!=null&&e.owner!==id){if(led&&e.owner===led.id){eid=e.id;break}if(eid==null)eid=e.id}
       if(eid!=null&&demolishRoad(game,eid)!==false){did=true;flashEdge(eid)}
-      if(did){drv.kit=false;drv.desertNext=true;render();sfx.build();toast(`🔨 ${game.players[id].name} 用拆卸包拆咗建築！`);await sleep(760)}
+      if(did){drv.kit=false;drv.desertNext=true;aiKitUsedThisRace=true;render();sfx.build();toast(`🔨 ${game.players[id].name} 用拆卸包拆咗你嘅建築！`);await sleep(760)}
     }
   }
   await animateProduction();render();await sleep(440);
@@ -528,7 +534,7 @@ function playoffStagePending(){
 }
 function playPlayoffRace(pending){
   const others=pending.participants.filter(i=>i!==0);raceDrivers=[0,...others];
-  initAudio();endHandled=false;prevArmy=null;prevRoad=null;leagueActive=true;playoffStage=pending.stage;kitArmed=false;forceDesert=false;
+  initAudio();endHandled=false;prevArmy=null;prevRoad=null;leagueActive=true;playoffStage=pending.stage;kitArmed=false;forceDesert=false;aiKitUsedThisRace=false;
   const opt=raceOpts(raceDrivers,false);                 // 季後賽：有資源型加成，無扣分
   game=makeGame(undefined,{axial:SHAPES.big,...opt});
   $('#playerLabel').textContent=opt.names[0];$('#leagueDialog').close();beginSetup();
@@ -599,7 +605,7 @@ function playLeagueRace(){
   raceDrivers=[0,...others];
   const me0=league.drivers[0],lastRound=league.round===league.cities.length-1,useKit=!!(me0.kit&&$('#kitCheck')?.checked);
   if(useKit)me0.kit=false;
-  kitArmed=useKit;
+  kitArmed=useKit;aiKitUsedThisRace=false;
   forceDesert=me0.desertNext||(useKit&&lastRound);
   me0.desertNext=useKit&&!lastRound;                 // 用咗（非尾場）→ 下場沙漠開局
   initAudio();endHandled=false;prevArmy=null;prevRoad=null;leagueActive=true;playoffStage=null;
@@ -618,7 +624,7 @@ function startExhibition(){
 }
 
 /* ============ 事件綁定 ============ */
-const VERSION='2.9.5';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;}
+const VERSION='2.9.6';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;}
 $('#exhibitBtn').onclick=startExhibition;
 $('#leagueBtn').onclick=openLeague;
 $('#colorPick')?.addEventListener('click',e=>{const b=e.target.closest('[data-color]');if(!b)return;pickedColor=b.dataset.color;$$('#colorPick [data-color]').forEach(x=>x.classList.toggle('on',x===b))});
