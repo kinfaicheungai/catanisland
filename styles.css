@@ -138,3 +138,6 @@
 .kit-opt input{margin-right:6px;transform:scale(1.2);vertical-align:-2px}
 .kit-opt small{display:block;font-size:8px;color:#e8a583;font-weight:600;margin-top:3px}
 .kit-used{margin-top:10px;font-size:10px;color:#9a8f88;text-align:center}
+
+/* v2.9.7：開始畫面版本號 */
+.startver{font-size:11px;color:#c58a1a;font-weight:800;letter-spacing:1px;margin:-4px 0 6px}
