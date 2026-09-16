@@ -60,12 +60,14 @@ export function makeGame(rng=Math.random,opts={}){
   const strs=opts.strengths&&opts.strengths.length===4?opts.strengths:[3,3,3,3];
   const bonus=opts.bonusRes&&opts.bonusRes.length===4?opts.bonusRes:[null,null,null,null];
   const pen=opts.penalties&&opts.penalties.length===4?opts.penalties:[0,0,0,0];
+  const half=opts.halfStart&&opts.halfStart.length===4?opts.halfStart:null;
   const styl=opts.styles&&opts.styles.length===4?opts.styles:null;
   const alts=opts.alts&&opts.alts.length===4?opts.alts:null;
   const players=names.map((name,id)=>{
     const res={wood:2,brick:2,grain:2,wool:2,ore:1},b=bonus[id];
     if(b&&b.type&&res[b.type]!=null)res[b.type]+=b.amount;                     // 資源型車隊：開局多幾張
     let dock=pen[id]||0;for(const r of ['wool','grain','brick','wood','ore']){while(dock>0&&res[r]>0){res[r]--;dock--}} // 上場贏家：扣起始資源
+    if(half&&half[id])for(const r of RESOURCES)res[r]=Math.floor(res[r]/2); // 拆卸包代價：起始資源減半
     return{id,name,color:cols[id],style:styl?styl[id]:'solid',alt:alts?alts[id]:null,strength:strs[id],score:0,roads:0,cards:[],knights:0,resources:res,ports:[]}
   });
   const coast=topo.edges.filter(e=>edgeTileCount(topo,e.id)===1),nPorts=Math.min(9,Math.max(6,Math.floor(coast.length/3))),portKinds=['wood','brick','grain','wool','ore','any','any','any','any','any','any'],ports=[];
@@ -167,10 +169,11 @@ export function moveRobber(g,id,tileId,rng=Math.random){
 export function aiChooseRobber(g,id){
   const w=n=>n?6-Math.abs(7-n):0;let best=null,bs=-1;
   for(const t of g.tiles){if(t.id===g.robber||t.type==='desert')continue;
-    const owners=t.vertices.map(v=>g.vertices[v].owner).filter(o=>o!==null);
-    if(owners.includes(id))continue; // 唔擋自己
-    let s=0;for(const o of owners)s+=w(t.num)*(o===0?1.6:1); // 特別針對人類（id 0）
-    if(owners.length&&s>bs){bs=s;best=t.id}}
+    const owners=t.vertices.map(v=>g.vertices[v].owner).filter(o=>o!==null&&o!==id); // 唔擋自己
+    if(!owners.length)continue;
+    // 抑制高分者：對手分數越高，越值得封鎖（唔針對特定人、唔搶包尾）
+    let s=0;for(const o of owners)s+=w(t.num)*(1+Math.max(0,totalScore(g,o))*0.6);
+    if(s>bs){bs=s;best=t.id}}
   if(best===null){const alt=g.tiles.find(t=>t.id!==g.robber&&t.type!=='desert');best=alt?alt.id:g.tiles.find(t=>t.id!==g.robber).id}
   return best
 }

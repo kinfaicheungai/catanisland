@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad}from'./engine.js?v=3.4';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad}from'./engine.js?v=3.6';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 let VX=260,VY=245,VS=49;const sx=x=>VX+x*VS,sy=y=>VY+y*VS,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -136,7 +136,7 @@ function resolveStation(){
   return{city,minR,myFast,broke,recName:records[city].name}
 }
 function simRace(quad,axial){
-  const g=makeGame(Math.random,{axial,...raceOpts(quad,true)});
+  const g=makeGame(Math.random,{axial,...raceOpts(quad,true),halfStart:quad.map(di=>!!league.drivers[di].desertNext)});
   for(const id of gridOrder(g)){const di=quad[id];let vid;
     if(league.drivers[di]&&league.drivers[di].desertNext){const legal=legalInitialSettlements(g);vid=legal.find(v=>g.tiles.some(t=>t.type==='desert'&&t.vertices.includes(v)))??legal[legal.length-1];league.drivers[di].desertNext=false}
     else vid=pickAiInitialSettlement(g,id);
@@ -291,7 +291,7 @@ function render(){
   if(prevArmy!==game.largestArmy){if(game.largestArmy!=null&&game.phase!=='setup'){toast(`${game.players[game.largestArmy].name} 奪得最大軍閥 🛡 +2`);commentary('army',{n:game.players[game.largestArmy].name})}prevArmy=game.largestArmy}
   if(prevRoad!==game.longestRoad){if(game.longestRoad!=null&&game.phase!=='setup'){toast(`${game.players[game.longestRoad].name} 奪得最長道路 🏅 +2`);commentary('longroad',{n:game.players[game.longestRoad].name})}prevRoad=game.longestRoad}
   if(commentaryOn&&game.phase!=='setup'&&game.winner===null){const ld=game.players.slice().sort((a,b)=>totalScore(game,b.id)-totalScore(game,a.id))[0];if(ld&&totalScore(game,ld.id)>0){if(prevLeader!=null&&prevLeader!==ld.id)commentary('lead',{n:ld.name});prevLeader=ld.id;if(!nearSaid&&totalScore(game,ld.id)>=(game.target||10)-1){nearSaid=true;commentary('nearwin',{n:ld.name})}}}
-  $('#round').textContent=game.round;
+  $('#round').textContent=game.round;{const cl=$('#cityLabel');if(cl)cl.textContent=raceCity?('🏁 '+raceCity+' · '):''}
   $('#score').textContent=totalScore(game,0);$('#cards').textContent=me.cards.length;
   $('#army').textContent=me.knights;$('#longest').textContent=longestRoadLength(game,0);
   $('#target').textContent=game.target;$('#trophies').innerHTML=trophy(0);
@@ -791,7 +791,8 @@ function playLeagueRace(){
   me0.desertNext=useKit&&!lastRound;                 // 用咗（非尾場）→ 下場沙漠開局
   initAudio();endHandled=false;prevArmy=null;prevRoad=null;leagueActive=true;playoffStage=null;
   const opt=raceOpts(raceDrivers,true);                  // 常規賽：資源型加成 + 上場贏家扣分
-  game=makeGame(undefined,{axial:SHAPES[league.cities[league.round][1]],...opt});
+  const half=raceDrivers.map((di,k)=>k===0?forceDesert:!!league.drivers[di].desertNext); // 沙漠開局者：起始資源減半
+  game=makeGame(undefined,{axial:SHAPES[league.cities[league.round][1]],...opt,halfStart:half});
   clearLive();$('#playerLabel').textContent=opt.names[0];$('#leagueDialog').close();beginSetup()
 }
 function startExhibition(){
@@ -805,7 +806,7 @@ function startExhibition(){
 }
 
 /* ============ 事件綁定 ============ */
-const VERSION='3.4';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
+const VERSION='3.6';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
 $('#exhibitBtn').onclick=startExhibition;
 {const c=$('#commentaryChk');if(c){c.checked=commentaryOn;c.addEventListener('change',()=>{commentaryOn=c.checked;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');if(!commentaryOn&&window.speechSynthesis)window.speechSynthesis.cancel()})}}
 $('#commentary')?.addEventListener('click',()=>{commentaryOn=!commentaryOn;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');const c=$('#commentaryChk');if(c)c.checked=commentaryOn;if(!commentaryOn&&window.speechSynthesis)window.speechSynthesis.cancel();toast(commentaryOn?'🎙 旁述開':'🔇 旁述關')});
