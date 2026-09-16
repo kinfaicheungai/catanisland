@@ -151,3 +151,12 @@
 .commentary.show{max-height:70px;opacity:1;padding:7px 12px;box-shadow:0 3px 10px #0002}
 .chk{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:700;color:var(--ink);margin:2px 0 8px;cursor:pointer}
 .chk input{transform:scale(1.25)}
+
+/* v3.2：逐場完整成績 */
+.ststation{border:1px solid #e3d9bd;border-radius:10px;margin-bottom:8px;overflow:hidden}
+.ststation-h{background:#f3ead0;font-size:11px;font-weight:800;padding:6px 10px;color:#5a4a24}
+.strace{display:flex;flex-wrap:wrap;gap:6px 12px;padding:7px 10px;border-top:1px solid #efe6cd;font-size:11px}
+.strace.myrace{background:#fff8dc}
+.stcell{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.stcell.me{font-weight:800}
+.strace .dot{width:9px;height:9px;border-radius:50%;flex:none}

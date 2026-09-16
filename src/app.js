@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad}from'./engine.js?v=3.1';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad}from'./engine.js?v=3.2';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 let VX=260,VY=245,VS=49;const sx=x=>VX+x*VS,sy=y=>VY+y*VS,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -130,9 +130,7 @@ function resolveStation(){
   if(!prev||minR<prev.rounds){records[city]={rounds:minR,name:champ.name,color:champ.color};saveRecords();broke=true}
   league.drivers.forEach(d=>d.wonLast=false);                          // 上場贏家 → 下站扣一張資源
   for(const res of results)league.drivers[res.order[0]].wonLast=true;
-  const roundEntry={round:ri+1,city,teams:[]};
-  for(const res of results)res.order.forEach((d,pos)=>roundEntry.teams.push({d,pos,pts:pos<PTS.length?PTS[pos]:0,fast:false}));
-  for(const r of fast){const w=r.order[0],e=roundEntry.teams.find(x=>x.d===w);if(e){e.pts++;e.fast=true}}
+  const roundEntry={round:ri+1,city,races:results.map(r=>({o:r.order.slice(),fast:r.rounds===minR}))};
   (league.roundLog=league.roundLog||[]).push(roundEntry);
   const my=results[0],myFast=my.rounds===minR&&my.order[0]===0;
   return{city,minR,myFast,broke,recName:records[city].name}
@@ -720,16 +718,22 @@ function renderPlayoffHub(){
   renderStandingsPanel();
 }
 function renderStats(){
-  const nm=i=>league.drivers[i]?league.drivers[i].name:'?';
-  let h='<h3 class="tbl-title">本季逐站成績</h3>';
-  const log=(league&&league.roundLog)||[];
+  const dn=i=>league.drivers[i]?league.drivers[i].name:'?',dc=i=>league.drivers[i]?league.drivers[i].color:'#888';
+  const log=(league&&league.roundLog)||[],kitByRound={};
+  (league&&league.kitLog||[]).forEach(e=>{(kitByRound[e.round]=kitByRound[e.round]||new Set()).add(e.d)});
+  let h='<h3 class="tbl-title">本季 · 各站各場完整成績（🔨=用咗拆卸包 · ⭐=最速）</h3>';
   if(!log.length)h+='<div class="recrow"><span class="rc-hold none">仲未有完成嘅分站</span></div>';
-  else h+='<div class="records">'+log.map(e=>{const top=[...e.teams].sort((a,b)=>b.pts-a.pts).filter(t=>t.pts>0).slice(0,3);
-    return `<div class="recrow"><span class="rc-city">第 ${e.round} 站<small>${e.city}</small></span><span class="rc-hold" style="flex-wrap:wrap;gap:8px">${top.map(t=>`<span class="dot" style="background:${league.drivers[t.d]?league.drivers[t.d].color:'#888'}"></span>${nm(t.d)}${t.d===0?'(你)':''} +${t.pts}${t.fast?'⭐':''}`).join(' ')||'—'}</span></div>`}).join('')+'</div>';
+  else h+=log.map(e=>{
+    const kits=kitByRound[e.round]||new Set();
+    const body=(e.races&&e.races.length)?e.races.map(rc=>{
+      const cells=rc.o.map((d,pos)=>{const pts=pos===0?3+(rc.fast?1:0):pos===1?1:0,medal=['①','②','③','④'][pos];
+        return `<span class="stcell${d===0?' me':''}"><span class="dot" style="background:${dc(d)}"></span>${medal}${dn(d)}${d===0?'(你)':''}${kits.has(d)?'🔨':''}${pts?'+'+pts:''}${pos===0&&rc.fast?'⭐':''}</span>`}).join('');
+      return `<div class="strace${rc.o.includes(0)?' myrace':''}">${cells}</div>`}).join('')
+      :(e.teams?`<div class="strace">${[...e.teams].sort((a,b)=>b.pts-a.pts).filter(t=>t.pts>0).map(t=>`<span class="stcell"><span class="dot" style="background:${dc(t.d)}"></span>${dn(t.d)} +${t.pts}</span>`).join('')}</div>`:'');
+    return `<div class="ststation"><div class="ststation-h">第 ${e.round} 站 · ${e.city}</div>${body}</div>`}).join('');
   const hist=loadHistory();
   h+='<h3 class="tbl-title" style="margin-top:14px">往季冠軍</h3>';
-  if(!hist.length)h+='<div class="recrow"><span class="rc-hold none">尚未完成過賽季</span></div>';
-  else h+='<div class="records">'+hist.slice().reverse().map(se=>`<div class="recrow"><span class="rc-city">第 ${se.n} 季<small>${se.top.map(t=>t.name+' '+t.pts).join(' · ')}</small></span><span class="rc-hold">🏆 ${se.champ}</span></div>`).join('')+'</div>';
+  h+=hist.length?('<div class="records">'+hist.slice().reverse().map(se=>`<div class="recrow"><span class="rc-city">第 ${se.n} 季<small>${se.top.map(t=>t.name+' '+t.pts).join(' · ')}</small></span><span class="rc-hold">🏆 ${se.champ}</span></div>`).join('')+'</div>'):'<div class="recrow"><span class="rc-hold none">尚未完成過賽季</span></div>';
   $('#statsBody').innerHTML=h;
 }
 function renderRecords(){
@@ -737,8 +741,7 @@ function renderRecords(){
     return `<div class="recrow"><span class="rc-city">${city}<small>${SHAPE_NAME[ly]}</small></span>`+
       (r?`<span class="rc-hold"><span class="dot" style="background:${r.color}"></span>${r.name}</span><b class="rc-r">${r.rounds} 輪</b>`
         :`<span class="rc-hold none">未有紀錄</span><b class="rc-r">—</b>`)+`</div>`}).join('');
-  const log=(league&&league.kitLog)?[...league.kitLog].sort((a,b)=>a.round-b.round):[];
-  $('#kitLogList').innerHTML=log.length?log.map(e=>`<div class="recrow"><span class="rc-city">第 ${e.round} 站<small>${e.city}</small></span><span class="rc-hold"><span class="dot" style="background:${league.drivers[e.d]?league.drivers[e.d].color:'#888'}"></span>${league.drivers[e.d]?league.drivers[e.d].name:'?'}${e.d===0?'（你）':''}</span><b class="rc-r">🔨</b></div>`).join(''):`<div class="recrow"><span class="rc-hold none">尚未有車隊使用拆卸包</span></div>`;
+
 }
 function renameTeam(){
   if(!league){toast('未有進行中嘅賽季');return}
@@ -790,7 +793,7 @@ function startExhibition(){
 }
 
 /* ============ 事件綁定 ============ */
-const VERSION='3.1';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
+const VERSION='3.2';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
 $('#exhibitBtn').onclick=startExhibition;
 {const c=$('#commentaryChk');if(c){c.checked=commentaryOn;c.addEventListener('change',()=>{commentaryOn=c.checked;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');if(!commentaryOn&&window.speechSynthesis)window.speechSynthesis.cancel()})}}
 $('#commentary')?.addEventListener('click',()=>{commentaryOn=!commentaryOn;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');const c=$('#commentaryChk');if(c)c.checked=commentaryOn;if(!commentaryOn&&window.speechSynthesis)window.speechSynthesis.cancel();toast(commentaryOn?'🎙 旁述開':'🔇 旁述關')});
