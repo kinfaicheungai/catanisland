@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad}from'./engine.js?v=3.2';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad}from'./engine.js?v=3.3';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 let VX=260,VY=245,VS=49;const sx=x=>VX+x*VS,sy=y=>VY+y*VS,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -23,7 +23,7 @@ const RESICON={wood:'🌲',brick:'🧱',grain:'🌾',wool:'🐑',ore:'⛏️'};
 const stars=n=>'★'.repeat(n)+'☆'.repeat(5-n);
 const RATKEY='frontier-ratings-v1',HISTKEY='frontier-history-v1';
 function loadHistory(){try{return JSON.parse(localStorage.getItem(HISTKEY))||[]}catch{return[]}}
-function archiveSeason(){try{const h=loadHistory(),rk=standingsSorted();h.push({n:h.length+1,champ:league.playoff&&league.playoff.champion!=null?league.drivers[league.playoff.champion].name:rk[0].name,top:rk.slice(0,3).map(d=>({name:d.name,pts:d.pts})),at:Date.now()});localStorage.setItem(HISTKEY,JSON.stringify(h.slice(-30)))}catch{}}
+function archiveSeason(){try{const h=loadHistory(),rk=standingsSorted();h.push({n:h.length+1,champ:league.playoff&&league.playoff.champion!=null?league.drivers[league.playoff.champion].name:rk[0].name,standings:rk.map(d=>({name:d.name,pts:d.pts,wins:d.wins})),at:Date.now()});localStorage.setItem(HISTKEY,JSON.stringify(h.slice(-20)))}catch{}}
 function loadRatings(){try{return JSON.parse(localStorage.getItem(RATKEY))||{}}catch{return{}}}
 function saveRatings(r){try{localStorage.setItem(RATKEY,JSON.stringify(r))}catch{}}
 // 加權出場次序（排位賽）：實力越高越大機率先手揀位
@@ -721,19 +721,28 @@ function renderStats(){
   const dn=i=>league.drivers[i]?league.drivers[i].name:'?',dc=i=>league.drivers[i]?league.drivers[i].color:'#888';
   const log=(league&&league.roundLog)||[],kitByRound={};
   (league&&league.kitLog||[]).forEach(e=>{(kitByRound[e.round]=kitByRound[e.round]||new Set()).add(e.d)});
-  let h='<h3 class="tbl-title">本季 · 各站各場完整成績（🔨=用咗拆卸包 · ⭐=最速）</h3>';
+  const cell=(d,mark)=>`<span class="stcell${d===0?' me':''}"><span class="dot" style="background:${dc(d)}"></span>${dn(d)}${mark}</span>`;
+  let h='<h3 class="tbl-title">本季 · 逐站逐場排名（🔨拆卸包 · ⭐最速）</h3>';
   if(!log.length)h+='<div class="recrow"><span class="rc-hold none">仲未有完成嘅分站</span></div>';
   else h+=log.map(e=>{
-    const kits=kitByRound[e.round]||new Set();
-    const body=(e.races&&e.races.length)?e.races.map(rc=>{
-      const cells=rc.o.map((d,pos)=>{const pts=pos===0?3+(rc.fast?1:0):pos===1?1:0,medal=['①','②','③','④'][pos];
-        return `<span class="stcell${d===0?' me':''}"><span class="dot" style="background:${dc(d)}"></span>${medal}${dn(d)}${d===0?'(你)':''}${kits.has(d)?'🔨':''}${pts?'+'+pts:''}${pos===0&&rc.fast?'⭐':''}</span>`}).join('');
-      return `<div class="strace${rc.o.includes(0)?' myrace':''}">${cells}</div>`}).join('')
-      :(e.teams?`<div class="strace">${[...e.teams].sort((a,b)=>b.pts-a.pts).filter(t=>t.pts>0).map(t=>`<span class="stcell"><span class="dot" style="background:${dc(t.d)}"></span>${dn(t.d)} +${t.pts}</span>`).join('')}</div>`:'');
+    const kits=kitByRound[e.round]||new Set(),mk=(d,fast1st)=>`${kits.has(d)?'🔨':''}${fast1st?'⭐':''}`;
+    let body;
+    if(e.races&&e.races.length){
+      body='<table class="sttab"><tr><th>場</th><th>①</th><th>②</th><th>③</th><th>④</th></tr>'+
+        e.races.map((rc,idx)=>`<tr class="${rc.o.includes(0)?'myrace':''}"><td class="rn">${idx+1}</td>`+
+          rc.o.map((d,pos)=>`<td>${cell(d,mk(d,pos===0&&rc.fast))}</td>`).join('')+'</tr>').join('')+'</table>';
+    }else if(e.teams){ // 舊格式：淨係總排名
+      const ranked=[...e.teams].sort((a,b)=>b.pts-a.pts||a.pos-b.pos);
+      body='<div class="stlist">'+ranked.map((t,i)=>`<span class="stcell${t.d===0?' me':''}">${i+1}. <span class="dot" style="background:${dc(t.d)}"></span>${dn(t.d)}${kits.has(t.d)?'🔨':''}${t.pts?' +'+t.pts:''}</span>`).join('')+'</div>';
+    }else body='';
     return `<div class="ststation"><div class="ststation-h">第 ${e.round} 站 · ${e.city}</div>${body}</div>`}).join('');
   const hist=loadHistory();
-  h+='<h3 class="tbl-title" style="margin-top:14px">往季冠軍</h3>';
-  h+=hist.length?('<div class="records">'+hist.slice().reverse().map(se=>`<div class="recrow"><span class="rc-city">第 ${se.n} 季<small>${se.top.map(t=>t.name+' '+t.pts).join(' · ')}</small></span><span class="rc-hold">🏆 ${se.champ}</span></div>`).join('')+'</div>'):'<div class="recrow"><span class="rc-hold none">尚未完成過賽季</span></div>';
+  h+='<h3 class="tbl-title" style="margin-top:14px">往季 · 完整成績</h3>';
+  if(!hist.length)h+='<div class="recrow"><span class="rc-hold none">尚未完成過賽季</span></div>';
+  else h+=hist.slice().reverse().map(se=>{
+    const st=se.standings||se.top||[];
+    const rows=st.map((d,i)=>`<tr><td class="rn">${i+1}</td><td>${d.name}</td><td class="pn">${d.pts}</td><td class="pn">${d.wins!=null?d.wins+'勝':''}</td></tr>`).join('');
+    return `<div class="ststation"><div class="ststation-h">第 ${se.n} 季 · 🏆 ${se.champ}</div><table class="sttab histtab"><tr><th>#</th><th>車隊</th><th>分</th><th>勝</th></tr>${rows}</table></div>`}).join('');
   $('#statsBody').innerHTML=h;
 }
 function renderRecords(){
@@ -793,7 +802,7 @@ function startExhibition(){
 }
 
 /* ============ 事件綁定 ============ */
-const VERSION='3.2';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
+const VERSION='3.3';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
 $('#exhibitBtn').onclick=startExhibition;
 {const c=$('#commentaryChk');if(c){c.checked=commentaryOn;c.addEventListener('change',()=>{commentaryOn=c.checked;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');if(!commentaryOn&&window.speechSynthesis)window.speechSynthesis.cancel()})}}
 $('#commentary')?.addEventListener('click',()=>{commentaryOn=!commentaryOn;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');const c=$('#commentaryChk');if(c)c.checked=commentaryOn;if(!commentaryOn&&window.speechSynthesis)window.speechSynthesis.cancel();toast(commentaryOn?'🎙 旁述開':'🔇 旁述關')});

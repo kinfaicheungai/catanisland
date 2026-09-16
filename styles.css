@@ -160,3 +160,18 @@
 .stcell{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
 .stcell.me{font-weight:800}
 .strace .dot{width:9px;height:9px;border-radius:50%;flex:none}
+
+/* v3.3：逐場排名表 */
+.sttab{width:100%;border-collapse:collapse;font-size:10px}
+.sttab th{background:#f3ead0;color:#7b6a3a;font-weight:700;padding:4px 3px;font-size:9px;text-align:left}
+.sttab td{padding:4px 3px;border-top:1px solid #efe6cd;vertical-align:middle}
+.sttab td.rn{color:#8a8f84;font-weight:800;width:22px;text-align:center}
+.sttab td.pn{text-align:right;font-weight:800;width:34px}
+.sttab tr.myrace{background:#fff8dc}
+.sttab .stcell{display:inline-flex;align-items:center;gap:3px;white-space:nowrap}
+.sttab .stcell.me{font-weight:800}
+.sttab .dot{width:8px;height:8px;border-radius:50%;flex:none}
+.histtab td:nth-child(2){white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px}
+.stlist{display:flex;flex-wrap:wrap;gap:5px 12px;padding:8px 10px;font-size:11px}
+.stlist .stcell{display:inline-flex;align-items:center;gap:3px}
+.stlist .dot{width:9px;height:9px;border-radius:50%}
