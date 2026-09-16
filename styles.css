@@ -141,3 +141,7 @@
 
 /* v2.9.7：開始畫面版本號 */
 .startver{font-size:11px;color:#c58a1a;font-weight:800;letter-spacing:1px;margin:-4px 0 6px}
+
+/* v2.9.9：實力加成資源標示 */
+.fly-card.bonus{filter:drop-shadow(0 0 6px #ffcf4d) drop-shadow(0 0 2px #ffcf4d)}
+.gain.bonus{text-shadow:0 0 6px #ffcf4d,0 1px 2px #0006}

@@ -118,6 +118,13 @@ export function roll(g,rng=Math.random){
       for(const vid of tile.vertices){const v=g.vertices[vid];if(v.owner!==null){g.players[v.owner].resources[tile.type]+=v.level;g.production.push({id:v.owner,tile:tile.id,type:tile.type,amount:v.level})}}
     // 車隊實力：收到資源時有機率額外 +1（強隊跑得快啲）
     for(const p of g.players){const mine=g.production.filter(x=>x.id===p.id);if(mine.length){const ch=((p.strength||3)-1)*0.07;if(rng()<ch){const pk=mine[Math.floor(rng()*mine.length)];p.resources[pk.type]++;g.production.push({id:p.id,tile:pk.tile,type:pk.type,amount:1,bonus:true})}}}
+    // 保底：連續冇收成太耐（避免永無翻身），派 1 份最缺嘅資源
+    const DRY_LIMIT=8;
+    for(const p of g.players){
+      const got=g.production.some(x=>x.id===p.id);
+      if(got){p.dry=0}
+      else{p.dry=(p.dry||0)+1;if(p.dry>=DRY_LIMIT){const least=RESOURCES.slice().sort((x,y)=>p.resources[x]-p.resources[y])[0];p.resources[least]++;g.production.push({id:p.id,type:least,amount:1,pity:true});p.dry=0}}
+    }
     g.log=`擲出 ${n}：相同數字嘅島嶼完成生產。`
   }
   g.phase='action';return n
