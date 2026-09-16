@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad}from'./engine.js?v=2.9.11';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad}from'./engine.js?v=3.1';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 let VX=260,VY=245,VS=49;const sx=x=>VX+x*VS,sy=y=>VY+y*VS,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -21,7 +21,9 @@ const AI_ALT=AI_COLORS.map((c,i)=>AI_STYLE[i]==='stripe'?(lum(c)<.5?'#f4efe0':'#
 function cssPaint(d){const a=d.alt||hexShade(d.color,.42);return d.style==='grad'?`linear-gradient(135deg,${d.color},${a})`:d.style==='stripe'?`repeating-linear-gradient(45deg,${d.color} 0 4px,${a} 4px 8px)`:d.color}
 const RESICON={wood:'🌲',brick:'🧱',grain:'🌾',wool:'🐑',ore:'⛏️'};
 const stars=n=>'★'.repeat(n)+'☆'.repeat(5-n);
-const RATKEY='frontier-ratings-v1';
+const RATKEY='frontier-ratings-v1',HISTKEY='frontier-history-v1';
+function loadHistory(){try{return JSON.parse(localStorage.getItem(HISTKEY))||[]}catch{return[]}}
+function archiveSeason(){try{const h=loadHistory(),rk=standingsSorted();h.push({n:h.length+1,champ:league.playoff&&league.playoff.champion!=null?league.drivers[league.playoff.champion].name:rk[0].name,top:rk.slice(0,3).map(d=>({name:d.name,pts:d.pts})),at:Date.now()});localStorage.setItem(HISTKEY,JSON.stringify(h.slice(-30)))}catch{}}
 function loadRatings(){try{return JSON.parse(localStorage.getItem(RATKEY))||{}}catch{return{}}}
 function saveRatings(r){try{localStorage.setItem(RATKEY,JSON.stringify(r))}catch{}}
 // 加權出場次序（排位賽）：實力越高越大機率先手揀位
@@ -56,7 +58,7 @@ function newLeague(name,color){
   for(let i=0;i<19;i++)drivers.push({name:AI_NAMES[i],color:AI_COLORS[i],style:AI_STYLE[i],alt:AI_ALT[i],strength:rat[AI_NAMES[i]]??AI_STR[i],affinity:AI_AFFINITY[i],wonLast:false,kit:true,desertNext:false,pts:0,wins:0,races:0,margin:0,fastest:null});
   const cities=shuffleArr(CITY_POOL.map(c=>c)).slice(0,SEASON_LEN);   // 20 抽 10，每季唔同
   const schedule=cities.map(()=>{const order=shuffleArr(drivers.map((_,i)=>i)),quads=[];for(let i=0;i<order.length;i+=4)quads.push(order.slice(i,i+4));return quads});
-  return{drivers,cities,schedule,round:0,done:false,playoff:null,drifted:false,kitLog:[]}
+  return{drivers,cities,schedule,round:0,done:false,playoff:null,drifted:false,kitLog:[],roundLog:[]}
 }
 // 賽季結束按名次升降星級（跨季制衡）：前三 −1★、尾三 +1★
 function driftRatings(){
@@ -92,7 +94,7 @@ function loadLeague(){
 // 補齊新版本先有嘅欄位，令舊存檔升級後照玩得（以後加欄位就喺呢度加預設）
 function migrateLeague(L){
   if(!L||!L.drivers||!L.schedule||!L.cities)return null;
-  L.playoff=L.playoff??null;L.drifted=L.drifted??false;L.round=L.round??0;L.done=L.done??false;L.kitLog=L.kitLog??[];
+  L.playoff=L.playoff??null;L.drifted=L.drifted??false;L.round=L.round??0;L.done=L.done??false;L.kitLog=L.kitLog??[];L.roundLog=L.roundLog??[];
   const oldMap={standard:'hex',large:'big',irregular:'hex'};
   L.cities.forEach(c=>{if(!SHAPES[c[1]])c[1]=oldMap[c[1]]||'hex'});
   L.drivers.forEach((d,i)=>{d.strength=d.strength??3;d.affinity=d.affinity??(i===0?'grain':(AI_AFFINITY[i-1]||'grain'));
@@ -128,6 +130,10 @@ function resolveStation(){
   if(!prev||minR<prev.rounds){records[city]={rounds:minR,name:champ.name,color:champ.color};saveRecords();broke=true}
   league.drivers.forEach(d=>d.wonLast=false);                          // 上場贏家 → 下站扣一張資源
   for(const res of results)league.drivers[res.order[0]].wonLast=true;
+  const roundEntry={round:ri+1,city,teams:[]};
+  for(const res of results)res.order.forEach((d,pos)=>roundEntry.teams.push({d,pos,pts:pos<PTS.length?PTS[pos]:0,fast:false}));
+  for(const r of fast){const w=r.order[0],e=roundEntry.teams.find(x=>x.d===w);if(e){e.pts++;e.fast=true}}
+  (league.roundLog=league.roundLog||[]).push(roundEntry);
   const my=results[0],myFast=my.rounds===minR&&my.order[0]===0;
   return{city,minR,myFast,broke,recName:records[city].name}
 }
@@ -243,7 +249,7 @@ function setHighlights(){
 function chooseEdge(id){
   if(dragged)return;
   if(busy)return;
-  if(mode==='demo'){if(kitRoadLeft){const e=game.edges[id];if(e&&e.owner!=null&&e.owner!==0){const o=demolishRoad(game,id);if(o!==false){sfx.build();flashEdge(id);toast('🔨 拆咗 '+game.players[o].name+' 一條航線');kitRoadLeft=false;endDemolish()}}}return}
+  if(mode==='demo'){if(kitRoadLeft){const e=game.edges[id];if(e&&e.owner!=null&&e.owner!==0){const o=demolishRoad(game,id);if(o!==false){sfx.build();flashEdge(id);toast('🔨 拆咗 '+game.players[o].name+' 一條航線');commentary('demolish',{n:game.players[0].name,v:game.players[o].name},.7);kitRoadLeft=false;endDemolish()}}}return}
   if(mode==='initRoad'){if(placeInitialRoad(game,0,id)){mode=null;render();flashEdge(id);sfx.build();setup.idx++;advanceSetup()}return}
   if(mode==='road'){const wasFree=game.freeRoads>0;if(placeRoad(game,0,id)){flashEdge(id);sfx.build();if(wasFree&&game.freeRoads>0){render();toast('免費築路：仲可以起多一條');return}mode=null;render()}}
 }
@@ -252,7 +258,7 @@ function chooseTile(id){
   if(busy||mode!=='robber')return;
   const res=moveRobber(game,0,id);if(!res)return;
   mode=null;sfx.build();flashTile(id);render();
-  if(res.steal)toast(`🏴‍☠️ 掠奪 ${game.players[res.steal.from].name} 一份${LABELS[res.steal.res]}`);
+  if(res.steal){toast(`🏴‍☠️ 掠奪 ${game.players[res.steal.from].name} 一份${LABELS[res.steal.res]}`);commentary('steal',{n:game.players[0].name,v:game.players[res.steal.from].name},.8)}
   else toast('🏴‍☠️ 海盜就位，封鎖該島');
   if(kitArmed&&(kitSettleLeft||kitRoadLeft))beginDemolish();
 }
@@ -264,7 +270,7 @@ function beginRobber(msg){mode='robber';busy=false;game.log=msg||'揀一塊島�
 function chooseVertex(id){
   if(dragged)return;
   if(busy)return;
-  if(mode==='demo'){if(kitSettleLeft){const v=game.vertices[id];if(v.owner!=null&&v.owner!==0&&v.level===1){const o=demolishSettlement(game,id);if(o!==false){sfx.build();flashVertex(id);toast('🔨 拆咗 '+game.players[o].name+' 一座村莊');kitSettleLeft=false;endDemolish()}}}return}
+  if(mode==='demo'){if(kitSettleLeft){const v=game.vertices[id];if(v.owner!=null&&v.owner!==0&&v.level===1){const o=demolishSettlement(game,id);if(o!==false){sfx.build();flashVertex(id);toast('🔨 拆咗 '+game.players[o].name+' 一座村莊');commentary('demolish',{n:game.players[0].name,v:game.players[o].name},.9);kitSettleLeft=false;endDemolish()}}}return}
   if(mode==='initSettle'){if(placeInitialSettlement(game,0,id)){setup.vid=id;mode='initRoad';render();flashVertex(id);sfx.build()}return}
   const ok=mode==='settlement'?placeSettlement(game,0,id):mode==='city'?placeCity(game,0,id):false;
   if(ok){mode=null;render();flashVertex(id);sfx.build()}
@@ -284,8 +290,9 @@ function render(){
   if(!game)return;checkWinner(game);const me=game.players[0];
   const action=game.phase==='action',blk=blocked(game),roadFree=game.freeRoads>0;
   // 獎盃易主提示
-  if(prevArmy!==game.largestArmy){if(game.largestArmy!=null&&game.phase!=='setup')toast(`${game.players[game.largestArmy].name} 奪得最大軍閥 🛡 +2`);prevArmy=game.largestArmy}
-  if(prevRoad!==game.longestRoad){if(game.longestRoad!=null&&game.phase!=='setup')toast(`${game.players[game.longestRoad].name} 奪得最長道路 🏅 +2`);prevRoad=game.longestRoad}
+  if(prevArmy!==game.largestArmy){if(game.largestArmy!=null&&game.phase!=='setup'){toast(`${game.players[game.largestArmy].name} 奪得最大軍閥 🛡 +2`);commentary('army',{n:game.players[game.largestArmy].name})}prevArmy=game.largestArmy}
+  if(prevRoad!==game.longestRoad){if(game.longestRoad!=null&&game.phase!=='setup'){toast(`${game.players[game.longestRoad].name} 奪得最長道路 🏅 +2`);commentary('longroad',{n:game.players[game.longestRoad].name})}prevRoad=game.longestRoad}
+  if(commentaryOn&&game.phase!=='setup'&&game.winner===null){const ld=game.players.slice().sort((a,b)=>totalScore(game,b.id)-totalScore(game,a.id))[0];if(ld&&totalScore(game,ld.id)>0){if(prevLeader!=null&&prevLeader!==ld.id)commentary('lead',{n:ld.name});prevLeader=ld.id;if(!nearSaid&&totalScore(game,ld.id)>=(game.target||10)-1){nearSaid=true;commentary('nearwin',{n:ld.name})}}}
   $('#round').textContent=game.round;
   $('#score').textContent=totalScore(game,0);$('#cards').textContent=me.cards.length;
   $('#army').textContent=me.knights;$('#longest').textContent=longestRoadLength(game,0);
@@ -376,13 +383,14 @@ async function advanceSetup(){
   const roads=legalInitialRoads(game,id,vid),eid=roads[Math.floor(Math.random()*roads.length)];placeInitialRoad(game,id,eid);render();flashEdge(eid);sfx.build();await sleep(520);
   setup.idx++;busy=false;advanceSetup()
 }
-function endSetup(){game.order=setup.order.slice();game.op=0;setup=null;mode=null;game.log='開局完成！按排位次序開始。';schedule()}
+function endSetup(){game.order=setup.order.slice();game.op=0;setup=null;mode=null;game.log='開局完成！按排位次序開始。';commentary('start',{city:raceCity||'この島'});if(raceDrivers&&raceDrivers.length>1)setTimeout(()=>commentForm(raceDrivers[1+Math.floor(Math.random()*(raceDrivers.length-1))],.6),2800);schedule()}
 
 /* ============ 玩家擲骰 ============ */
 async function humanRoll(){
   if(busy||game.phase!=='roll')return;
   busy=true;mode=null;game.freeRoads=0;const n=roll(game);$('#ticker').textContent=game.log;
   await animateDice(game.dice[0],game.dice[1]);
+  commentRoll(game.players[0].name,n);
   if(n===7){
     toast('🏴‍☠️ 海盜嚟襲！');
     for(const pid of pendingDiscards(game))if(pid!==0)autoDiscard(game,pid); // 對手自動棄牌
@@ -400,7 +408,8 @@ function vValApp(vid){let s=0;for(const t of game.tiles)if(t.type!=='desert'&&t.
 async function playAiTurn(id){
   game.turn=id;game.phase='roll';game.freeRoads=0;game.log=`${game.players[id].name} 嘅回合，準備擲骰…`;render();await sleep(420);
   const n=roll(game);await animateDice(game.dice[0],game.dice[1]);
-  if(n===7){toast('🏴‍☠️ 海盜嚟襲！');for(const pid of pendingDiscards(game))autoDiscard(game,pid);render();await sleep(360);await aiMoveRobber(id);
+  commentRoll(game.players[id].name,n);
+  if(n===7){toast('🏴‍☠️ 海盜嚟襲！');for(const pid of pendingDiscards(game))autoDiscard(game,pid);render();await sleep(360);const before=game.steal;await aiMoveRobber(id);if(game.steal)commentary('steal',{n:game.players[id].name,v:game.players[game.steal.from].name},.7);
     // 電腦用拆卸包（偏向拆人類）
     const drv=(leagueActive&&!playoffStage&&raceDrivers)?league.drivers[raceDrivers[id]]:null;
     if(drv&&drv.kit&&game.round>=3&&(aiKitDriver===null||aiKitDriver===id)){
@@ -408,7 +417,7 @@ async function playAiTurn(id){
       if(aiKitDriver===null&&hasT&&Math.random()<0.4){aiKitDriver=id;aiKitSettleLeft=true;aiKitRoadLeft=true;drv.kit=false;drv.desertNext=true;(league.kitLog=league.kitLog||[]).push({d:raceDrivers[id],city:league.cities[league.round][0],round:league.round+1});saveLeague()}
       if(aiKitDriver===id){let did=false;
         const rank=standingsSorted().map(d=>d.i),standOf=b=>rank.indexOf(raceDrivers?raceDrivers[b]:b);
-        if(aiKitSettleLeft){let best=null,bk=null;game.vertices.forEach(v=>{if(v.owner!=null&&v.owner!==id&&v.level===1&&game.vertices.filter(x=>x.owner===v.owner).length>1){const key=[standOf(v.owner),-vValApp(v.id)];if(!bk||key[0]<bk[0]||(key[0]===bk[0]&&key[1]<bk[1])){bk=key;best=v.id}}});if(best!=null&&demolishSettlement(game,best)!==false){aiKitSettleLeft=false;did=true;flashVertex(best)}}
+        if(aiKitSettleLeft){let best=null,bk=null;game.vertices.forEach(v=>{if(v.owner!=null&&v.owner!==id&&v.level===1&&game.vertices.filter(x=>x.owner===v.owner).length>1){const key=[standOf(v.owner),-vValApp(v.id)];if(!bk||key[0]<bk[0]||(key[0]===bk[0]&&key[1]<bk[1])){bk=key;best=v.id}}});if(best!=null){const vo=game.vertices[best].owner;if(demolishSettlement(game,best)!==false){aiKitSettleLeft=false;did=true;flashVertex(best);commentary('demolish',{n:game.players[id].name,v:game.players[vo].name},.9)}}}
         if(!did&&aiKitRoadLeft){let best=null,bs=Infinity;for(const e of game.edges)if(e.owner!=null&&e.owner!==id){const st=standOf(e.owner);if(st<bs){bs=st;best=e.id}}if(best!=null&&demolishRoad(game,best)!==false){aiKitRoadLeft=false;did=true;flashEdge(best)}}
         if(did){render();sfx.build();toast(`🔨 ${game.players[id].name} 用拆卸包拆嘢！`);await sleep(760)}
       }
@@ -505,6 +514,7 @@ function applyTransform(){$('#mapMover').style.transform=`translate(${pan.x}px,$
 function zoom(d){scale=Math.max(.72,Math.min(2.4,scale+d));clampPan();applyTransform();$('#zoomValue').textContent=Math.round(scale*100)+'%'}
 function showEnd(){
   if(!game||game.winner===null||endHandled)return;endHandled=true;clearLive();
+  commentary('win',{n:game.players[game.winner].name,city:raceCity||'このステージ'});
   // 季後賽（淘汰賽）人類嗰場
   if(leagueActive&&playoffStage){
     const order=finishOrder(game).map(bid=>raceDrivers[bid]),myPos=order.indexOf(0),st=playoffStage;
@@ -551,17 +561,135 @@ function playoffStagePending(){
   for(const st of ['semiA','semiB']){if(!P.results[st]){if(P[st].includes(0))return{stage:st,participants:P[st]};P.results[st]=simRace(P[st],SHAPES.big).order}}
   if(!P.finalists)P.finalists=[...P.results.semiA.slice(0,2),...P.results.semiB.slice(0,2)];
   if(!P.results.final){if(P.finalists.includes(0))return{stage:'final',participants:P.finalists};P.results.final=simRace(P.finalists,SHAPES.big).order}
-  if(P.champion==null){P.champion=P.results.final[0];league.done=true;driftRatings()}
+  if(P.champion==null){P.champion=P.results.final[0];league.done=true;driftRatings();archiveSeason();saveLeague()}
   return null;
 }
 function playPlayoffRace(pending){
   const others=pending.participants.filter(i=>i!==0);raceDrivers=[0,...others];
-  initAudio();endHandled=false;prevArmy=null;prevRoad=null;leagueActive=true;playoffStage=pending.stage;kitArmed=false;forceDesert=false;kitSettleLeft=false;kitRoadLeft=false;aiKitDriver=null;
+  initAudio();endHandled=false;prevArmy=null;prevRoad=null;leagueActive=true;playoffStage=pending.stage;kitArmed=false;forceDesert=false;kitSettleLeft=false;kitRoadLeft=false;aiKitDriver=null;raceCity=stageName(pending.stage);prevLeader=null;nearSaid=false;
   const opt=raceOpts(raceDrivers,false);                 // 季後賽：有資源型加成，無扣分
   game=makeGame(undefined,{axial:SHAPES.big,...opt});
   $('#playerLabel').textContent=opt.names[0];$('#leagueDialog').close();beginSetup();
 }
 function toast(t){$('#toast').textContent=t;$('#toast').classList.add('show');setTimeout(()=>$('#toast').classList.remove('show'),1600)}
+
+/* ============ 日文實況旁述（免費・瀏覽器語音）============ */
+let commentaryOn=(localStorage.getItem('frontier-commentary')??'1')==='1',jaVoice=null,raceCity='',prevLeader=null,nearSaid=false;
+function pickJaVoice(){try{const vs=window.speechSynthesis.getVoices();jaVoice=vs.find(v=>/^ja/i.test(v.lang))||vs.find(v=>/japan|日本|Kyoko|Otoya|Hattori|O-ren/i.test(v.name))||null}catch{}}
+if(typeof window!=='undefined'&&window.speechSynthesis){pickJaVoice();window.speechSynthesis.onvoiceschanged=pickJaVoice}
+function speakJa(t){if(!commentaryOn||typeof window==='undefined'||!window.speechSynthesis)return;try{window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.lang='ja-JP';if(jaVoice)u.voice=jaVoice;u.rate=1.18;u.pitch=1.16;window.speechSynthesis.speak(u)}catch{}}
+function showComment(t){const el=$('#commentary');if(!el)return;el.textContent='🎙 '+t;el.classList.add('show');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('show'),4600)}
+const _lastCat={};
+function pick(cat,arr){if(!arr||!arr.length)return'';let i=Math.floor(Math.random()*arr.length);if(arr.length>1&&i===_lastCat[cat])i=(i+1)%arr.length;_lastCat[cat]=i;return arr[i]}
+function fillC(t,ctx){return t.replace(/\{(\w+)\}/g,(_,k)=>ctx[k]!=null?ctx[k]:'')}
+function commentary(cat,ctx={},chance=1){if(!commentaryOn||!game||!LINES[cat])return;if(Math.random()>chance)return;const line=fillC(pick(cat,LINES[cat]),ctx);if(line){showComment(line);speakJa(line)}}
+// 近況：由賽季數據砌一句
+function formPhrase(di){
+  if(!league||!league.drivers[di])return'';
+  const d=league.drivers[di],rank=standingsSorted().findIndex(x=>x.i===di)+1;
+  const recent=(league.roundLog||[]).slice(-3),wins=recent.filter(r=>r.teams.some(t=>t.d===di&&t.pos===0)).length;
+  const bits=[];
+  if(wins>=2)bits.push(`直近${recent.length}戦${wins}勝、絶好調！`);
+  else if(rank===1)bits.push('総合首位を走る王者です！');
+  else if(rank<=3)bits.push(`総合${rank}位、優勝争いの真っ只中！`);
+  else if(rank>=15)bits.push('今季は下位に沈んでいますが、意地を見せられるか。');
+  if(d.strength>=5)bits.push('名門中の名門、王者の風格。');
+  else if(d.strength<=2)bits.push('資金難のチームですが、番狂わせなるか！');
+  return bits.length?d.name+'、'+bits[Math.floor(Math.random()*bits.length)]:'';
+}
+function commentForm(di,chance=.5){if(!commentaryOn||Math.random()>chance)return;const p=formPhrase(di);if(p){showComment(p);speakJa(p)}}
+function commentRoll(nm,num){
+  if(!commentaryOn)return;
+  if(num===7){commentary('robber7',{n:nm},1);return}
+  const cat=num>=9?'rollBig':num<=5?'rollSmall':'rollMid';
+  commentary(cat,{n:nm,num},num===8||num===6?.55:.4);
+}
+const LINES={
+ start:[
+  'さあ、{city}グランプリ！開拓者たちの戦いが今、始まります！',
+  '舞台は{city}！レース開始のゴングが鳴りました！',
+  '{city}に着きました！各チーム、最高のスタートを狙います！',
+  '観客の期待を背に、{city}ステージ、スタートです！',
+  'エンジン全開！{city}での熱い一戦、まいりましょう！',
+  '運命の{city}。ここでの一勝が、シーズンを大きく左右します！',
+  '波の音が響く{city}。さあ、開拓レースの幕開けだ！'],
+ grid:[
+  'あなたはグリッド{rank}番手からのスタート。ここから巻き返せるか！',
+  'ポールポジションを逃し、{rank}番グリッド。腕の見せどころです！',
+  '{rank}番手発進。序盤の立ち回りが鍵を握ります！'],
+ rollBig:[
+  '{num}！大きい数字だ、資源がどっと流れ込みます！',
+  'おおっと{num}！これは美味しい、生産ラッシュ！',
+  '{num}が出た！{n}、笑いが止まらないぞ！',
+  'ビッグナンバー{num}！島が一斉に動き出す！',
+  '{num}！絶好の目、ここで一気に加速だ！',
+  'さあ来た{num}！物資の雨が降り注ぐ！'],
+ rollMid:[
+  '{num}。手堅く資源を積み上げていきます。',
+  '{num}が出ました。着実な一手ですね。',
+  '{num}。悪くない、コツコツと差を詰めます。',
+  '{num}か…可もなく不可もなく、といったところ。'],
+ rollSmall:[
+  'うーん{num}。渋い目が出てしまいました。',
+  '{num}…これは厳しい、資源が動きません。',
+  '小さい{num}。ここは我慢の時間帯です。',
+  '{num}。恵まれない目、{n}にとっては痛い！'],
+ robber7:[
+  '７だァ！海賊の登場、盤面が凍りつく！',
+  'セブン！これは荒れる、略奪の時間です！',
+  'でました魔の７！誰かの物資が奪われる…！',
+  '７！海賊船が動く、緊張が走ります！',
+  '運命の７。手札の多いチーム、戦々恐々です！'],
+ steal:[
+  '略奪成功！{n}が{v}から資源をかすめ取った！',
+  'やられた！{v}、目の前で一枚持っていかれる！',
+  '海賊の一撃！{n}、ちゃっかり得をしました！'],
+ build:[
+  '{n}、新たな村を築いた！着実に領土拡大です！',
+  'ナイスビルド！{n}の勢力がまた一つ増えました！',
+  '{n}、開拓の一手！ポイントを積み上げる！'],
+ city:[
+  '村が都市に昇格！{n}、生産力が倍増だ！',
+  '{n}、港町を建設！これは大きい、収入源が跳ね上がる！',
+  '堂々の都市化！{n}、本気を見せてきました！'],
+ longroad:[
+  '最長交易路、{n}が奪取ォ！ボーナス２点、大きい！',
+  'なんと{n}、最長ルート完成！道は正義だ！',
+  '交易路の王者は{n}！陸路を制する者がレースを制す！'],
+ army:[
+  '騎士団の力！{n}、最大兵力の称号を掌握！',
+  '{n}、騎士を集めに集めた！軍事力で２点ゲット！',
+  '力こそパワー！{n}が最大騎士団の主に！'],
+ demolish:[
+  'なんということでしょう！{n}が解体キット炸裂、{v}の建物が消えた！',
+  '衝撃の一撃！{n}、{v}の村を破壊ァ！これは荒れるぞ！',
+  '容赦なし！{n}が{v}を狙い撃ち、解体だ！',
+  'まさかの解体キット！{v}、まさかの被害に絶句！',
+  '{n}、ここで奥の手！{v}の建設を叩き潰した！'],
+ lead:[
+  '順位が動いた！{n}がトップに躍り出たァ！',
+  '{n}、ついに首位！観客総立ちです！',
+  'リード交代！{n}が先頭に立ちました！',
+  'これは展開が変わる、{n}が主導権を握った！'],
+ nearwin:[
+  '{n}、優勝まであと一歩！王手だ、王手がかかった！',
+  'リーチ！{n}、次のポイントで決まるぞ！',
+  '緊張の局面、{n}が優勝目前です！'],
+ win:[
+  'チェッカーフラッグ！{n}、{city}を制した！見事な勝利です！',
+  'ウィナー、{n}！最後まで危なげない走りでした！',
+  '勝ったァ！{n}、栄光のゴールへ飛び込んだ！',
+  'ゴール！{n}の優勝です！素晴らしいレースでした！',
+  '{n}、してやったり！{city}の勝者となりました！'],
+ gossip:[
+  '噂によると{n}、新型エンジンを投入したとか…真偽やいかに！',
+  'ここだけの話、{n}のチーム内は今、和気あいあいだそうですよ。',
+  'パドックの噂では、{n}に移籍のオファーが殺到しているとか。',
+  '{n}のマシン、今朝の走行で好感触との情報が入っています。',
+  '関係者曰く、{n}は今季、優勝を至上命令とされているようです。',
+  '{n}のスポンサー、シーズン終盤に大型契約の噂も…目が離せません！'],
+};
+
 
 /* ---- 聯賽榜介面 ---- */
 function renderStandingsPanel(){
@@ -590,6 +718,19 @@ function renderPlayoffHub(){
   else{$('#leagueTitle').textContent='季末大獎盃';$('#leagueSub').textContent=pend?`${stageName(pend.stage)}：輪到你出賽`:'季後賽進行中';$('#raceBtn').textContent=pend?`出賽（${stageName(pend.stage)}）→`:'繼續';}
   $('#raceBtn').style.display='';
   renderStandingsPanel();
+}
+function renderStats(){
+  const nm=i=>league.drivers[i]?league.drivers[i].name:'?';
+  let h='<h3 class="tbl-title">本季逐站成績</h3>';
+  const log=(league&&league.roundLog)||[];
+  if(!log.length)h+='<div class="recrow"><span class="rc-hold none">仲未有完成嘅分站</span></div>';
+  else h+='<div class="records">'+log.map(e=>{const top=[...e.teams].sort((a,b)=>b.pts-a.pts).filter(t=>t.pts>0).slice(0,3);
+    return `<div class="recrow"><span class="rc-city">第 ${e.round} 站<small>${e.city}</small></span><span class="rc-hold" style="flex-wrap:wrap;gap:8px">${top.map(t=>`<span class="dot" style="background:${league.drivers[t.d]?league.drivers[t.d].color:'#888'}"></span>${nm(t.d)}${t.d===0?'(你)':''} +${t.pts}${t.fast?'⭐':''}`).join(' ')||'—'}</span></div>`}).join('')+'</div>';
+  const hist=loadHistory();
+  h+='<h3 class="tbl-title" style="margin-top:14px">往季冠軍</h3>';
+  if(!hist.length)h+='<div class="recrow"><span class="rc-hold none">尚未完成過賽季</span></div>';
+  else h+='<div class="records">'+hist.slice().reverse().map(se=>`<div class="recrow"><span class="rc-city">第 ${se.n} 季<small>${se.top.map(t=>t.name+' '+t.pts).join(' · ')}</small></span><span class="rc-hold">🏆 ${se.champ}</span></div>`).join('')+'</div>';
+  $('#statsBody').innerHTML=h;
 }
 function renderRecords(){
   $('#recordsList').innerHTML=CITY_POOL.map(([city,ly])=>{const r=records[city];
@@ -630,6 +771,7 @@ function playLeagueRace(){
   const me0=league.drivers[0],lastRound=league.round===league.cities.length-1,useKit=!!(me0.kit&&$('#kitCheck')?.checked);
   if(useKit){me0.kit=false;(league.kitLog=league.kitLog||[]).push({d:0,city:league.cities[league.round][0],round:league.round+1});saveLeague()}
   kitArmed=useKit;kitSettleLeft=useKit;kitRoadLeft=useKit;aiKitDriver=null;aiKitSettleLeft=false;aiKitRoadLeft=false;
+  raceCity=league.cities[league.round][0];prevLeader=null;nearSaid=false;
   forceDesert=me0.desertNext||(useKit&&lastRound);
   me0.desertNext=useKit&&!lastRound;                 // 用咗（非尾場）→ 下場沙漠開局
   initAudio();endHandled=false;prevArmy=null;prevRoad=null;leagueActive=true;playoffStage=null;
@@ -638,7 +780,7 @@ function playLeagueRace(){
   clearLive();$('#playerLabel').textContent=opt.names[0];$('#leagueDialog').close();beginSetup()
 }
 function startExhibition(){
-  initAudio();endHandled=false;leagueActive=false;playoffStage=null;prevArmy=null;prevRoad=null;kitArmed=false;forceDesert=false;kitSettleLeft=false;kitRoadLeft=false;aiKitDriver=null;
+  initAudio();endHandled=false;leagueActive=false;playoffStage=null;prevArmy=null;prevRoad=null;kitArmed=false;forceDesert=false;kitSettleLeft=false;kitRoadLeft=false;aiKitDriver=null;raceCity=LAYOUT_NAME[mapChoice]||'開拓レース';prevLeader=null;nearSaid=false;
   const nm=$('#playerName').value.trim()||'珊瑚拓荒團';
   const names=[nm,AI_NAMES[0],AI_NAMES[1],AI_NAMES[2]],colors=[pickedColor,AI_COLORS[0],AI_COLORS[1],AI_COLORS[2]],strengths=[humanTier,AI_STR[0],AI_STR[1],AI_STR[2]],affs=['grain',AI_AFFINITY[0],AI_AFFINITY[1],AI_AFFINITY[2]];
   const bonusRes=strengths.map((s,k)=>s>=4?{type:affs[k],amount:s>=5?2:1}:null);
@@ -648,8 +790,10 @@ function startExhibition(){
 }
 
 /* ============ 事件綁定 ============ */
-const VERSION='2.9.11';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
+const VERSION='3.1';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
 $('#exhibitBtn').onclick=startExhibition;
+{const c=$('#commentaryChk');if(c){c.checked=commentaryOn;c.addEventListener('change',()=>{commentaryOn=c.checked;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');if(!commentaryOn&&window.speechSynthesis)window.speechSynthesis.cancel()})}}
+$('#commentary')?.addEventListener('click',()=>{commentaryOn=!commentaryOn;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');const c=$('#commentaryChk');if(c)c.checked=commentaryOn;if(!commentaryOn&&window.speechSynthesis)window.speechSynthesis.cancel();toast(commentaryOn?'🎙 旁述開':'🔇 旁述關')});
 $('#leagueBtn').onclick=openLeague;
 $('#colorPick')?.addEventListener('click',e=>{const b=e.target.closest('[data-color]');if(!b)return;pickedColor=b.dataset.color;$$('#colorPick [data-color]').forEach(x=>x.classList.toggle('on',x===b))});
 $('#raceBtn')?.addEventListener('click',()=>{
@@ -665,6 +809,8 @@ $('#resetLeague')?.addEventListener('click',()=>{if(confirm('確定放棄呢個�
 $('#recordsBtn')?.addEventListener('click',()=>{renderRecords();$('#recordsDialog').showModal()});
 $('#closeRecords')?.addEventListener('click',()=>$('#recordsDialog').close());
 $('#backupBtn')?.addEventListener('click',openBackup);
+$('#statsBtn')?.addEventListener('click',()=>{renderStats();$('#statsDialog').showModal()});
+$('#closeStats')?.addEventListener('click',()=>$('#statsDialog').close());
 $('#renameBtn')?.addEventListener('click',renameTeam);
 $('#colorBtn')?.addEventListener('click',()=>{if(league)$('#colorDialog').showModal()});
 $('#colorPick2')?.addEventListener('click',e=>{const b=e.target.closest('[data-color]');if(!b||!league)return;league.drivers[0].color=b.dataset.color;league.drivers[0].style='solid';league.drivers[0].alt=null;saveLeague();$('#colorDialog').close();renderHub();toast('已換車隊顏色')});

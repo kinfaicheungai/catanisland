@@ -145,3 +145,9 @@
 /* v2.9.9：實力加成資源標示 */
 .fly-card.bonus{filter:drop-shadow(0 0 6px #ffcf4d) drop-shadow(0 0 2px #ffcf4d)}
 .gain.bonus{text-shadow:0 0 6px #ffcf4d,0 1px 2px #0006}
+
+/* v3.1：日文實況旁述 */
+.commentary{min-height:0;max-height:0;overflow:hidden;opacity:0;transition:all .25s;margin:0 10px;font-size:13px;font-weight:700;color:#0b2a38;background:linear-gradient(90deg,#ffe9a8,#fff6da);border-radius:0 0 12px 12px;text-align:center;line-height:1.35;cursor:pointer}
+.commentary.show{max-height:70px;opacity:1;padding:7px 12px;box-shadow:0 3px 10px #0002}
+.chk{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:700;color:var(--ink);margin:2px 0 8px;cursor:pointer}
+.chk input{transform:scale(1.25)}
