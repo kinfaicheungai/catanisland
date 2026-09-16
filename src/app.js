@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad}from'./engine.js?v=3.3';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad}from'./engine.js?v=3.4';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 let VX=260,VY=245,VS=49;const sx=x=>VX+x*VS,sy=y=>VY+y*VS,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -728,12 +728,15 @@ function renderStats(){
     const kits=kitByRound[e.round]||new Set(),mk=(d,fast1st)=>`${kits.has(d)?'🔨':''}${fast1st?'⭐':''}`;
     let body;
     if(e.races&&e.races.length){
-      body='<table class="sttab"><tr><th>場</th><th>①</th><th>②</th><th>③</th><th>④</th></tr>'+
-        e.races.map((rc,idx)=>`<tr class="${rc.o.includes(0)?'myrace':''}"><td class="rn">${idx+1}</td>`+
-          rc.o.map((d,pos)=>`<td>${cell(d,mk(d,pos===0&&rc.fast))}</td>`).join('')+'</tr>').join('')+'</table>';
-    }else if(e.teams){ // 舊格式：淨係總排名
+      const R=e.races;
+      let t='<div class="sttab-wrap"><table class="sttab matchtab"><tr><th></th>'+R.map((rc,i)=>`<th class="${rc.o.includes(0)?'mycol':''}">場${i+1}${rc.fast?'⭐':''}</th>`).join('')+'</tr>';
+      for(let pos=0;pos<4;pos++){
+        t+=`<tr><td class="rn">第${pos+1}名</td>`+R.map(rc=>{const d=rc.o[pos];return `<td class="mcell${d===0?' me':''}${rc.o.includes(0)?' mycol':''}"><span class="dot" style="background:${dc(d)}"></span>${dn(d)}${kits.has(d)?'🔨':''}</td>`}).join('')+'</tr>';
+      }
+      body=t+'</table></div>';
+    }else if(e.teams){ // 舊格式：淨係總排名清單
       const ranked=[...e.teams].sort((a,b)=>b.pts-a.pts||a.pos-b.pos);
-      body='<div class="stlist">'+ranked.map((t,i)=>`<span class="stcell${t.d===0?' me':''}">${i+1}. <span class="dot" style="background:${dc(t.d)}"></span>${dn(t.d)}${kits.has(t.d)?'🔨':''}${t.pts?' +'+t.pts:''}</span>`).join('')+'</div>';
+      body='<div class="stlist">'+ranked.map((tm,i)=>`<span class="stcell${tm.d===0?' me':''}">${i+1}. <span class="dot" style="background:${dc(tm.d)}"></span>${dn(tm.d)}${kits.has(tm.d)?'🔨':''}${tm.pts?' +'+tm.pts:''}</span>`).join('')+'</div>';
     }else body='';
     return `<div class="ststation"><div class="ststation-h">第 ${e.round} 站 · ${e.city}</div>${body}</div>`}).join('');
   const hist=loadHistory();
@@ -802,7 +805,7 @@ function startExhibition(){
 }
 
 /* ============ 事件綁定 ============ */
-const VERSION='3.3';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
+const VERSION='3.4';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
 $('#exhibitBtn').onclick=startExhibition;
 {const c=$('#commentaryChk');if(c){c.checked=commentaryOn;c.addEventListener('change',()=>{commentaryOn=c.checked;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');if(!commentaryOn&&window.speechSynthesis)window.speechSynthesis.cancel()})}}
 $('#commentary')?.addEventListener('click',()=>{commentaryOn=!commentaryOn;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');const c=$('#commentaryChk');if(c)c.checked=commentaryOn;if(!commentaryOn&&window.speechSynthesis)window.speechSynthesis.cancel();toast(commentaryOn?'🎙 旁述開':'🔇 旁述關')});

@@ -175,3 +175,13 @@
 .stlist{display:flex;flex-wrap:wrap;gap:5px 12px;padding:8px 10px;font-size:11px}
 .stlist .stcell{display:inline-flex;align-items:center;gap:3px}
 .stlist .dot{width:9px;height:9px;border-radius:50%}
+
+/* v3.4：對陣矩陣表 */
+.sttab-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.matchtab{min-width:100%}
+.matchtab th{white-space:nowrap;text-align:center;font-size:9px}
+.matchtab td.rn{white-space:nowrap;color:#7b6a3a;font-weight:800;background:#faf3df}
+.matchtab td.mcell{white-space:nowrap;font-size:10px}
+.matchtab .mycol{background:#fff6d8}
+.matchtab td.me{font-weight:800}
+.matchtab .dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:3px;vertical-align:middle}
