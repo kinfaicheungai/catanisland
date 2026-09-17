@@ -119,7 +119,7 @@ export function roll(g,rng=Math.random){
     for(const tile of g.tiles.filter(t=>t.num===n&&t.id!==g.robber))
       for(const vid of tile.vertices){const v=g.vertices[vid];if(v.owner!==null){g.players[v.owner].resources[tile.type]+=v.level;g.production.push({id:v.owner,tile:tile.id,type:tile.type,amount:v.level})}}
     // 車隊實力：收到資源時有機率額外 +1（強隊跑得快啲）
-    for(const p of g.players){const mine=g.production.filter(x=>x.id===p.id);if(mine.length){const ch=((p.strength||3)-1)*0.07;if(rng()<ch){const pk=mine[Math.floor(rng()*mine.length)];p.resources[pk.type]++;g.production.push({id:p.id,tile:pk.tile,type:pk.type,amount:1,bonus:true})}}}
+    for(const p of g.players){const mine=g.production.filter(x=>x.id===p.id);if(mine.length){const ch=((p.strength||3)-1)*0.03;if(rng()<ch){const pk=mine[Math.floor(rng()*mine.length)];p.resources[pk.type]++;g.production.push({id:p.id,tile:pk.tile,type:pk.type,amount:1,bonus:true})}}}
     // 保底：連續冇收成太耐（避免永無翻身），派 1 份最缺嘅資源
     const DRY_LIMIT=8;
     for(const p of g.players){
@@ -172,7 +172,7 @@ export function aiChooseRobber(g,id){
     const owners=t.vertices.map(v=>g.vertices[v].owner).filter(o=>o!==null&&o!==id); // 唔擋自己
     if(!owners.length)continue;
     // 抑制高分者：對手分數越高，越值得封鎖（唔針對特定人、唔搶包尾）
-    let s=0;for(const o of owners)s+=w(t.num)*(1+Math.max(0,totalScore(g,o))*0.6);
+    let s=0;for(const o of owners)s+=w(t.num)*(1+Math.max(0,totalScore(g,o))*0.6+(g.players[o].seasonPts||0)*0.03); // 首選本場領先者，其次積分榜領先者
     if(s>bs){bs=s;best=t.id}}
   if(best===null){const alt=g.tiles.find(t=>t.id!==g.robber&&t.type!=='desert');best=alt?alt.id:g.tiles.find(t=>t.id!==g.robber).id}
   return best

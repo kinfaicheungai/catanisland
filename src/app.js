@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad}from'./engine.js?v=3.6';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad}from'./engine.js?v=3.8';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 let VX=260,VY=245,VS=49;const sx=x=>VX+x*VS,sy=y=>VY+y*VS,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -108,7 +108,7 @@ function standingsSorted(){return league.drivers.map((d,i)=>({...d,i})).sort((a,
 function gameResult(g,map){const ord=finishOrder(g);return{order:ord.map(map),rounds:g.round,scores:ord.map(b=>totalScore(g,b))}}
 function awardQuad(res){const{order,rounds,scores}=res;
   order.forEach((di,pos)=>{const d=league.drivers[di];d.races++;if(pos<PTS.length)d.pts+=PTS[pos];
-    d.margin=(d.margin||0)+Math.max(0,scores[pos]-(pos<3?scores[pos+1]:scores[pos]))});   // 得失分＝比下一名多幾分
+    d.margin=(d.margin||0)+(pos===0?scores[0]-scores[1]:scores[pos]-scores[pos-1])});   // 淨勝分：冠軍贏鄰位／其餘輸畀上一位（足球得失球式，可正可負，累計）
   const w=order[0],dw=league.drivers[w];dw.wins++;dw.fastest=dw.fastest==null?rounds:Math.min(dw.fastest,rounds)}
 /* 場地紀錄（跨賽季保存）：每個城市「最少輪次獲勝」嘅保持者 */
 const RKEY='frontier-records-v1';
@@ -136,7 +136,7 @@ function resolveStation(){
   return{city,minR,myFast,broke,recName:records[city].name}
 }
 function simRace(quad,axial){
-  const g=makeGame(Math.random,{axial,...raceOpts(quad,true),halfStart:quad.map(di=>!!league.drivers[di].desertNext)});
+  const g=makeGame(Math.random,{axial,...raceOpts(quad,true),halfStart:quad.map(di=>!!league.drivers[di].desertNext)});g.players.forEach((p,k)=>p.seasonPts=league.drivers[quad[k]].pts);
   for(const id of gridOrder(g)){const di=quad[id];let vid;
     if(league.drivers[di]&&league.drivers[di].desertNext){const legal=legalInitialSettlements(g);vid=legal.find(v=>g.tiles.some(t=>t.type==='desert'&&t.vertices.includes(v)))??legal[legal.length-1];league.drivers[di].desertNext=false}
     else vid=pickAiInitialSettlement(g,id);
@@ -247,7 +247,7 @@ function setHighlights(){
 function chooseEdge(id){
   if(dragged)return;
   if(busy)return;
-  if(mode==='demo'){if(kitRoadLeft){const e=game.edges[id];if(e&&e.owner!=null&&e.owner!==0){const o=demolishRoad(game,id);if(o!==false){sfx.build();flashEdge(id);toast('🔨 拆咗 '+game.players[o].name+' 一條航線');commentary('demolish',{n:game.players[0].name,v:game.players[o].name},.7);kitRoadLeft=false;endDemolish()}}}return}
+  if(mode==='demo'){if(kitRoadLeft){const e=game.edges[id];if(e&&e.owner!=null&&e.owner!==0){const o=demolishRoad(game,id);if(o!==false){sfx.build();flashEdge(id);toast('💣 拆咗 '+game.players[o].name+' 一條航線');commentary('demolish',{n:game.players[0].name,v:game.players[o].name},.7);kitRoadLeft=false;endDemolish()}}}return}
   if(mode==='initRoad'){if(placeInitialRoad(game,0,id)){mode=null;render();flashEdge(id);sfx.build();setup.idx++;advanceSetup()}return}
   if(mode==='road'){const wasFree=game.freeRoads>0;if(placeRoad(game,0,id)){flashEdge(id);sfx.build();if(wasFree&&game.freeRoads>0){render();toast('免費築路：仲可以起多一條');return}mode=null;render()}}
 }
@@ -260,15 +260,15 @@ function chooseTile(id){
   else toast('🏴‍☠️ 海盜就位，封鎖該島');
   if(kitArmed&&(kitSettleLeft||kitRoadLeft))beginDemolish();
 }
-function demoPrompt(){return kitSettleLeft&&kitRoadLeft?'🔨 拆卸包：拆一座對手村莊 或 一條對手道路（今個 7 只可用一樣，或按跳過）。':kitSettleLeft?'🔨 拆卸包：拆一座對手村莊（道路留返下個 7；或按跳過）。':'🔨 拆卸包：拆一條對手道路（或按跳過）。'}
-function beginDemolish(){mode='demo';game.log=demoPrompt();render();toast('🔨 拆卸包：揀一個目標')}
+function demoPrompt(){return kitSettleLeft&&kitRoadLeft?'💣 拆卸包：拆一座對手村莊 或 一條對手道路（今個 7 只可用一樣，或按跳過）。':kitSettleLeft?'💣 拆卸包：拆一座對手村莊（道路留返下個 7；或按跳過）。':'💣 拆卸包：拆一條對手道路（或按跳過）。'}
+function beginDemolish(){mode='demo';game.log=demoPrompt();render();toast('💣 拆卸包：揀一個目標')}
 function endDemolish(){mode=null;if(!kitSettleLeft&&!kitRoadLeft)kitArmed=false;render()}
 function flashTile(id){const el=svg.querySelector(`[data-tile="${id}"]`);if(el){el.classList.add('just');setTimeout(()=>el.classList.remove('just'),800)}}
 function beginRobber(msg){mode='robber';busy=false;game.log=msg||'揀一塊島放置海盜，封鎖佢生產。';$('#ticker').textContent=game.log;render();toast('🏴‍☠️ 揀一塊發光島嶼放海盜')}
 function chooseVertex(id){
   if(dragged)return;
   if(busy)return;
-  if(mode==='demo'){if(kitSettleLeft){const v=game.vertices[id];if(v.owner!=null&&v.owner!==0&&v.level===1){const o=demolishSettlement(game,id);if(o!==false){sfx.build();flashVertex(id);toast('🔨 拆咗 '+game.players[o].name+' 一座村莊');commentary('demolish',{n:game.players[0].name,v:game.players[o].name},.9);kitSettleLeft=false;endDemolish()}}}return}
+  if(mode==='demo'){if(kitSettleLeft){const v=game.vertices[id];if(v.owner!=null&&v.owner!==0&&v.level===1){const o=demolishSettlement(game,id);if(o!==false){sfx.build();flashVertex(id);toast('💣 拆咗 '+game.players[o].name+' 一座村莊');commentary('demolish',{n:game.players[0].name,v:game.players[o].name},.9);kitSettleLeft=false;endDemolish()}}}return}
   if(mode==='initSettle'){if(placeInitialSettlement(game,0,id)){setup.vid=id;mode='initRoad';render();flashVertex(id);sfx.build()}return}
   const ok=mode==='settlement'?placeSettlement(game,0,id):mode==='city'?placeCity(game,0,id):false;
   if(ok){mode=null;render();flashVertex(id);sfx.build()}
@@ -417,7 +417,7 @@ async function playAiTurn(id){
         const rank=standingsSorted().map(d=>d.i),standOf=b=>rank.indexOf(raceDrivers?raceDrivers[b]:b);
         if(aiKitSettleLeft){let best=null,bk=null;game.vertices.forEach(v=>{if(v.owner!=null&&v.owner!==id&&v.level===1&&game.vertices.filter(x=>x.owner===v.owner).length>1){const key=[standOf(v.owner),-vValApp(v.id)];if(!bk||key[0]<bk[0]||(key[0]===bk[0]&&key[1]<bk[1])){bk=key;best=v.id}}});if(best!=null){const vo=game.vertices[best].owner;if(demolishSettlement(game,best)!==false){aiKitSettleLeft=false;did=true;flashVertex(best);commentary('demolish',{n:game.players[id].name,v:game.players[vo].name},.9)}}}
         if(!did&&aiKitRoadLeft){let best=null,bs=Infinity;for(const e of game.edges)if(e.owner!=null&&e.owner!==id){const st=standOf(e.owner);if(st<bs){bs=st;best=e.id}}if(best!=null&&demolishRoad(game,best)!==false){aiKitRoadLeft=false;did=true;flashEdge(best)}}
-        if(did){render();sfx.build();toast(`🔨 ${game.players[id].name} 用拆卸包拆嘢！`);await sleep(760)}
+        if(did){render();sfx.build();toast(`💣 ${game.players[id].name} 用拆卸包拆嘢！`);await sleep(760)}
       }
     }
   }
@@ -566,7 +566,7 @@ function playPlayoffRace(pending){
   const others=pending.participants.filter(i=>i!==0);raceDrivers=[0,...others];
   initAudio();endHandled=false;prevArmy=null;prevRoad=null;leagueActive=true;playoffStage=pending.stage;kitArmed=false;forceDesert=false;kitSettleLeft=false;kitRoadLeft=false;aiKitDriver=null;raceCity=stageName(pending.stage);prevLeader=null;nearSaid=false;
   const opt=raceOpts(raceDrivers,false);                 // 季後賽：有資源型加成，無扣分
-  game=makeGame(undefined,{axial:SHAPES.big,...opt});
+  game=makeGame(undefined,{axial:SHAPES.big,...opt});game.players.forEach((p,k)=>p.seasonPts=league.drivers[raceDrivers[k]]?league.drivers[raceDrivers[k]].pts:0);
   $('#playerLabel').textContent=opt.names[0];$('#leagueDialog').close();beginSetup();
 }
 function toast(t){$('#toast').textContent=t;$('#toast').classList.add('show');setTimeout(()=>$('#toast').classList.remove('show'),1600)}
@@ -575,7 +575,7 @@ function toast(t){$('#toast').textContent=t;$('#toast').classList.add('show');se
 let commentaryOn=(localStorage.getItem('frontier-commentary')??'1')==='1',jaVoice=null,raceCity='',prevLeader=null,nearSaid=false;
 function pickJaVoice(){try{const vs=window.speechSynthesis.getVoices();jaVoice=vs.find(v=>/^ja/i.test(v.lang))||vs.find(v=>/japan|日本|Kyoko|Otoya|Hattori|O-ren/i.test(v.name))||null}catch{}}
 if(typeof window!=='undefined'&&window.speechSynthesis){pickJaVoice();window.speechSynthesis.onvoiceschanged=pickJaVoice}
-function speakJa(t){if(!commentaryOn||typeof window==='undefined'||!window.speechSynthesis)return;try{window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.lang='ja-JP';if(jaVoice)u.voice=jaVoice;u.rate=1.18;u.pitch=1.16;window.speechSynthesis.speak(u)}catch{}}
+function speakJa(t){if(!commentaryOn||typeof window==='undefined'||!window.speechSynthesis)return;try{window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.lang='ja-JP';if(jaVoice)u.voice=jaVoice;u.rate=0.95;u.pitch=1.08;window.speechSynthesis.speak(u)}catch{}}
 function showComment(t){const el=$('#commentary');if(!el)return;el.textContent='🎙 '+t;el.classList.add('show');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('show'),4600)}
 const _lastCat={};
 function pick(cat,arr){if(!arr||!arr.length)return'';let i=Math.floor(Math.random()*arr.length);if(arr.length>1&&i===_lastCat[cat])i=(i+1)%arr.length;_lastCat[cat]=i;return arr[i]}
@@ -691,18 +691,18 @@ const LINES={
 
 /* ---- 聯賽榜介面 ---- */
 function renderStandingsPanel(){
-  const rows=standingsSorted().map((d,idx)=>`<div class="strow${d.i===0?' me':''}"><b>${idx+1}</b><span class="dot" style="background:${cssPaint(d)}"></span><span class="nm">${d.name} <i class="st">${'★'.repeat(d.strength)}${d.strength>=4?RESICON[d.affinity]:''}</i></span><small>${d.wins}勝·得失${d.margin||0}${d.fastest?('·'+d.fastest+'輪'):''}</small><b class="pts">${d.pts}</b></div>`).join('');
+  const rows=standingsSorted().map((d,idx)=>`<div class="strow${d.i===0?' me':''}"><b>${idx+1}</b><span class="dot" style="background:${cssPaint(d)}"></span><span class="nm">${d.name} <i class="st">${'★'.repeat(d.strength)}${d.strength>=4?RESICON[d.affinity]:''}</i></span><small>${d.wins}勝·得失${(d.margin||0)>0?'+':''}${d.margin||0}${d.fastest?('·'+d.fastest+'輪'):''}${d.kit===false?' 💣':''}</small><b class="pts">${d.pts}</b></div>`).join('');
   $('#standings').innerHTML=`<div class="strow head"><b>#</b><span class="dot"></span><span class="nm">車手</span><small>勝·得失·最速</small><b class="pts">分</b></div>`+rows;
 }
 function renderHub(){
   if(league.playoff){renderPlayoffHub();return;}
-  const [city,ly]=league.cities[league.round],quad=humanQuad(),opp=quad.filter(i=>i!==0).map(i=>`<span class="dchip" style="--dc:${league.drivers[i].color}">${league.drivers[i].name} <i class="st">${'★'.repeat(league.drivers[i].strength)}${league.drivers[i].strength>=4?RESICON[league.drivers[i].affinity]:''}</i></span>`).join('');
+  const [city,ly]=league.cities[league.round],quad=humanQuad(),opp=quad.filter(i=>i!==0).map(i=>`<span class="dchip" style="--dc:${league.drivers[i].color}">${league.drivers[i].name} <i class="st">${'★'.repeat(league.drivers[i].strength)}${league.drivers[i].strength>=4?RESICON[league.drivers[i].affinity]:''}</i>${league.drivers[i].kit?'':'<span class="kitgone">💣已用</span>'}</span>`).join('');
   $('#leagueTitle').textContent=`第 ${league.round+1} / ${league.cities.length} 站`;
   $('#leagueSub').textContent=`${city}分站 · ${SHAPE_NAME[ly]}`;
   $('#nextRace').innerHTML=`<div class="nr-city">🏁 ${city}</div><div class="nr-you"><span class="dchip you" style="--dc:${league.drivers[0].color}">你：${league.drivers[0].name} <i class="st">${'★'.repeat(league.drivers[0].strength)}${league.drivers[0].strength>=4?RESICON[league.drivers[0].affinity]:''}</i></span></div><div class="nr-vs">對陣</div><div class="nr-opp">${opp}</div>`;
   $('#raceBtn').style.display='';$('#raceBtn').textContent='出賽 →';
-  if(league.drivers[0].kit)$('#nextRace').innerHTML+=`<label class="kit-opt"><input type="checkbox" id="kitCheck"> 🔨 本場啟用拆卸包（拆 1 村 + 1 路，擲到 7 時用）<small>啟用即消耗；用咗下場（尾場則本場）從沙漠開局</small></label>`;
-  else $('#nextRace').innerHTML+=`<div class="kit-used">🔨 你嘅拆卸包本季已用</div>`;
+  if(league.drivers[0].kit)$('#nextRace').innerHTML+=`<label class="kit-opt"><input type="checkbox" id="kitCheck"> 💣 本場啟用拆卸包（拆 1 村 + 1 路，擲到 7 時用）<small>啟用即消耗；用咗下場（尾場則本場）從沙漠開局</small></label>`;
+  else $('#nextRace').innerHTML+=`<div class="kit-used">💣 你嘅拆卸包本季已用</div>`;
   renderStandingsPanel();
 }
 function renderPlayoffHub(){
@@ -722,21 +722,21 @@ function renderStats(){
   const log=(league&&league.roundLog)||[],kitByRound={};
   (league&&league.kitLog||[]).forEach(e=>{(kitByRound[e.round]=kitByRound[e.round]||new Set()).add(e.d)});
   const cell=(d,mark)=>`<span class="stcell${d===0?' me':''}"><span class="dot" style="background:${dc(d)}"></span>${dn(d)}${mark}</span>`;
-  let h='<h3 class="tbl-title">本季 · 逐站逐場排名（🔨拆卸包 · ⭐最速）</h3>';
+  let h='<h3 class="tbl-title">本季 · 逐站逐場排名（💣拆卸包 · ⭐最速）</h3>';
   if(!log.length)h+='<div class="recrow"><span class="rc-hold none">仲未有完成嘅分站</span></div>';
   else h+=log.map(e=>{
-    const kits=kitByRound[e.round]||new Set(),mk=(d,fast1st)=>`${kits.has(d)?'🔨':''}${fast1st?'⭐':''}`;
+    const kits=kitByRound[e.round]||new Set(),mk=(d,fast1st)=>`${kits.has(d)?'💣':''}${fast1st?'⭐':''}`;
     let body;
     if(e.races&&e.races.length){
       const R=e.races;
       let t='<div class="sttab-wrap"><table class="sttab matchtab"><tr><th></th>'+R.map((rc,i)=>`<th class="${rc.o.includes(0)?'mycol':''}">場${i+1}${rc.fast?'⭐':''}</th>`).join('')+'</tr>';
       for(let pos=0;pos<4;pos++){
-        t+=`<tr><td class="rn">第${pos+1}名</td>`+R.map(rc=>{const d=rc.o[pos];return `<td class="mcell${d===0?' me':''}${rc.o.includes(0)?' mycol':''}"><span class="dot" style="background:${dc(d)}"></span>${dn(d)}${kits.has(d)?'🔨':''}</td>`}).join('')+'</tr>';
+        t+=`<tr><td class="rn">第${pos+1}名</td>`+R.map(rc=>{const d=rc.o[pos];return `<td class="mcell${d===0?' me':''}${rc.o.includes(0)?' mycol':''}"><span class="dot" style="background:${dc(d)}"></span>${dn(d)}${kits.has(d)?'💣':''}</td>`}).join('')+'</tr>';
       }
       body=t+'</table></div>';
     }else if(e.teams){ // 舊格式：淨係總排名清單
       const ranked=[...e.teams].sort((a,b)=>b.pts-a.pts||a.pos-b.pos);
-      body='<div class="stlist">'+ranked.map((tm,i)=>`<span class="stcell${tm.d===0?' me':''}">${i+1}. <span class="dot" style="background:${dc(tm.d)}"></span>${dn(tm.d)}${kits.has(tm.d)?'🔨':''}${tm.pts?' +'+tm.pts:''}</span>`).join('')+'</div>';
+      body='<div class="stlist">'+ranked.map((tm,i)=>`<span class="stcell${tm.d===0?' me':''}">${i+1}. <span class="dot" style="background:${dc(tm.d)}"></span>${dn(tm.d)}${kits.has(tm.d)?'💣':''}${tm.pts?' +'+tm.pts:''}</span>`).join('')+'</div>';
     }else body='';
     return `<div class="ststation"><div class="ststation-h">第 ${e.round} 站 · ${e.city}</div>${body}</div>`}).join('');
   const hist=loadHistory();
@@ -792,7 +792,7 @@ function playLeagueRace(){
   initAudio();endHandled=false;prevArmy=null;prevRoad=null;leagueActive=true;playoffStage=null;
   const opt=raceOpts(raceDrivers,true);                  // 常規賽：資源型加成 + 上場贏家扣分
   const half=raceDrivers.map((di,k)=>k===0?forceDesert:!!league.drivers[di].desertNext); // 沙漠開局者：起始資源減半
-  game=makeGame(undefined,{axial:SHAPES[league.cities[league.round][1]],...opt,halfStart:half});
+  game=makeGame(undefined,{axial:SHAPES[league.cities[league.round][1]],...opt,halfStart:half});game.players.forEach((p,k)=>p.seasonPts=league.drivers[raceDrivers[k]]?league.drivers[raceDrivers[k]].pts:0);
   clearLive();$('#playerLabel').textContent=opt.names[0];$('#leagueDialog').close();beginSetup()
 }
 function startExhibition(){
@@ -806,7 +806,7 @@ function startExhibition(){
 }
 
 /* ============ 事件綁定 ============ */
-const VERSION='3.6';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
+const VERSION='3.8';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
 $('#exhibitBtn').onclick=startExhibition;
 {const c=$('#commentaryChk');if(c){c.checked=commentaryOn;c.addEventListener('change',()=>{commentaryOn=c.checked;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');if(!commentaryOn&&window.speechSynthesis)window.speechSynthesis.cancel()})}}
 $('#commentary')?.addEventListener('click',()=>{commentaryOn=!commentaryOn;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');const c=$('#commentaryChk');if(c)c.checked=commentaryOn;if(!commentaryOn&&window.speechSynthesis)window.speechSynthesis.cancel();toast(commentaryOn?'🎙 旁述開':'🔇 旁述關')});

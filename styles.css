@@ -187,3 +187,6 @@
 .matchtab .dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:3px;vertical-align:middle}
 
 #cityLabel{font-weight:800;color:#f0d48a}
+
+/* v3.8：已用拆卸包標誌 */
+.dchip .kitgone{display:inline-block;margin-left:5px;font-size:8px;color:#ffb3a0;font-weight:700}
