@@ -1,6 +1,6 @@
 export const RESOURCES=['wood','brick','grain','wool','ore'];
 export const LABELS={wood:'木材',brick:'石磚',grain:'糧食',wool:'羊毛',ore:'礦石'};
-export const ICONS={wood:'🌲',brick:'🧱',grain:'🌾',wool:'🐑',ore:'⛏️'};
+export const ICONS={wood:'🌲',brick:'🧱',grain:'🌾',wool:'🐑',ore:'⛏️',gold:'💰'};
 export const COSTS={road:{wood:1,brick:1},settlement:{wood:1,brick:1,grain:1,wool:1},city:{grain:2,ore:3},card:{grain:1,wool:1,ore:1}};
 export const COLORS=['#16a3b6','#e55643','#e9aa24','#7759bb'];
 const NAMES=['珊瑚拓荒團','赤狐商會','金帆聯盟','夜潮公社'];
@@ -55,6 +55,7 @@ export function makeGame(rng=Math.random,opts={}){
   while(numPool.length<land)numPool.push(weighted[numPool.length%weighted.length]);
   shuffle(numPool,rng);let np=0;
   topo.tiles.forEach((t,i)=>{t.type=allTypes[i];t.num=t.type==='desert'?7:numPool[np++]});
+  if(opts.gold){const gt=topo.tiles.find(t=>t.type!=='desert');if(gt)gt.type='gold'} // 黃金地塊（隨機資源）
   const names=opts.names&&opts.names.length===4?opts.names:NAMES;
   const cols=opts.colors&&opts.colors.length===4?opts.colors:COLORS;
   const strs=opts.strengths&&opts.strengths.length===4?opts.strengths:[3,3,3,3];
@@ -72,7 +73,7 @@ export function makeGame(rng=Math.random,opts={}){
   });
   const coast=topo.edges.filter(e=>edgeTileCount(topo,e.id)===1),nPorts=Math.min(9,Math.max(6,Math.floor(coast.length/3))),portKinds=['wood','brick','grain','wool','ore','any','any','any','any','any','any'],ports=[];
   for(let i=0;i<nPorts;i++){const e=coast[Math.floor(i*coast.length/nPorts)];ports.push({edge:e.id,a:e.a,b:e.b,kind:portKinds[i%portKinds.length],ratio:portKinds[i%portKinds.length]==='any'?3:2})}
-  return{round:1,turn:0,phase:'setup',layout:kind,target:(kind==='large'||N>=22)?12:10,...topo,players,ports,winner:null,largestArmy:null,longestRoad:null,lastRoll:null,dice:null,production:[],robber:topo.tiles.find(t=>t.type==='desert').id,discards:null,robberPending:false,robberFromCard:false,freeRoads:0,steal:null,log:'開局：每支隊伍揀選一座村莊同一條相連航線嘅位置。'}
+  return{round:1,turn:0,phase:'setup',layout:kind,target:(kind==='large'||N>=22)?12:10,...topo,players,ports,winner:null,largestArmy:null,longestRoad:null,lastRoll:null,dice:null,production:[],robber:topo.tiles.find(t=>t.type==='desert').id,discards:null,robberPending:false,robberFromCard:false,freeRoads:0,steal:null,weather:opts.weather||'clear',log:'開局：每支隊伍揀選一座村莊同一條相連航線嘅位置。'}
 }
 
 /* ---------- 開局選址（初始擺放）---------- */
@@ -117,7 +118,11 @@ export function roll(g,rng=Math.random){
     g.log='海盜嚟襲！物資多過 7 份嘅隊伍要棄一半，擲骰者移動海盜封鎖島嶼。'
   }else{
     for(const tile of g.tiles.filter(t=>t.num===n&&t.id!==g.robber))
-      for(const vid of tile.vertices){const v=g.vertices[vid];if(v.owner!==null){g.players[v.owner].resources[tile.type]+=v.level;g.production.push({id:v.owner,tile:tile.id,type:tile.type,amount:v.level})}}
+      for(const vid of tile.vertices){const v=g.vertices[vid];if(v.owner===null)continue;
+        if(g.weather==='rain'&&rng()<0.2)continue;                                   // 雨：濕滑，資源流失
+        if(g.weather==='drought'&&(tile.type==='grain'||tile.type==='wool')&&rng()<0.5)continue; // 旱：農牧減產
+        let type=tile.type;if(type==='gold')type=RESOURCES[Math.floor(rng()*RESOURCES.length)]; // 黃金：隨機資源
+        g.players[v.owner].resources[type]+=v.level;g.production.push({id:v.owner,tile:tile.id,type,amount:v.level})}
     // 車隊實力：收到資源時有機率額外 +1（強隊跑得快啲）
     for(const p of g.players){const mine=g.production.filter(x=>x.id===p.id);if(mine.length){const ch=((p.strength||3)-1)*0.03;if(rng()<ch){const pk=mine[Math.floor(rng()*mine.length)];p.resources[pk.type]++;g.production.push({id:p.id,tile:pk.tile,type:pk.type,amount:1,bonus:true})}}}
     // 保底：連續冇收成太耐（避免永無翻身），派 1 份最缺嘅資源
@@ -194,7 +199,7 @@ export function placeCity(g,id,vid){const v=g.vertices[vid],p=g.players[id];if(b
 function awardPorts(g,id,vid){for(const port of g.ports.filter(p=>p.a===vid||p.b===vid))if(!g.players[id].ports.includes(port.kind))g.players[id].ports.push(port.kind)}
 
 export function tradeRatio(p,from){return p.ports.includes(from)?2:p.ports.includes('any')?3:4}
-export function trade(g,id,from,to){const p=g.players[id],ratio=tradeRatio(p,from);if(blocked(g)||g.phase!=='action'||from===to||p.resources[from]<ratio)return false;p.resources[from]-=ratio;p.resources[to]++;g.log=`${p.name} 喺港口以 ${ratio}:1 換取${LABELS[to]}。`;return true}
+export function trade(g,id,from,to){const p=g.players[id];let ratio=tradeRatio(p,from);if(g.weather==='wind')ratio=Math.max(2,ratio-1);if(blocked(g)||g.phase!=='action'||from===to||p.resources[from]<ratio)return false;p.resources[from]-=ratio;p.resources[to]++;g.log=`${p.name} 喺港口以 ${ratio}:1 換取${LABELS[to]}。`;return true}
 
 // 買一張航海卡入手牌（只有「勝利點」即時計分，其餘要之後打出）。
 export const CARD_TYPES=['騎士','豐收','築路','勝利點'];
