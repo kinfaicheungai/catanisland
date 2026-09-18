@@ -89,10 +89,17 @@
 .dchip.you{background:#ffffff26;font-size:11px}
 .tbl-title{font-size:12px;margin:6px 0 6px;color:#5a6c6a}
 .standings{max-height:230px;overflow:auto;border:1px solid #e3d9bd;border-radius:10px}
-.strow{display:grid;grid-template-columns:26px 14px 1fr auto 34px;align-items:center;gap:6px;padding:6px 9px;font-size:12px;border-bottom:1px solid #efe6cd}
+.strow{display:grid;grid-template-columns:22px minmax(0,1fr) 26px 44px 22px 34px;align-items:center;gap:6px;padding:7px 10px;font-size:12px;border-bottom:1px solid #efe6cd}
+.strow .rk{text-align:center;color:#8a8f84}
+.strow .nm{display:flex;align-items:center;gap:5px;min-width:0}
+.strow .nm .nmtxt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.strow .nm .st{flex:none;font-size:8px;color:#c8a11a;font-style:normal;white-space:nowrap}
+.strow .dot{flex:none}
+.strow .c{text-align:right;font-size:11px;color:#5a6c6a;font-variant-numeric:tabular-nums}
+.strow.head .c{color:#7b8178;font-weight:700}
+.strow .pts{text-align:right;font-weight:900;font-variant-numeric:tabular-nums}
 .strow:last-child{border-bottom:0}
 .strow .dot{width:11px;height:11px;border-radius:50%}
-.strow .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .strow small{font-size:8px;color:#8a8f84}
 .strow .pts{text-align:right;font-weight:900}
 .strow.head{background:#f3ead0;font-size:9px;color:#7b8178;font-weight:700;position:sticky;top:0}

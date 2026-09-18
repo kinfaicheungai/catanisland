@@ -1,5 +1,5 @@
 /* 拓荒群島 離線快取 Service Worker */
-const CACHE='frontier-4.2';
+const CACHE='frontier-4.3';
 const ASSETS=[
   './','index.html','styles.css','manifest.webmanifest',
   'src/app.js','src/engine.js',
@@ -27,18 +27,19 @@ self.addEventListener('activate',e=>{
 self.addEventListener('fetch',e=>{
   const req=e.request;
   if(req.method!=='GET'||new URL(req.url).origin!==location.origin)return;
+  const path=new URL(req.url).pathname;
+  const codey=req.mode==='navigate'||/\.(js|css|html|webmanifest)$/i.test(path);
   e.respondWith((async()=>{
-    // 快取優先（忽略 ?v= 版本查詢字串），搵唔到先上網，再快取落嚟
+    if(codey){
+      // 程式／樣式／頁面：網絡優先，確保更新即時生效；離線先用快取
+      try{const res=await fetch(req);if(res&&res.ok){const c=await caches.open(CACHE);c.put(req,res.clone())}return res;}
+      catch(err){const hit=await caches.match(req,{ignoreSearch:true});if(hit)return hit;
+        if(req.mode==='navigate')return (await caches.match('index.html'))||(await caches.match('./'));throw err;}
+    }
+    // 圖片／聲效等靜態資源：快取優先（忽略 ?v=）
     const hit=await caches.match(req,{ignoreSearch:true});
     if(hit)return hit;
-    try{
-      const res=await fetch(req);
-      if(res&&res.ok&&res.type==='basic'){const c=await caches.open(CACHE);c.put(req,res.clone())}
-      return res;
-    }catch(err){
-      // 離線又未快取：導航請求就返首頁
-      if(req.mode==='navigate')return (await caches.match('index.html'))||(await caches.match('./'));
-      throw err;
-    }
+    try{const res=await fetch(req);if(res&&res.ok&&res.type==='basic'){const c=await caches.open(CACHE);c.put(req,res.clone())}return res;}
+    catch(err){if(req.mode==='navigate')return (await caches.match('index.html'))||(await caches.match('./'));throw err;}
   })());
 });
