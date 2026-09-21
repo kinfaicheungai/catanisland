@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad}from'./engine.js?v=4.5';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad}from'./engine.js?v=4.6';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 let VX=260,VY=245,VS=49;const sx=x=>VX+x*VS,sy=y=>VY+y*VS,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -323,7 +323,7 @@ function render(){
   if(prevArmy!==game.largestArmy){if(game.largestArmy!=null&&game.phase!=='setup'){toast(`${game.players[game.largestArmy].name} 奪得最大軍閥 🛡 +2`);commentary('army',{n:game.players[game.largestArmy].name})}prevArmy=game.largestArmy}
   if(prevRoad!==game.longestRoad){if(game.longestRoad!=null&&game.phase!=='setup'){toast(`${game.players[game.longestRoad].name} 奪得最長道路 🏅 +2`);commentary('longroad',{n:game.players[game.longestRoad].name})}prevRoad=game.longestRoad}
   if(commentaryOn&&game.phase!=='setup'&&game.winner===null){const ld=game.players.slice().sort((a,b)=>totalScore(game,b.id)-totalScore(game,a.id))[0];if(ld&&totalScore(game,ld.id)>0){if(prevLeader!=null&&prevLeader!==ld.id)commentary('lead',{n:ld.name});prevLeader=ld.id;if(!nearSaid&&totalScore(game,ld.id)>=(game.target||10)-1){nearSaid=true;commentary('nearwin',{n:ld.name})}const a2=game.players.slice().sort((x,y)=>totalScore(game,y.id)-totalScore(game,x.id));if(!closeSaid&&a2[1]&&totalScore(game,a2[0].id)>=3&&totalScore(game,a2[0].id)-totalScore(game,a2[1].id)<=1){closeSaid=true;commentary('close',{n:a2[0].name,n2:a2[1].name},.8)}}}
-  $('#round').textContent=game.round;{const cl=$('#cityLabel');if(cl)cl.textContent=raceCity?('🏁 '+raceCity+' '+((WEATHER_META[raceWeather]||{}).icon||'')+' · '):''}
+  $('#round').textContent=game.round;{const wfx=$('#weatherFx');if(wfx)wfx.className='fx-'+(game.weather||'clear')}{const cl=$('#cityLabel');if(cl)cl.textContent=raceCity?('🏁 '+raceCity+' '+((WEATHER_META[raceWeather]||{}).icon||'')+' · '):''}
   $('#score').textContent=totalScore(game,0);$('#cards').textContent=me.cards.length;
   $('#army').textContent=me.knights;$('#longest').textContent=longestRoadLength(game,0);
   $('#target').textContent=game.target;$('#trophies').innerHTML=trophy(0);
@@ -413,7 +413,7 @@ async function advanceSetup(){
   const roads=legalInitialRoads(game,id,vid),eid=roads[Math.floor(Math.random()*roads.length)];placeInitialRoad(game,id,eid);render();flashEdge(eid);sfx.build();await sleep(520);
   setup.idx++;busy=false;advanceSetup()
 }
-function endSetup(){game.order=setup.order.slice();game.op=0;setup=null;mode=null;game.log='開局完成！按排位次序開始。';commentary('start',{city:raceCity||'この島'});setTimeout(()=>commentWeather(),1500);setTimeout(()=>{if(!commentaryOn)return;if(league&&leagueActive){const rk=standingsSorted().findIndex(x=>x.i===0)+1;if(rk===1)return commentary('pressure',{n:league.drivers[0].name},.8);if(rk>=12)return commentary('comeback',{n:league.drivers[0].name},.8)}if(raceDrivers&&raceDrivers.length>1)commentForm(raceDrivers[1+Math.floor(Math.random()*(raceDrivers.length-1))],.6)},2800);schedule()}
+function endSetup(){game.order=setup.order.slice();game.op=0;setup=null;mode=null;game.log='開局完成！按排位次序開始。';{const wm=WEATHER_META[raceWeather]||{};if(wm.name)toast(wm.icon+' 本站天氣：'+wm.name)}commentary('start',{city:raceCity||'この島'});setTimeout(()=>commentWeather(),1500);setTimeout(()=>{if(!commentaryOn)return;if(league&&leagueActive){const rk=standingsSorted().findIndex(x=>x.i===0)+1;if(rk===1)return commentary('pressure',{n:league.drivers[0].name},.8);if(rk>=12)return commentary('comeback',{n:league.drivers[0].name},.8)}if(raceDrivers&&raceDrivers.length>1)commentForm(raceDrivers[1+Math.floor(Math.random()*(raceDrivers.length-1))],.6)},2800);schedule()}
 
 /* ============ 玩家擲骰 ============ */
 async function humanRoll(){
@@ -443,12 +443,12 @@ async function playAiTurn(id){
     // 電腦用拆卸包（偏向拆人類）
     const drv=(leagueActive&&!playoffStage&&raceDrivers)?league.drivers[raceDrivers[id]]:null;
     if(drv&&drv.kit&&game.round>=3&&(aiKitDriver===null||aiKitDriver===id)){
-      const hasT=game.vertices.some(v=>v.owner!=null&&v.owner!==id&&v.level===1&&game.vertices.filter(x=>x.owner===v.owner).length>1)||game.edges.some(e=>e.owner!=null&&e.owner!==id);
+      const sc=b=>totalScore(game,b),rank=standingsSorted().map(d=>d.i),standOf=b=>rank.indexOf(raceDrivers?raceDrivers[b]:b),threat=b=>b!==id&&sc(b)>=sc(id);
+      const hasT=game.vertices.some(v=>v.owner!=null&&threat(v.owner)&&v.level===1&&game.vertices.filter(x=>x.owner===v.owner).length>1)||game.edges.some(e=>e.owner!=null&&threat(e.owner));
       if(aiKitDriver===null&&hasT&&Math.random()<0.4){aiKitDriver=id;aiKitSettleLeft=true;aiKitRoadLeft=true;drv.kit=false;drv.desertNext=true;(league.kitLog=league.kitLog||[]).push({d:raceDrivers[id],city:league.cities[league.round][0],round:league.round+1});saveLeague()}
       if(aiKitDriver===id){let did=false;
-        const rank=standingsSorted().map(d=>d.i),standOf=b=>rank.indexOf(raceDrivers?raceDrivers[b]:b);
-        if(aiKitSettleLeft){let best=null,bk=null;game.vertices.forEach(v=>{if(v.owner!=null&&v.owner!==id&&v.level===1&&game.vertices.filter(x=>x.owner===v.owner).length>1){const key=[standOf(v.owner),-vValApp(v.id)];if(!bk||key[0]<bk[0]||(key[0]===bk[0]&&key[1]<bk[1])){bk=key;best=v.id}}});if(best!=null){const vo=game.vertices[best].owner;if(demolishSettlement(game,best)!==false){aiKitSettleLeft=false;did=true;flashVertex(best);commentary('demolish',{n:game.players[id].name,v:game.players[vo].name},.9)}}}
-        if(!did&&aiKitRoadLeft){let best=null,bs=Infinity;for(const e of game.edges)if(e.owner!=null&&e.owner!==id){const st=standOf(e.owner);if(st<bs){bs=st;best=e.id}}if(best!=null&&demolishRoad(game,best)!==false){aiKitRoadLeft=false;did=true;flashEdge(best)}}
+        if(aiKitSettleLeft){let best=null,bk=-Infinity;game.vertices.forEach(v=>{if(v.owner!=null&&v.owner!==id&&v.level===1&&game.vertices.filter(x=>x.owner===v.owner).length>1){const k=sc(v.owner)*100-standOf(v.owner)*3+vValApp(v.id);if(k>bk){bk=k;best=v.id}}});if(best!=null){const vo=game.vertices[best].owner;if(demolishSettlement(game,best)!==false){aiKitSettleLeft=false;did=true;flashVertex(best);commentary('demolish',{n:game.players[id].name,v:game.players[vo].name},.9)}}}
+        if(!did&&aiKitRoadLeft){let best=null,bk=-Infinity;for(const e of game.edges)if(e.owner!=null&&e.owner!==id){const k=sc(e.owner)*100-standOf(e.owner)*3;if(k>bk){bk=k;best=e.id}}if(best!=null&&demolishRoad(game,best)!==false){aiKitRoadLeft=false;did=true;flashEdge(best)}}
         if(did){render();sfx.build();toast(`💣 ${game.players[id].name} 用拆卸包拆嘢！`);await sleep(760)}
       }
     }
@@ -472,6 +472,7 @@ async function schedule(){
     game.op++;
   }
   game.round++;game.op=0;
+  if(game.weather&&game.round%3===0&&game.winner===null&&Math.random()<0.4){const ws=['clear','rain','drought','wind'].filter(w=>w!==game.weather);game.weather=ws[Math.floor(Math.random()*ws.length)];const wm=WEATHER_META[game.weather]||{};toast(wm.icon+' 天氣轉'+wm.name+'！');commentary('weatherChange',{w:wm.name})}
   if(game.isVolcano&&game.round%3===0&&game.winner===null){const cds=game.tiles.filter(t=>t.type!=='desert'&&t.id!==game.robber);if(cds.length){game.robber=cds[Math.floor(Math.random()*cds.length)].id;toast('🌋 火山爆發！海盜被震飛！');commentary('volcano',{})}}
   await schedule()
 }
@@ -738,6 +739,7 @@ const LINES={
 };
 function commentWeather(){if(!commentaryOn||!game)return;const m={rain:'これは大雨！ウェットコンディションの戦いだ！タイヤ選択が明暗を分ける！',drought:'カラカラの乾燥地帯、農作物も家畜も苦しい…資源確保が鍵だ！',wind:'心地よい追い風！取引が有利に運びそうですよ！',clear:'雲ひとつない快晴！絶好のレース日和です！'}[raceWeather];if(m){showComment(m);speakJa(m)}}
 const _EX={
+ weatherChange:['天候急変！{w}に変わったぞ！レース展開に影響必至！','おっと空模様が一変、{w}だ！','コンディションが動いた…{w}に切り替わりました！'],
  volcano:['ドドドッ！火山が火を噴いた！盤上は大混乱だ！','噴火ァ！海賊が吹き飛ばされたぞ！','大地が揺れる…火山島の洗礼だ！'],
  rollBig:['{num}！ドーンと来た、資源が津波のように押し寄せる！','よっしゃ{num}！{n}、この波に乗れ！','{num}、大当たり！倉庫がパンパンだ！'],
  rollSmall:['またしても{num}…{n}、ツキに見放されたか。','{num}、静かな展開…嵐の前の静けさか。'],
@@ -816,7 +818,7 @@ function renderStats(){
   $('#statsBody').innerHTML=h;
 }
 function renderRecords(){
-  $('#recordsList').innerHTML=CITY_POOL.map(([city,ly])=>{const r=records[city];
+  $('#recordsList').innerHTML=CITY_POOL.concat(SPECIAL_CITIES).map(([city,ly])=>{const r=records[city];
     return `<div class="recrow"><span class="rc-city">${city}<small>${SHAPE_NAME[ly]}</small></span>`+
       (r?`<span class="rc-hold"><span class="dot" style="background:${r.color}"></span>${r.name}</span><b class="rc-r">${r.rounds} 輪</b>`
         :`<span class="rc-hold none">未有紀錄</span><b class="rc-r">—</b>`)+`</div>`}).join('');
@@ -874,7 +876,7 @@ function startExhibition(){
 }
 
 /* ============ 事件綁定 ============ */
-const VERSION='4.5';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
+const VERSION='4.6';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
 $('#exhibitBtn').onclick=startExhibition;
 {const c=$('#commentaryChk');if(c){c.checked=commentaryOn;c.addEventListener('change',()=>{commentaryOn=c.checked;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');if(!commentaryOn&&window.speechSynthesis)window.speechSynthesis.cancel()})}}
 $('#commentary')?.addEventListener('click',()=>{commentaryOn=!commentaryOn;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');const c=$('#commentaryChk');if(c)c.checked=commentaryOn;if(!commentaryOn&&window.speechSynthesis)window.speechSynthesis.cancel();toast(commentaryOn?'🎙 旁述開':'🔇 旁述關')});
