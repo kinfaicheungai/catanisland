@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad}from'./engine.js?v=4.6';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad}from'./engine.js?v=4.7';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 let VX=260,VY=245,VS=49;const sx=x=>VX+x*VS,sy=y=>VY+y*VS,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -74,7 +74,7 @@ const WEATHER_BIAS={
 function pickWeather(city){const b=WEATHER_BIAS[city]||{clear:5,rain:2,drought:1,wind:2},keys=Object.keys(b),tot=keys.reduce((s,k)=>s+b[k],0);let r=Math.random()*tot;for(const k of keys){r-=b[k];if(r<0)return k}return 'clear'}
 const LAYOUT_NAME={standard:'標準六島',large:'大島',cross:'十字島',irregular:'不規則島'};
 const PTS=[3,1];        // 冠軍 3 分、亞軍 1 分
-let pickedColor=HUMAN_COLORS[0],humanTier=3,league=null,leagueActive=false,raceDrivers=null,endHandled=false,playoffStage=null,kitArmed=false,forceDesert=false,kitSettleLeft=false,kitRoadLeft=false,aiKitDriver=null,aiKitSettleLeft=false,aiKitRoadLeft=false;
+let pickedColor=HUMAN_COLORS[0],humanTier=3,league=null,leagueActive=false,raceDrivers=null,endHandled=false,playoffStage=null,kitArmed=false,forceDesert=false,kitSettleLeft=false,kitRoadLeft=false,aiKitDriver=null,aiKitSettleLeft=false,aiKitRoadLeft=false,aiKitLogEntry=null,humanKitEntry=null;
 function shuffleArr(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
 function newLeague(name,color){
   const rat=loadRatings();
@@ -143,7 +143,7 @@ function resolveStation(){
   const ri=league.round,shapeKey=league.cities[ri][1],axial=SHAPES[shapeKey],city=league.cities[ri][0],gold=shapeKey==='gold',results=[];
   results.push(gameResult(game,bid=>raceDrivers[bid])); // 你嗰場
   for(const q of league.schedule[ri])if(!q.includes(0)){
-    for(const di of q){const d=league.drivers[di];if(d.kit&&Math.random()<0.4){d.kit=false;d.desertNext=true;(league.kitLog=league.kitLog||[]).push({d:di,city,round:ri+1,ai:true})}} // 電腦喺互打場都會用掉拆卸包
+    {const rk=standingsSorted().map(x=>x.i);for(const di of q){const d=league.drivers[di];if(d.kit&&Math.random()<0.4){d.kit=false;d.desertNext=true;const vic=q.filter(x=>x!==di).sort((a,b)=>rk.indexOf(a)-rk.indexOf(b))[0];(league.kitLog=league.kitLog||[]).push({d:di,city,round:ri+1,ai:true,to:vic})}}} // 電腦喺互打場都會用掉拆卸包
     results.push(simRace(q,axial,raceWeather,gold));
   }
   for(const res of results)awardQuad(res);                             // 名次分 + 得失分 + 最速紀錄
@@ -279,7 +279,7 @@ function setHighlights(){
 function chooseEdge(id){
   if(dragged)return;
   if(busy)return;
-  if(mode==='demo'){if(kitRoadLeft){const e=game.edges[id];if(e&&e.owner!=null&&e.owner!==0){const o=demolishRoad(game,id);if(o!==false){sfx.build();flashEdge(id);toast('💣 拆咗 '+game.players[o].name+' 一條航線');commentary('demolish',{n:game.players[0].name,v:game.players[o].name},.7);kitRoadLeft=false;endDemolish()}}}return}
+  if(mode==='demo'){if(kitRoadLeft){const e=game.edges[id];if(e&&e.owner!=null&&e.owner!==0){const o=demolishRoad(game,id);if(o!==false){sfx.build();flashEdge(id);toast('💣 拆咗 '+game.players[o].name+' 一條航線');commentary('demolish',{n:game.players[0].name,v:game.players[o].name},.7);if(humanKitEntry&&humanKitEntry.to==null&&raceDrivers)humanKitEntry.to=raceDrivers[o];saveLeague();kitRoadLeft=false;endDemolish()}}}return}
   if(mode==='initRoad'){if(placeInitialRoad(game,0,id)){mode=null;render();flashEdge(id);sfx.build();setup.idx++;advanceSetup()}return}
   if(mode==='road'){const wasFree=game.freeRoads>0;if(placeRoad(game,0,id)){flashEdge(id);sfx.build();if(wasFree&&game.freeRoads>0){render();toast('免費築路：仲可以起多一條');return}mode=null;render()}}
 }
@@ -300,7 +300,7 @@ function beginRobber(msg){mode='robber';busy=false;game.log=msg||'揀一塊島�
 function chooseVertex(id){
   if(dragged)return;
   if(busy)return;
-  if(mode==='demo'){if(kitSettleLeft){const v=game.vertices[id];if(v.owner!=null&&v.owner!==0&&v.level===1){const o=demolishSettlement(game,id);if(o!==false){sfx.build();flashVertex(id);toast('💣 拆咗 '+game.players[o].name+' 一座村莊');commentary('demolish',{n:game.players[0].name,v:game.players[o].name},.9);kitSettleLeft=false;endDemolish()}}}return}
+  if(mode==='demo'){if(kitSettleLeft){const v=game.vertices[id];if(v.owner!=null&&v.owner!==0&&v.level===1){const o=demolishSettlement(game,id);if(o!==false){sfx.build();flashVertex(id);toast('💣 拆咗 '+game.players[o].name+' 一座村莊');commentary('demolish',{n:game.players[0].name,v:game.players[o].name},.9);if(humanKitEntry&&humanKitEntry.to==null&&raceDrivers)humanKitEntry.to=raceDrivers[o];saveLeague();kitSettleLeft=false;endDemolish()}}}return}
   if(mode==='initSettle'){if(placeInitialSettlement(game,0,id)){setup.vid=id;mode='initRoad';render();flashVertex(id);sfx.build()}return}
   const ok=mode==='settlement'?placeSettlement(game,0,id):mode==='city'?placeCity(game,0,id):false;
   if(ok){mode=null;render();flashVertex(id);sfx.build()}
@@ -330,7 +330,7 @@ function render(){
   $('#handCount').textContent=me.cards.length;
   $('#ticker').textContent=mode?modePrompt():game.log;
   $('#dice').textContent=game.dice?game.dice.map(face).join(' '):'⚄ ⚂';
-  $('#rivals').innerHTML=game.players.slice(1).map(p=>`<article class="rv${p.id}${game.turn===p.id&&busy?' active':''}"><span style="--pc:${p.color};background:${cssPaint(p)}">${p.name[0]}</span><div><b>${p.name} ${trophy(p.id)}</b><small>${totalScore(game,p.id)}分 · ⚔${p.knights} · 🃏${p.cards.length} · ${countResources(p)}物</small></div></article>`).join('');
+  $('#rivals').innerHTML=game.players.slice(1).map(p=>`<article class="rv${p.id}${game.turn===p.id&&busy?' active':''}"><span style="--pc:${p.color};background:${cssPaint(p)}">${p.name[0]}</span><div><b>${p.name} ${trophy(p.id)}</b><small>${totalScore(game,p.id)}分 · 🛣${longestRoadLength(game,p.id)} · ⚔${p.knights} · 🃏${p.cards.length}</small></div></article>`).join('');
   $('#resources').innerHTML=RESOURCES.map(r=>`<div data-res="${r}"><span>${ICONS[r]}</span><b>${me.resources[r]}</b><small>${LABELS[r]}</small></div>`).join('');
   // 只顯示當前階段主掣（慳位）
   const demo=mode==='demo';
@@ -445,11 +445,11 @@ async function playAiTurn(id){
     if(drv&&drv.kit&&game.round>=3&&(aiKitDriver===null||aiKitDriver===id)){
       const sc=b=>totalScore(game,b),rank=standingsSorted().map(d=>d.i),standOf=b=>rank.indexOf(raceDrivers?raceDrivers[b]:b),threat=b=>b!==id&&sc(b)>=sc(id);
       const hasT=game.vertices.some(v=>v.owner!=null&&threat(v.owner)&&v.level===1&&game.vertices.filter(x=>x.owner===v.owner).length>1)||game.edges.some(e=>e.owner!=null&&threat(e.owner));
-      if(aiKitDriver===null&&hasT&&Math.random()<0.4){aiKitDriver=id;aiKitSettleLeft=true;aiKitRoadLeft=true;drv.kit=false;drv.desertNext=true;(league.kitLog=league.kitLog||[]).push({d:raceDrivers[id],city:league.cities[league.round][0],round:league.round+1});saveLeague()}
+      if(aiKitDriver===null&&hasT&&Math.random()<0.4){aiKitDriver=id;aiKitSettleLeft=true;aiKitRoadLeft=true;drv.kit=false;drv.desertNext=true;league.kitLog=league.kitLog||[];aiKitLogEntry={d:raceDrivers[id],city:league.cities[league.round][0],round:league.round+1,to:null};league.kitLog.push(aiKitLogEntry);saveLeague()}
       if(aiKitDriver===id){let did=false;
-        if(aiKitSettleLeft){let best=null,bk=-Infinity;game.vertices.forEach(v=>{if(v.owner!=null&&v.owner!==id&&v.level===1&&game.vertices.filter(x=>x.owner===v.owner).length>1){const k=sc(v.owner)*100-standOf(v.owner)*3+vValApp(v.id);if(k>bk){bk=k;best=v.id}}});if(best!=null){const vo=game.vertices[best].owner;if(demolishSettlement(game,best)!==false){aiKitSettleLeft=false;did=true;flashVertex(best);commentary('demolish',{n:game.players[id].name,v:game.players[vo].name},.9)}}}
-        if(!did&&aiKitRoadLeft){let best=null,bk=-Infinity;for(const e of game.edges)if(e.owner!=null&&e.owner!==id){const k=sc(e.owner)*100-standOf(e.owner)*3;if(k>bk){bk=k;best=e.id}}if(best!=null&&demolishRoad(game,best)!==false){aiKitRoadLeft=false;did=true;flashEdge(best)}}
-        if(did){render();sfx.build();toast(`💣 ${game.players[id].name} 用拆卸包拆嘢！`);await sleep(760)}
+        if(aiKitSettleLeft){let best=null,bk=-Infinity;game.vertices.forEach(v=>{if(v.owner!=null&&v.owner!==id&&v.level===1&&game.vertices.filter(x=>x.owner===v.owner).length>1){const k=sc(v.owner)*100-standOf(v.owner)*3+vValApp(v.id);if(k>bk){bk=k;best=v.id}}});if(best!=null){const vo=game.vertices[best].owner;if(demolishSettlement(game,best)!==false){aiKitSettleLeft=false;did=true;flashVertex(best);if(aiKitLogEntry&&aiKitLogEntry.to==null&&raceDrivers)aiKitLogEntry.to=raceDrivers[vo];commentary('demolish',{n:game.players[id].name,v:game.players[vo].name},.9)}}}
+        if(!did&&aiKitRoadLeft){let best=null,bk=-Infinity;for(const e of game.edges)if(e.owner!=null&&e.owner!==id){const k=sc(e.owner)*100-standOf(e.owner)*3;if(k>bk){bk=k;best=e.id}}if(best!=null){const ro=game.edges[best].owner;if(demolishRoad(game,best)!==false){aiKitRoadLeft=false;did=true;flashEdge(best);if(aiKitLogEntry&&aiKitLogEntry.to==null&&raceDrivers)aiKitLogEntry.to=raceDrivers[ro]}}}
+        if(did){render();sfx.build();saveLeague();toast(`💣 ${game.players[id].name} 用拆卸包拆嘢！`);await sleep(760)}
       }
     }
   }
@@ -599,7 +599,7 @@ function playoffStagePending(){
 }
 function playPlayoffRace(pending){
   const others=pending.participants.filter(i=>i!==0);raceDrivers=[0,...others];
-  initAudio();endHandled=false;prevArmy=null;prevRoad=null;leagueActive=true;playoffStage=pending.stage;kitArmed=false;forceDesert=false;kitSettleLeft=false;kitRoadLeft=false;aiKitDriver=null;raceCity=stageName(pending.stage);prevLeader=null;nearSaid=false;closeSaid=false;
+  initAudio();endHandled=false;prevArmy=null;prevRoad=null;leagueActive=true;playoffStage=pending.stage;kitArmed=false;forceDesert=false;kitSettleLeft=false;kitRoadLeft=false;aiKitDriver=null;aiKitLogEntry=null;humanKitEntry=null;raceCity=stageName(pending.stage);prevLeader=null;nearSaid=false;closeSaid=false;
   const opt=raceOpts(raceDrivers,false);deClash(opt);     // 季後賽：避免撞色
   raceWeather=pickWeather('_final');game=makeGame(undefined,{axial:SHAPES.big,...opt,weather:raceWeather});game.players.forEach((p,k)=>p.seasonPts=league.drivers[raceDrivers[k]]?league.drivers[raceDrivers[k]].pts:0);
   $('#playerLabel').textContent=opt.names[0];$('#leagueDialog').close();beginSetup();
@@ -762,7 +762,7 @@ function renderStandingsPanel(){
 }
 function renderHub(){
   if(league.playoff){renderPlayoffHub();return;}
-  const [city,ly]=league.cities[league.round],quad=humanQuad(),opp=quad.filter(i=>i!==0).map(i=>`<span class="dchip" style="--dc:${league.drivers[i].color}">${league.drivers[i].name} <i class="st">${'★'.repeat(league.drivers[i].strength)}${league.drivers[i].strength>=4?RESICON[league.drivers[i].affinity]:''}</i>${league.drivers[i].kit?'':'<span class="kitgone">💣已用</span>'}</span>`).join('');
+  const [city,ly]=league.cities[league.round],quad=humanQuad(),opp=quad.filter(i=>i!==0).map(i=>`<span class="dchip" style="--dc:${league.drivers[i].color}">${league.drivers[i].name} <i class="st">${'★'.repeat(league.drivers[i].strength)}${league.drivers[i].strength>=4?RESICON[league.drivers[i].affinity]:''}</i><span class="kitflag">${league.drivers[i].kit?'💣有':'💣已用'}</span></span>`).join('');
   $('#leagueTitle').textContent=`第 ${league.round+1} / ${league.cities.length} 站`;
   $('#leagueSub').textContent=`${city}分站 · ${SHAPE_NAME[ly]}`;
   $('#nextRace').innerHTML=`<div class="nr-city">🏁 ${city}</div><div class="nr-you"><span class="dchip you" style="--dc:${league.drivers[0].color}">你：${league.drivers[0].name} <i class="st">${'★'.repeat(league.drivers[0].strength)}${league.drivers[0].strength>=4?RESICON[league.drivers[0].affinity]:''}</i></span></div><div class="nr-vs">對陣</div><div class="nr-opp">${opp}</div>`;
@@ -804,7 +804,9 @@ function renderStats(){
       const ranked=[...e.teams].sort((a,b)=>b.pts-a.pts||a.pos-b.pos);
       body='<div class="stlist">'+ranked.map((tm,i)=>`<span class="stcell${tm.d===0?' me':''}">${i+1}. <span class="dot" style="background:${dc(tm.d)}"></span>${dn(tm.d)}${kits.has(tm.d)?'💣':''}${tm.pts?' +'+tm.pts:''}</span>`).join('')+'</div>';
     }else body='';
-    return `<div class="ststation"><div class="ststation-h">第 ${e.round} 站 · ${e.city}</div>${body}</div>`}).join('');
+    const uses=((league&&league.kitLog)||[]).filter(k=>k.round===e.round);
+    const useLine=uses.length?`<div class="kituse">💣 ${uses.map(k=>dn(k.d)+(k.to!=null?'→'+dn(k.to):'')).join(' · ')}</div>`:'';
+    return `<div class="ststation"><div class="ststation-h">第 ${e.round} 站 · ${e.city}</div>${body}${useLine}</div>`}).join('');
   const hist=loadHistory();
   h+='<h3 class="tbl-title" style="margin-top:14px">往季 · 完整成績</h3>';
   if(!hist.length)h+='<div class="recrow"><span class="rc-hold none">尚未完成過賽季</span></div>';
@@ -853,8 +855,8 @@ function playLeagueRace(){
   const quad=humanQuad(),others=quad.filter(i=>i!==0);
   raceDrivers=[0,...others];
   const me0=league.drivers[0],lastRound=league.round===league.cities.length-1,useKit=!!(me0.kit&&$('#kitCheck')?.checked);
-  if(useKit){me0.kit=false;(league.kitLog=league.kitLog||[]).push({d:0,city:league.cities[league.round][0],round:league.round+1});saveLeague()}
-  kitArmed=useKit;kitSettleLeft=useKit;kitRoadLeft=useKit;aiKitDriver=null;aiKitSettleLeft=false;aiKitRoadLeft=false;
+  if(useKit){me0.kit=false;league.kitLog=league.kitLog||[];humanKitEntry={d:0,city:league.cities[league.round][0],round:league.round+1,to:null};league.kitLog.push(humanKitEntry);saveLeague()}else humanKitEntry=null;
+  kitArmed=useKit;kitSettleLeft=useKit;kitRoadLeft=useKit;aiKitDriver=null;aiKitSettleLeft=false;aiKitRoadLeft=false;aiKitLogEntry=null;
   raceCity=league.cities[league.round][0];prevLeader=null;nearSaid=false;closeSaid=false;
   forceDesert=me0.desertNext||(useKit&&lastRound);
   me0.desertNext=useKit&&!lastRound;                 // 用咗（非尾場）→ 下場沙漠開局
@@ -876,7 +878,7 @@ function startExhibition(){
 }
 
 /* ============ 事件綁定 ============ */
-const VERSION='4.6';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
+const VERSION='4.7';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
 $('#exhibitBtn').onclick=startExhibition;
 {const c=$('#commentaryChk');if(c){c.checked=commentaryOn;c.addEventListener('change',()=>{commentaryOn=c.checked;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');if(!commentaryOn&&window.speechSynthesis)window.speechSynthesis.cancel()})}}
 $('#commentary')?.addEventListener('click',()=>{commentaryOn=!commentaryOn;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');const c=$('#commentaryChk');if(c)c.checked=commentaryOn;if(!commentaryOn&&window.speechSynthesis)window.speechSynthesis.cancel();toast(commentaryOn?'🎙 旁述開':'🔇 旁述關')});
