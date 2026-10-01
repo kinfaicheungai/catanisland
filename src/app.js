@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad}from'./engine.js?v=4.8';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,deckCounts,capWinner}from'./engine.js?v=5.0';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 let VX=260,VY=245,VS=49;const sx=x=>VX+x*VS,sy=y=>VY+y*VS,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -13,6 +13,10 @@ const AI_COLORS=['#e53935','#00bcd4','#1976d2','#3949ab','#0288d1','#d81b60','#4
 const AI_STR=[5,5,4,4,3,4,3,3,4,5,5,2,2,2,3,2,3,3,4];
 // 資源型車隊：頂級隊開局多幾張對應資源（4★+1、5★+2）
 const AI_AFFINITY=['grain','ore','wool','wood','brick','wood','grain','wool','ore','brick','ore','grain','wood','wool','brick','grain','wood','ore','ore'];
+// 每隊固定策略性格：builder 建設／expander 開拓／trader 交易／raider 侵略／balanced 均衡
+const AI_PERSONA=['raider','builder','expander','trader','balanced','builder','expander','trader','raider','builder','raider','trader','expander','balanced','builder','trader','expander','balanced','raider'];
+const PERSONA_NAME={builder:'🏗建設型',expander:'🧭開拓型',trader:'💱交易型',raider:'⚔侵略型',balanced:'⚖均衡型'};
+function kitTiming(pr){return pr==='raider'?{round:2,chance:.6}:(pr==='builder'||pr==='trader')?{round:6,chance:.3}:{round:3,chance:.42}}
 // 車隊外觀樣式（純色/間條/漸變），令 20 隊就算色近都分得清
 const AI_STYLE=['solid','solid','stripe','solid','grad','solid','stripe','solid','grad','solid','stripe','solid','stripe','grad','solid','stripe','grad','solid','grad'];
 function lum(hex){let h=hex.replace('#','');if(h.length===3)h=h.split('').map(c=>c+c).join('');return(.299*parseInt(h.slice(0,2),16)+.587*parseInt(h.slice(2,4),16)+.114*parseInt(h.slice(4,6),16))/255}
@@ -45,6 +49,7 @@ function raceOpts(ids,usePenalty){return{
   names:ids.map(i=>league.drivers[i].name),colors:ids.map(i=>league.drivers[i].color),
   strengths:ids.map(i=>league.drivers[i].strength),bonusRes:ids.map(i=>bonusFor(league.drivers[i])),
   styles:ids.map(i=>league.drivers[i].style||'solid'),alts:ids.map(i=>league.drivers[i].alt||null),
+  personas:ids.map(i=>league.drivers[i].persona||'balanced'),
   penalties:ids.map(i=>usePenalty&&league.drivers[i].wonLast?1:0)}}
 // 招牌島形：每個城市一個固定、企正、連通嘅獨特輪廓（六角磚砌唔到真實衛星地形，改為各具性格嘅剪影）
 const rc=cs=>{const out=[],top=-Math.floor(cs.length/2);cs.forEach((c,i)=>{const r=top+i,q0=Math.round(-r/2-(c-1)/2);for(let k=0;k<c;k++)out.push([q0+k,r])});return out};
@@ -78,8 +83,8 @@ let pickedColor=HUMAN_COLORS[0],humanTier=3,league=null,leagueActive=false,raceD
 function shuffleArr(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
 function newLeague(name,color){
   const rat=loadRatings();
-  const drivers=[{name,color,style:'solid',alt:null,strength:rat.__you??humanTier,affinity:'grain',wonLast:false,kit:true,desertNext:false,pts:0,wins:0,races:0,margin:0,fastest:null}];
-  for(let i=0;i<19;i++)drivers.push({name:AI_NAMES[i],color:AI_COLORS[i],style:AI_STYLE[i],alt:AI_ALT[i],strength:rat[AI_NAMES[i]]??AI_STR[i],affinity:AI_AFFINITY[i],wonLast:false,kit:true,desertNext:false,pts:0,wins:0,races:0,margin:0,fastest:null});
+  const drivers=[{name,color,style:'solid',alt:null,strength:rat.__you??humanTier,persona:'balanced',affinity:'grain',wonLast:false,kit:true,desertNext:false,pts:0,wins:0,races:0,margin:0,fastest:null}];
+  for(let i=0;i<19;i++)drivers.push({name:AI_NAMES[i],color:AI_COLORS[i],style:AI_STYLE[i],alt:AI_ALT[i],strength:rat[AI_NAMES[i]]??AI_STR[i],persona:AI_PERSONA[i],affinity:AI_AFFINITY[i],wonLast:false,kit:true,desertNext:false,pts:0,wins:0,races:0,margin:0,fastest:null});
   const cities=shuffleArr(shuffleArr(CITY_POOL.map(c=>c)).slice(0,11).concat(SPECIAL_CITIES.map(c=>c)));   // 11 城市 + 4 特殊，洗牌
   const schedule=cities.map(()=>{const order=shuffleArr(drivers.map((_,i)=>i)),quads=[];for(let i=0;i<order.length;i+=4)quads.push(order.slice(i,i+4));return quads});
   return{drivers,cities,schedule,round:0,done:false,playoff:null,drifted:false,kitLog:[],roundLog:[]}
@@ -123,7 +128,7 @@ function migrateLeague(L){
   L.cities.forEach(c=>{if(!SHAPES[c[1]])c[1]=oldMap[c[1]]||'hex'});
   L.drivers.forEach((d,i)=>{d.strength=d.strength??3;d.affinity=d.affinity??(i===0?'grain':(AI_AFFINITY[i-1]||'grain'));
     d.wonLast=d.wonLast??false;d.margin=d.margin??0;d.fastest=d.fastest===undefined?null:d.fastest;
-    d.wins=d.wins??0;d.races=d.races??0;d.pts=d.pts??0;d.style=d.style??(i===0?'solid':AI_STYLE[i-1]||'solid');d.alt=d.alt??(i===0?null:AI_ALT[i-1]||null);d.kit=d.kit??true;d.desertNext=d.desertNext??false});
+    d.wins=d.wins??0;d.races=d.races??0;d.pts=d.pts??0;d.style=d.style??(i===0?'solid':AI_STYLE[i-1]||'solid');d.alt=d.alt??(i===0?null:AI_ALT[i-1]||null);d.kit=d.kit??true;d.desertNext=d.desertNext??false;d.persona=d.persona??(i===0?'balanced':AI_PERSONA[i-1]||'balanced')});
   return L;
 }
 function humanQuad(){return league.schedule[league.round].find(q=>q.includes(0))}
@@ -139,11 +144,14 @@ const RKEY='frontier-records-v1';
 function loadRecords(){try{return JSON.parse(localStorage.getItem(RKEY))||{}}catch{return{}}}
 function saveRecords(){try{localStorage.setItem(RKEY,JSON.stringify(records))}catch{}}
 let records=loadRecords();
+// 一次性：將舊中文站名紀錄併入英文站名（保留較快嗰個）
+const CN2EN={'摩納哥':'Monaco','新加坡':'Singapore','鈴鹿':'Suzuka','蒙薩':'Monza','銀石':'Silverstone','上海':'Shanghai','墨爾本':'Melbourne','聖保羅':'Interlagos','阿布達比':'Abu Dhabi','蒙特利爾':'Montreal','拉斯維加斯':'Las Vegas','邁阿密':'Miami','奧斯汀':'Austin','巴林':'Bahrain','吉達':'Jeddah','伊莫拉':'Imola','斯帕':'Spa','布達佩斯':'Budapest','贊德福特':'Zandvoort','墨西哥城':'Mexico City'};
+(function mergeRecords(){let changed=false;for(const cn in CN2EN){if(records[cn]){const en=CN2EN[cn];if(!records[en]||records[cn].rounds<records[en].rounds)records[en]=records[cn];delete records[cn];changed=true}}if(changed)saveRecords()})();
 function resolveStation(){
   const ri=league.round,shapeKey=league.cities[ri][1],axial=SHAPES[shapeKey],city=league.cities[ri][0],gold=shapeKey==='gold',results=[];
   results.push(gameResult(game,bid=>raceDrivers[bid])); // 你嗰場
   for(const q of league.schedule[ri])if(!q.includes(0)){
-    {const rk=standingsSorted().map(x=>x.i);for(const di of q){const d=league.drivers[di];if(d.kit&&Math.random()<0.4){d.kit=false;d.desertNext=true;const vic=q.filter(x=>x!==di).sort((a,b)=>rk.indexOf(a)-rk.indexOf(b))[0];(league.kitLog=league.kitLog||[]).push({d:di,city,round:ri+1,ai:true,to:vic})}}} // 電腦喺互打場都會用掉拆卸包
+    {const rk=standingsSorted().map(x=>x.i);for(const di of q){const d=league.drivers[di];if(d.kit&&Math.random()<kitTiming(d.persona).chance){d.kit=false;d.desertNext=true;const vic=q.filter(x=>x!==di).sort((a,b)=>rk.indexOf(a)-rk.indexOf(b))[0];(league.kitLog=league.kitLog||[]).push({d:di,city,round:ri+1,ai:true,to:vic})}}} // 電腦喺互打場都會用掉拆卸包
     results.push(simRace(q,axial,raceWeather,gold));
   }
   for(const res of results)awardQuad(res);                             // 名次分 + 得失分 + 最速紀錄
@@ -166,7 +174,7 @@ function simRace(quad,axial,weather,gold){
     else vid=pickAiInitialSettlement(g,id);
     placeInitialSettlement(g,id,vid);const r=legalInitialRoads(g,id,vid);placeInitialRoad(g,id,r[Math.floor(Math.random()*r.length)])}
   g.phase='action';g.turn=0;let n=0;
-  while(g.winner===null&&n<600){for(let id=0;id<4&&g.winner===null;id++)aiTurn(g,id);if(g.winner===null)g.round++;n++}
+  while(g.winner===null&&n<600){for(let id=0;id<4&&g.winner===null;id++)aiTurn(g,id);if(g.winner===null){g.round++;if(g.round>(g.roundCap||88)){capWinner(g);break}}n++}
   return gameResult(g,bid=>quad[bid])
 }
 
@@ -330,7 +338,7 @@ function render(){
   $('#handCount').textContent=me.cards.length;
   $('#ticker').textContent=mode?modePrompt():game.log;
   $('#dice').textContent=game.dice?game.dice.map(face).join(' '):'⚄ ⚂';
-  $('#rivals').innerHTML=game.players.slice(1).map(p=>`<article class="rv${p.id}${game.turn===p.id&&busy?' active':''}"><span style="--pc:${p.color};background:${cssPaint(p)}">${p.name[0]}</span><div><b>${p.name} ${trophy(p.id)}</b><small>${totalScore(game,p.id)}分 · 🛣${longestRoadLength(game,p.id)} · ⚔${p.knights} · 🃏${p.cards.length}</small></div></article>`).join('');
+  $('#rivals').innerHTML=game.players.slice(1).map(p=>`<article class="rv${p.id}${game.turn===p.id&&busy?' active':''}"><span style="--pc:${p.color};background:${cssPaint(p)}">${p.name[0]}</span><div><b>${p.name} ${trophy(p.id)}</b><small>${(PERSONA_NAME[p.persona]||'').slice(0,3)} · ${totalScore(game,p.id)}分 · 🛣${longestRoadLength(game,p.id)} · ⚔${p.knights}</small></div></article>`).join('');
   $('#resources').innerHTML=RESOURCES.map(r=>`<div data-res="${r}"><span>${ICONS[r]}</span><b>${me.resources[r]}</b><small>${LABELS[r]}</small></div>`).join('');
   // 只顯示當前階段主掣（慳位）
   const demo=mode==='demo';
@@ -341,7 +349,7 @@ function render(){
   $('#buildToggle').disabled=busy||!action||blk;
   $('#handBtn').disabled=busy||!me.cards.length;
   $$('[data-build]').forEach(b=>{const type=b.dataset.build,legal=type==='road'?legalRoads(game,0):type==='settlement'?legalSettlements(game,0):legalCities(game,0);const afford=(type==='road'&&roadFree)||canAfford(me,COSTS[type]);b.disabled=busy||!action||blk||!afford||!legal.length;b.classList.toggle('selected',mode===type)});
-  $('#cardBtn').disabled=busy||!action||blk||!canAfford(me,COSTS.card);
+  const deckLeft=game.deck?game.deck.length:0;$('#cardBtn').disabled=busy||!action||blk||!canAfford(me,COSTS.card)||deckLeft===0;{const cb=$('#cardBtn small');if(cb)cb.textContent=deckLeft>0?('牌庫 '+deckLeft):'牌庫已空'}
   $('#tradeBtn').disabled=busy||!action||blk||!RESOURCES.some(r=>me.resources[r]>=tradeRatio(me,r));
   if(blk&&!$('#buildPanel').hidden){$('#buildPanel').hidden=true;$('#buildToggle').classList.remove('open')}
   renderBoard();showEnd();
@@ -442,10 +450,11 @@ async function playAiTurn(id){
   if(n===7){toast('🏴‍☠️ 海盜嚟襲！');for(const pid of pendingDiscards(game))autoDiscard(game,pid);render();await sleep(360);const before=game.steal;await aiMoveRobber(id);if(game.steal)commentary('steal',{n:game.players[id].name,v:game.players[game.steal.from].name},.7);
     // 電腦用拆卸包（偏向拆人類）
     const drv=(leagueActive&&!playoffStage&&raceDrivers)?league.drivers[raceDrivers[id]]:null;
-    if(drv&&drv.kit&&game.round>=3&&(aiKitDriver===null||aiKitDriver===id)){
+    const kt=kitTiming(drv&&drv.persona);
+    if(drv&&drv.kit&&game.round>=kt.round&&(aiKitDriver===null||aiKitDriver===id)){
       const sc=b=>totalScore(game,b),rank=standingsSorted().map(d=>d.i),standOf=b=>rank.indexOf(raceDrivers?raceDrivers[b]:b),threat=b=>b!==id&&sc(b)>=sc(id);
       const hasT=game.vertices.some(v=>v.owner!=null&&threat(v.owner)&&v.level===1&&game.vertices.filter(x=>x.owner===v.owner).length>1)||game.edges.some(e=>e.owner!=null&&threat(e.owner));
-      if(aiKitDriver===null&&hasT&&Math.random()<0.4){aiKitDriver=id;aiKitSettleLeft=true;aiKitRoadLeft=true;drv.kit=false;drv.desertNext=true;league.kitLog=league.kitLog||[];aiKitLogEntry={d:raceDrivers[id],city:league.cities[league.round][0],round:league.round+1,to:null};league.kitLog.push(aiKitLogEntry);saveLeague()}
+      if(aiKitDriver===null&&hasT&&Math.random()<kt.chance){aiKitDriver=id;aiKitSettleLeft=true;aiKitRoadLeft=true;drv.kit=false;drv.desertNext=true;league.kitLog=league.kitLog||[];aiKitLogEntry={d:raceDrivers[id],city:league.cities[league.round][0],round:league.round+1,to:null};league.kitLog.push(aiKitLogEntry);saveLeague()}
       if(aiKitDriver===id){let did=false;
         if(aiKitSettleLeft){let best=null,bk=-Infinity;game.vertices.forEach(v=>{if(v.owner!=null&&v.owner!==id&&v.level===1&&game.vertices.filter(x=>x.owner===v.owner).length>1){const k=sc(v.owner)*100-standOf(v.owner)*3+vValApp(v.id);if(k>bk){bk=k;best=v.id}}});if(best!=null){const vo=game.vertices[best].owner;if(demolishSettlement(game,best)!==false){aiKitSettleLeft=false;did=true;flashVertex(best);if(aiKitLogEntry&&aiKitLogEntry.to==null&&raceDrivers)aiKitLogEntry.to=raceDrivers[vo];commentary('demolish',{n:game.players[id].name,v:game.players[vo].name},.9)}}}
         if(!did&&aiKitRoadLeft){let best=null,bk=-Infinity;for(const e of game.edges)if(e.owner!=null&&e.owner!==id){const k=sc(e.owner)*100-standOf(e.owner)*3;if(k>bk){bk=k;best=e.id}}if(best!=null){const ro=game.edges[best].owner;if(demolishRoad(game,best)!==false){aiKitRoadLeft=false;did=true;flashEdge(best);if(aiKitLogEntry&&aiKitLogEntry.to==null&&raceDrivers)aiKitLogEntry.to=raceDrivers[ro]}}}
@@ -472,6 +481,7 @@ async function schedule(){
     game.op++;
   }
   game.round++;game.op=0;
+  if(game.round>(game.roundCap||88)&&game.winner===null){capWinner(game);busy=false;render();sfx.win();return}
   if(game.weather&&game.round%3===0&&game.winner===null&&Math.random()<0.4){const ws=['clear','rain','drought','wind'].filter(w=>w!==game.weather);game.weather=ws[Math.floor(Math.random()*ws.length)];const wm=WEATHER_META[game.weather]||{};toast(wm.icon+' 天氣轉'+wm.name+'！');commentary('weatherChange',{w:wm.name})}
   if(game.isVolcano&&game.round%3===0&&game.winner===null){const cds=game.tiles.filter(t=>t.type!=='desert'&&t.id!==game.robber);if(cds.length){game.robber=cds[Math.floor(Math.random()*cds.length)].id;toast('🌋 火山爆發！海盜被震飛！');commentary('volcano',{})}}
   await schedule()
@@ -576,7 +586,7 @@ function showEnd(){
   }
   const p=game.players[game.winner];
   $('#endTitle').textContent=game.winner===0?'你征服咗群島！':`${p.name} 勝出`;
-  $('#endText').textContent=`經過 ${game.round} 輪，${p.name} 率先取得 ${totalScore(game,game.winner)} 勝利點。`;
+  $('#endText').textContent=game.cappedOut?`輪次上限（${game.roundCap} 輪）到！${p.name} 以 ${totalScore(game,game.winner)} 分（最高）封王。`:`經過 ${game.round} 輪，${p.name} 率先取得 ${totalScore(game,game.winner)} 勝利點。`;
   $('#playAgain').textContent='再玩一次';$('#playAgain').onclick=()=>location.reload();
   if(!$('#endDialog').open)$('#endDialog').showModal()
 }
@@ -762,7 +772,7 @@ function renderStandingsPanel(){
 }
 function renderHub(){
   if(league.playoff){renderPlayoffHub();return;}
-  const [city,ly]=league.cities[league.round],quad=humanQuad(),opp=quad.filter(i=>i!==0).map(i=>`<span class="dchip" style="--dc:${league.drivers[i].color}">${league.drivers[i].name} <i class="st">${'★'.repeat(league.drivers[i].strength)}${league.drivers[i].strength>=4?RESICON[league.drivers[i].affinity]:''}</i><span class="kitflag">${league.drivers[i].kit?'💣有':'💣已用'}</span></span>`).join('');
+  const [city,ly]=league.cities[league.round],quad=humanQuad(),opp=quad.filter(i=>i!==0).map(i=>`<span class="dchip" style="--dc:${league.drivers[i].color}">${league.drivers[i].name} <i class="st">${'★'.repeat(league.drivers[i].strength)}${league.drivers[i].strength>=4?RESICON[league.drivers[i].affinity]:''}</i><span class="kitflag">${league.drivers[i].kit?'💣有':'💣已用'}</span><span class="persona">${PERSONA_NAME[league.drivers[i].persona]||''}</span></span>`).join('');
   $('#leagueTitle').textContent=`第 ${league.round+1} / ${league.cities.length} 站`;
   $('#leagueSub').textContent=`${city}分站 · ${SHAPE_NAME[ly]}`;
   $('#nextRace').innerHTML=`<div class="nr-city">🏁 ${city}</div><div class="nr-you"><span class="dchip you" style="--dc:${league.drivers[0].color}">你：${league.drivers[0].name} <i class="st">${'★'.repeat(league.drivers[0].strength)}${league.drivers[0].strength>=4?RESICON[league.drivers[0].affinity]:''}</i></span></div><div class="nr-vs">對陣</div><div class="nr-opp">${opp}</div>`;
@@ -875,15 +885,15 @@ function playLeagueRace(){
 function startExhibition(){
   initAudio();endHandled=false;leagueActive=false;playoffStage=null;prevArmy=null;prevRoad=null;kitArmed=false;forceDesert=false;kitSettleLeft=false;kitRoadLeft=false;aiKitDriver=null;raceCity=LAYOUT_NAME[mapChoice]||'開拓レース';prevLeader=null;nearSaid=false;closeSaid=false;
   const nm=$('#playerName').value.trim()||'珊瑚拓荒團';
-  const names=[nm,AI_NAMES[0],AI_NAMES[1],AI_NAMES[2]],colors=[pickedColor,AI_COLORS[0],AI_COLORS[1],AI_COLORS[2]],strengths=[humanTier,AI_STR[0],AI_STR[1],AI_STR[2]],affs=['grain',AI_AFFINITY[0],AI_AFFINITY[1],AI_AFFINITY[2]];
+  const names=[nm,AI_NAMES[0],AI_NAMES[1],AI_NAMES[2]],colors=[pickedColor,AI_COLORS[0],AI_COLORS[1],AI_COLORS[2]],strengths=[humanTier,AI_STR[0],AI_STR[1],AI_STR[2]],affs=['grain',AI_AFFINITY[0],AI_AFFINITY[1],AI_AFFINITY[2]],personas=['balanced',AI_PERSONA[0],AI_PERSONA[1],AI_PERSONA[2]];
   const bonusRes=strengths.map((s,k)=>s>=4?{type:affs[k],amount:s>=5?2:1}:null);
   const styles=['solid',AI_STYLE[0],AI_STYLE[1],AI_STYLE[2]],alts=[null,AI_ALT[0],AI_ALT[1],AI_ALT[2]];
-  deClash({colors,styles,alts});raceWeather='clear';game=makeGame(undefined,{layout:mapChoice,names,colors,strengths,bonusRes,styles,alts});
+  deClash({colors,styles,alts});raceWeather='clear';game=makeGame(undefined,{layout:mapChoice,names,colors,strengths,bonusRes,styles,alts,personas});
   clearLive();$('#playerLabel').textContent=nm;$('#startDialog').close();beginSetup()
 }
 
 /* ============ 事件綁定 ============ */
-const VERSION='4.8';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
+const VERSION='5.0';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
 $('#exhibitBtn').onclick=startExhibition;
 {const c=$('#commentaryChk');if(c){c.checked=commentaryOn;c.addEventListener('change',()=>{commentaryOn=c.checked;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');if(!commentaryOn&&window.speechSynthesis)window.speechSynthesis.cancel()})}}
 $('#commentary')?.addEventListener('click',()=>{commentaryOn=!commentaryOn;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');const c=$('#commentaryChk');if(c)c.checked=commentaryOn;if(!commentaryOn&&window.speechSynthesis)window.speechSynthesis.cancel();toast(commentaryOn?'🎙 旁述開':'🔇 旁述關')});

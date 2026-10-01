@@ -211,3 +211,6 @@
 /* v4.7：對手拆卸狀態 + 拆卸對象 */
 .dchip .kitflag{display:inline-block;margin-left:5px;font-size:8px;font-weight:700;opacity:.9}
 .kituse{padding:5px 10px;font-size:10px;color:#b5462f;border-top:1px dashed #e5cfae;background:#fff6f2}
+
+/* v4.9：性格標籤 */
+.dchip .persona{display:inline-block;margin-left:5px;font-size:8px;color:#8fd0dc;font-weight:700}
