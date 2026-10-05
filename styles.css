@@ -214,3 +214,16 @@
 
 /* v4.9：性格標籤 */
 .dchip .persona{display:inline-block;margin-left:5px;font-size:8px;color:#8fd0dc;font-weight:700}
+
+/* v5.1：電腦闊螢幕版面 —— 地圖放大、操作面板移側邊 */
+@media(min-width:1000px){
+  main{max-width:1180px;display:grid;grid-template-columns:1fr 380px;grid-template-areas:"rivals panel" "board panel";gap:14px;align-items:start;padding:10px 16px calc(14px + env(safe-area-inset-bottom))}
+  .rivals{grid-area:rivals;margin:0}
+  .board-wrap{grid-area:board;padding:0}
+  .player-panel{grid-area:panel;margin:0;position:sticky;top:12px}
+  .sea{height:min(72vh,680px)}
+  .actions{grid-template-columns:repeat(2,1fr);gap:7px}
+  .actions .primary,.actions .end,.actions #tradeBtn{grid-column:span 2}
+  .resources{grid-template-columns:repeat(5,1fr)}
+  .commentary.show{max-height:90px}
+}
