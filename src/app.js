@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,deckCounts,capWinner}from'./engine.js?v=5.3';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,deckCounts,capWinner}from'./engine.js?v=5.4';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 let VX=260,VY=245,VS=49;const sx=x=>VX+x*VS,sy=y=>VY+y*VS,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -522,13 +522,15 @@ const CARD_META={騎士:{icon:'🛡️',desc:'移動海盜並掠奪一份物資'
 function openHand(){renderHand();$('#handDialog').showModal()}
 function renderHand(){
   const me=game.players[0],action=game.phase==='action'&&!busy&&!blocked(game);
-  if(!me.cards.length){$('#handList').innerHTML='<p class="hint">你暫時未有航海卡。喺回合中「抽卡」可獲得。</p>';return}
+  const dc=deckCounts(game),total=dc.騎士+dc.豐收+dc.築路+dc.勝利點;
+  const deckLine=`<div class="deckleft"><b>🎴 牌庫剩餘 ${total}</b><span>🛡️騎士 ${dc.騎士}</span><span>🏆勝利點 ${dc.勝利點}</span><span>🛣️築路 ${dc.築路}</span><span>🌾豐收 ${dc.豐收}</span></div>`;
+  if(!me.cards.length){$('#handList').innerHTML='<p class="hint">你暫時未有航海卡。喺回合中「抽卡」可獲得。</p>'+deckLine;return}
   const counts={};me.cards.forEach(c=>counts[c]=(counts[c]||0)+1);
   $('#handList').innerHTML=Object.entries(counts).map(([c,n])=>{
     const m=CARD_META[c],playable=c!=='勝利點';
     const btn=c==='勝利點'?'<span class="tag">已計分</span>':`<button class="use" data-card="${c}" ${action?'':'disabled'}>使用</button>`;
     return `<div class="hand-card"><div class="hc-face">${m.icon}</div><div class="hc-body"><b>${c}${n>1?` ×${n}`:''}</b><small>${m.desc}</small></div>${btn}</div>`
-  }).join('');
+  }).join('')+deckLine;
   if(!action&&me.cards.some(c=>c!=='勝利點'))$('#handList').insertAdjacentHTML('beforeend','<p class="hint">要喺你嘅回合（擲完骰、未結束）先可以打出。</p>');
   $('#handList').querySelectorAll('button.use').forEach(b=>b.onclick=()=>playHandCard(b.dataset.card))
 }
@@ -929,7 +931,7 @@ function startExhibition(){
 }
 
 /* ============ 事件綁定 ============ */
-const VERSION='5.3';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
+const VERSION='5.4';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
 $('#exhibitBtn').onclick=startExhibition;
 {const c=$('#commentaryChk');if(c){c.checked=commentaryOn;c.addEventListener('change',()=>{commentaryOn=c.checked;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');if(!commentaryOn&&window.speechSynthesis)window.speechSynthesis.cancel()})}}
 $('#commentary')?.addEventListener('click',()=>setCommentary(!commentaryOn));

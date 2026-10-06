@@ -230,3 +230,8 @@
 
 /* v5.3：旁述掣關閉態 */
 .icon-btn.off{opacity:.45}
+
+/* v5.4：牌庫剩餘 */
+.deckleft{margin-top:10px;padding-top:9px;border-top:1px dashed #d9c99f;display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;font-size:11px;color:#5a6c6a}
+.deckleft b{font-size:11px;color:var(--ink)}
+.deckleft span{font-variant-numeric:tabular-nums}
