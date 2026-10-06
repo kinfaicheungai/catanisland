@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,deckCounts,capWinner}from'./engine.js?v=5.2';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,deckCounts,capWinner}from'./engine.js?v=5.3';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 let VX=260,VY=245,VS=49;const sx=x=>VX+x*VS,sy=y=>VY+y*VS,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -785,6 +785,20 @@ const _SHORT={
   volcano:['噴火ァ！','ドドド…火山だ！','大地が揺れる！'],
 };
 for(const k in _SHORT)LINES[k]=(LINES[k]||[]).concat(_SHORT[k]);
+// v5.3：諷刺・抵死・毒舌句
+const _SNARK={
+  rollSmall:['また{num}？サイコロ、壊れてませんか？','{num}…{n}、神に見放されたようです。','{num}。これはもう才能ですね、悪い意味で。','{num}、観客も苦笑いです。'],
+  rollBig:['{num}！たまには良いこともあるんですね、{n}！','おっ{num}、まぐれ当たりか！','{num}！解説泣かせの大盤振る舞いだ！'],
+  robber7:['７！誰かの計画が音を立てて崩れます。','７。泣く人、笑う人、人生模様です。','また７か、好きだねぇ。'],
+  steal:['{n}、人のものほど美味しいようで。','略奪！{v}、顔が引きつってますよ。','{n}、堂々たる火事場泥棒です。'],
+  demolish:['{n}、友達は多くなさそうですね。','無慈悲！{v}の努力が一瞬で粗大ゴミに。','{n}、これは恨み、買いましたね。','容赦なし。{v}、涙目です。'],
+  nearwin:['{n}、ここまで来て転ばないでくださいよ？','王手。緊張で手が震えてなければいいですが。'],
+  lead:['{n}が首位に。いつまで保つでしょうねぇ。','{n}トップ！油断して全部失うまでがお約束。'],
+  build:['{n}、ようやく一手。長かったですね。','やっと建てた。考える時間、長すぎません？'],
+  gossip:['{n}、強気の発言の割に結果が伴いませんね。','関係者曰く「{n}は口だけは一流」とのこと。','{n}、SNSのフォロワーだけは順調だそうです。','噂では{n}、作戦会議が昼寝だったとか。','{n}のスポンサー、そろそろ逃げ腰との情報も。'],
+  win:['{n}、勝ちました。本人が一番驚いています。','優勝{n}！どうせ次は負けるんですけどね。'],
+};
+for(const k in _SNARK)LINES[k]=(LINES[k]||[]).concat(_SNARK[k]);
 
 
 /* ---- 聯賽榜介面 ---- */
@@ -915,10 +929,13 @@ function startExhibition(){
 }
 
 /* ============ 事件綁定 ============ */
-const VERSION='5.2';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
+const VERSION='5.3';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
 $('#exhibitBtn').onclick=startExhibition;
 {const c=$('#commentaryChk');if(c){c.checked=commentaryOn;c.addEventListener('change',()=>{commentaryOn=c.checked;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');if(!commentaryOn&&window.speechSynthesis)window.speechSynthesis.cancel()})}}
-$('#commentary')?.addEventListener('click',()=>{commentaryOn=!commentaryOn;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');const c=$('#commentaryChk');if(c)c.checked=commentaryOn;if(!commentaryOn&&window.speechSynthesis)window.speechSynthesis.cancel();toast(commentaryOn?'🎙 旁述開':'🔇 旁述關')});
+$('#commentary')?.addEventListener('click',()=>setCommentary(!commentaryOn));
+function setCommentary(on){commentaryOn=on;localStorage.setItem('frontier-commentary',on?'1':'0');const c=$('#commentaryChk');if(c)c.checked=on;const b=$('#commentaryBtn');if(b){b.textContent=on?'🎙':'🔕';b.classList.toggle('off',!on)}if(!on&&window.speechSynthesis)window.speechSynthesis.cancel();toast(on?'🎙 旁述開':'🔕 旁述關')}
+$('#commentaryBtn')?.addEventListener('click',()=>setCommentary(!commentaryOn));
+{const b=$('#commentaryBtn');if(b){b.textContent=commentaryOn?'🎙':'🔕';b.classList.toggle('off',!commentaryOn)}}
 $('#leagueBtn').onclick=openLeague;
 $('#colorPick')?.addEventListener('click',e=>{const b=e.target.closest('[data-color]');if(!b)return;pickedColor=b.dataset.color;$$('#colorPick [data-color]').forEach(x=>x.classList.toggle('on',x===b))});
 $('#raceBtn')?.addEventListener('click',()=>{

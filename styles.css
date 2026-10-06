@@ -227,3 +227,6 @@
   .resources{grid-template-columns:repeat(5,1fr)}
   .commentary.show{max-height:90px}
 }
+
+/* v5.3：旁述掣關閉態 */
+.icon-btn.off{opacity:.45}
