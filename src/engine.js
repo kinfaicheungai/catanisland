@@ -70,7 +70,7 @@ export function makeGame(rng=Math.random,opts={}){
     if(b&&b.type&&res[b.type]!=null)res[b.type]+=b.amount;                     // 資源型車隊：開局多幾張
     let dock=pen[id]||0;for(const r of ['wool','grain','brick','wood','ore']){while(dock>0&&res[r]>0){res[r]--;dock--}} // 上場贏家：扣起始資源
     if(half&&half[id])for(const r of RESOURCES)res[r]=Math.floor(res[r]/2); // 拆卸包代價：起始資源減半
-    return{id,name,color:cols[id],style:styl?styl[id]:'solid',alt:alts?alts[id]:null,strength:strs[id],persona:pers[id],score:0,roads:0,cards:[],knights:0,resources:res,ports:[]}
+    return{id,name,color:cols[id],style:styl?styl[id]:'solid',alt:alts?alts[id]:null,strength:strs[id],persona:pers[id],heat:(opts.heats&&opts.heats[id])||0,score:0,roads:0,cards:[],knights:0,resources:res,ports:[]}
   });
   const coast=topo.edges.filter(e=>edgeTileCount(topo,e.id)===1),nPorts=Math.min(9,Math.max(6,Math.floor(coast.length/3))),portKinds=['wood','brick','grain','wool','ore','any','any','any','any','any','any'],ports=[];
   for(let i=0;i<nPorts;i++){const e=coast[Math.floor(i*coast.length/nPorts)];ports.push({edge:e.id,a:e.a,b:e.b,kind:portKinds[i%portKinds.length],ratio:portKinds[i%portKinds.length]==='any'?3:2})}
@@ -178,7 +178,7 @@ export function aiChooseRobber(g,id){
     const owners=t.vertices.map(v=>g.vertices[v].owner).filter(o=>o!==null&&o!==id); // 唔擋自己
     if(!owners.length)continue;
     // 抑制高分者：對手分數越高，越值得封鎖（唔針對特定人、唔搶包尾）
-    let s=0;for(const o of owners)s+=w(t.num)*(1+Math.max(0,totalScore(g,o))*0.6+(g.players[o].seasonPts||0)*0.03); // 首選本場領先者，其次積分榜領先者
+    let s=0;for(const o of owners)s+=w(t.num)*(1+Math.max(0,totalScore(g,o))*0.6+(g.players[o].seasonPts||0)*0.03+(g.players[o].heat||0)*1.1); // 首選本場領先者，其次積分榜領先者；連勝熱度高者被海盜重點照顧
     if(s>bs){bs=s;best=t.id}}
   if(best===null){const alt=g.tiles.find(t=>t.id!==g.robber&&t.type!=='desert');best=alt?alt.id:g.tiles.find(t=>t.id!==g.robber).id}
   return best
