@@ -241,3 +241,8 @@
 .strow .heat{font-style:normal;margin-left:4px;font-size:9px;font-weight:800;color:#ff8a5c}
 .heat-note{margin-top:8px;font-size:10px;line-height:1.5;color:#ffcbb0;background:#ff6a3312;border:1px solid #ff6a3340;border-radius:8px;padding:6px 9px}
 .heat-note.me{color:#ffd27a;background:#ff8a0014;border-color:#ff8a0055;font-weight:650}
+
+/* v5.6 剩餘輪數 / sprint */
+.rleft{font-size:11px;color:#9fb4c0;font-weight:600;margin-left:2px}
+.rleft.low{color:#ff8a5c;font-weight:800}
+.rleft.sprint{color:#ffd24a;font-weight:800}
