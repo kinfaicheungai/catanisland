@@ -72,6 +72,7 @@ export function makeGame(rng=Math.random,opts={}){
     if(half&&half[id])for(const r of RESOURCES)res[r]=Math.floor(res[r]/2); // 拆卸包代價：起始資源減半
     return{id,name,color:cols[id],style:styl?styl[id]:'solid',alt:alts?alts[id]:null,strength:strs[id],persona:pers[id],heat:(opts.heats&&opts.heats[id])||0,score:0,roads:0,cards:[],knights:0,resources:res,ports:[]}
   });
+  if(opts.startVP)players.forEach((p,id)=>{p.score+=(opts.startVP[id]||0)}); // 墊底補償：帶勝利點開局
   const coast=topo.edges.filter(e=>edgeTileCount(topo,e.id)===1),nPorts=Math.min(9,Math.max(6,Math.floor(coast.length/3))),portKinds=['wood','brick','grain','wool','ore','any','any','any','any','any','any'],ports=[];
   for(let i=0;i<nPorts;i++){const e=coast[Math.floor(i*coast.length/nPorts)];ports.push({edge:e.id,a:e.a,b:e.b,kind:portKinds[i%portKinds.length],ratio:portKinds[i%portKinds.length]==='any'?3:2})}
   return{round:1,turn:0,phase:'setup',layout:kind,target:(kind==='large'||N>=22)?12:10,roundCap:opts.roundCap||((kind==='large'||N>=22)?38:28),deck:buildDeck(rng),...topo,players,ports,winner:null,largestArmy:null,longestRoad:null,lastRoll:null,dice:null,production:[],robber:topo.tiles.find(t=>t.type==='desert').id,discards:null,robberPending:false,robberFromCard:false,freeRoads:0,steal:null,weather:opts.weather||'clear',log:'開局：每支隊伍揀選一座村莊同一條相連航線嘅位置。'}
@@ -257,6 +258,19 @@ export function demolishSettlement(g,vid){const v=g.vertices[vid];if(v.owner===n
   if(g.vertices.filter(x=>x.owner===o).length<=1)return false;   // 保留至少一座建築，確保仲有收成
   g.players[o].score=Math.max(0,g.players[o].score-1);v.owner=null;v.level=0;updateBonuses(g);return o}
 export function demolishRoad(g,eid){const e=g.edges[eid];if(!e||e.owner===null)return false;const o=e.owner;g.players[o].roads=Math.max(0,g.players[o].roads-1);e.owner=null;updateBonuses(g);return o}
+// 拆卸包「攻城」：拆一座港城（對手 −2 分）
+export function demolishCity(g,vid){const v=g.vertices[vid];if(!v||v.owner===null||v.level!==2)return false;const o=v.owner;
+  if(g.vertices.filter(x=>x.owner===o).length<=1)return false;
+  g.players[o].score=Math.max(0,g.players[o].score-2);v.owner=null;v.level=0;updateBonuses(g);return o}
+// Turbo 包：額外擲一鋪，只派資源畀自己（擲到 7 當落空；跟天氣/海盜規則）
+export function turboRoll(g,id,rng=Math.random){
+  const a=1+Math.floor(rng()*6),b=1+Math.floor(rng()*6),n=a+b,got=[];
+  if(n!==7)for(const tile of g.tiles.filter(t=>t.num===n&&t.id!==g.robber))for(const vid of tile.vertices){const v=g.vertices[vid];if(v.owner!==id)continue;
+    if(g.weather==='rain'&&rng()<0.2)continue;
+    if(g.weather==='drought'&&(tile.type==='grain'||tile.type==='wool')&&rng()<0.5)continue;
+    let type=tile.type;if(type==='gold')type=RESOURCES[Math.floor(rng()*RESOURCES.length)];
+    g.players[id].resources[type]+=v.level;got.push({type,amount:v.level,tile:tile.id})}
+  return{dice:[a,b],n,got}}
 export function totalScore(g,id){return g.players[id].score+bonusPoints(g,id)}
 // 名次：由高分到低分（勝者總分必最高），平手用回合物資做次序
 export function finishOrder(g){return g.players.map(p=>p.id).sort((a,b)=>totalScore(g,b)-totalScore(g,a)||countResources(g.players[b])-countResources(g.players[a])||a-b)}
