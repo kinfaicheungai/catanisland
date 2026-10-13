@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,turboRoll,deckCounts,capWinner}from'./engine.js?v=5.9';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,turboRoll,deckCounts,capWinner}from'./engine.js?v=5.10';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 let VX=260,VY=245,VS=49;const sx=x=>VX+x*VS,sy=y=>VY+y*VS,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -219,7 +219,17 @@ let records=loadRecords();
 const CN2EN={'摩納哥':'Monaco','新加坡':'Singapore','鈴鹿':'Suzuka','蒙薩':'Monza','銀石':'Silverstone','上海':'Shanghai','墨爾本':'Melbourne','聖保羅':'Interlagos','阿布達比':'Abu Dhabi','蒙特利爾':'Montreal','拉斯維加斯':'Las Vegas','邁阿密':'Miami','奧斯汀':'Austin','巴林':'Bahrain','吉達':'Jeddah','伊莫拉':'Imola','斯帕':'Spa','布達佩斯':'Budapest','贊德福特':'Zandvoort','墨西哥城':'Mexico City'};
 (function mergeRecords(){let changed=false;for(const cn in CN2EN){if(records[cn]){const en=CN2EN[cn];if(!records[en]||records[cn].rounds<records[en].rounds)records[en]=records[cn];delete records[cn];changed=true}}if(changed)saveRecords()})();
 // 一次性清理：舊版紀錄可能係圈數上限逼和（唔夠滿分）污染嘅，冇記低分數嘅一律當不合格清走，之後只收真正達標封王
-(function purgeRecords(){if(localStorage.getItem('frontier-records-purged-v2'))return;let changed=false;for(const c in records){const r=records[c];if(!r||typeof r.score!=='number'||r.score<10){delete records[c];changed=true}}if(changed)saveRecords();try{localStorage.setItem('frontier-records-purged-v2','1')}catch{}})();
+// 一次性清理（保守）：只清走「輪數 = 嗰站歷來圈數上限（逼和結束）」嗰啲舊紀錄，其餘全部保留。
+// 有記低分數嘅係新版紀錄（已確認達標）→ 一律保留。舊版查唔返分數,只能用「輪數撞上限」判定逼和。
+(function purgeRecords(){if(localStorage.getItem('frontier-records-purged-v3'))return;
+  const big=new Set();[...CITY_POOL,...SPECIAL_CITIES].forEach(([c,sk])=>{if(islandBig(sk))big.add(c)});
+  const CAP10=[88,89,30,31,28,29,24,25,20,21],CAP12=[99,100,40,41,38,39,30,31,25,26]; // 10/12 分島歷代圈數上限（含收尾 +1 值）
+  let changed=false;
+  for(const c in records){const r=records[c];if(!r)continue;
+    if(typeof r.score==='number')continue;                 // 新版紀錄（已記分）→ 保留
+    const caps=big.has(c)?CAP12:CAP10;
+    if(caps.indexOf(r.rounds)>=0){delete records[c];changed=true}} // 舊版且輪數撞上限 → 逼和污染，清走
+  if(changed)saveRecords();try{localStorage.setItem('frontier-records-purged-v3','1')}catch{}})();
 function resolveStation(){
   const ri=league.round,shapeKey=league.cities[ri][1],axial=SHAPES[shapeKey],city=league.cities[ri][0],gold=shapeKey==='gold',sCap=roundCapFor(shapeKey,isSprint(ri)),results=[];
   results.push(gameResult(game,bid=>raceDrivers[bid])); // 你嗰場
@@ -1081,7 +1091,7 @@ function startExhibition(){
 }
 
 /* ============ 事件綁定 ============ */
-const VERSION='5.9';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
+const VERSION='5.10';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
 $('#exhibitBtn').onclick=startExhibition;
 {const c=$('#commentaryChk');if(c){c.checked=commentaryOn;c.addEventListener('change',()=>{commentaryOn=c.checked;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');if(!commentaryOn&&window.speechSynthesis)window.speechSynthesis.cancel()})}}
 $('#commentary')?.addEventListener('click',()=>setCommentary(!commentaryOn));
