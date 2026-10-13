@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,turboRoll,deckCounts,capWinner}from'./engine.js?v=5.8';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,turboRoll,deckCounts,capWinner}from'./engine.js?v=5.9';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 let VX=260,VY=245,VS=49;const sx=x=>VX+x*VS,sy=y=>VY+y*VS,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -205,11 +205,11 @@ function migrateLeague(L){
 function humanQuad(){return league.schedule[league.round].find(q=>q.includes(0))}
 function standingsSorted(){return league.drivers.map((d,i)=>({...d,i})).sort((a,b)=>b.pts-a.pts||((a.fastest??999)-(b.fastest??999))||((b.margin||0)-(a.margin||0))||b.wins-a.wins||a.i-b.i)}
 // 一場結果：名次、輪次、各名次總分（用嚟計得失分）
-function gameResult(g,map){const ord=finishOrder(g);return{order:ord.map(map),rounds:g.round,scores:ord.map(b=>totalScore(g,b))}}
-function awardQuad(res){const{order,rounds,scores}=res;
+function gameResult(g,map){const ord=finishOrder(g);return{order:ord.map(map),rounds:g.round,scores:ord.map(b=>totalScore(g,b)),capped:!!g.cappedOut}}
+function awardQuad(res){const{order,rounds,scores,capped}=res;
   order.forEach((di,pos)=>{const d=league.drivers[di];d.races++;if(pos<PTS.length)d.pts+=PTS[pos];
     d.margin=(d.margin||0)+(pos===0?scores[0]-scores[1]:scores[pos]-scores[pos-1])});   // 淨勝分：冠軍贏鄰位／其餘輸畀上一位（足球得失球式，可正可負，累計）
-  const w=order[0],dw=league.drivers[w];dw.wins++;dw.fastest=dw.fastest==null?rounds:Math.min(dw.fastest,rounds)}
+  const w=order[0],dw=league.drivers[w];dw.wins++;if(!capped)dw.fastest=dw.fastest==null?rounds:Math.min(dw.fastest,rounds)} // 只有真正達標封王先計入最速紀錄
 /* 場地紀錄（跨賽季保存）：每個城市「最少輪次獲勝」嘅保持者 */
 const RKEY='frontier-records-v1';
 function loadRecords(){try{return JSON.parse(localStorage.getItem(RKEY))||{}}catch{return{}}}
@@ -218,6 +218,8 @@ let records=loadRecords();
 // 一次性：將舊中文站名紀錄併入英文站名（保留較快嗰個）
 const CN2EN={'摩納哥':'Monaco','新加坡':'Singapore','鈴鹿':'Suzuka','蒙薩':'Monza','銀石':'Silverstone','上海':'Shanghai','墨爾本':'Melbourne','聖保羅':'Interlagos','阿布達比':'Abu Dhabi','蒙特利爾':'Montreal','拉斯維加斯':'Las Vegas','邁阿密':'Miami','奧斯汀':'Austin','巴林':'Bahrain','吉達':'Jeddah','伊莫拉':'Imola','斯帕':'Spa','布達佩斯':'Budapest','贊德福特':'Zandvoort','墨西哥城':'Mexico City'};
 (function mergeRecords(){let changed=false;for(const cn in CN2EN){if(records[cn]){const en=CN2EN[cn];if(!records[en]||records[cn].rounds<records[en].rounds)records[en]=records[cn];delete records[cn];changed=true}}if(changed)saveRecords()})();
+// 一次性清理：舊版紀錄可能係圈數上限逼和（唔夠滿分）污染嘅，冇記低分數嘅一律當不合格清走，之後只收真正達標封王
+(function purgeRecords(){if(localStorage.getItem('frontier-records-purged-v2'))return;let changed=false;for(const c in records){const r=records[c];if(!r||typeof r.score!=='number'||r.score<10){delete records[c];changed=true}}if(changed)saveRecords();try{localStorage.setItem('frontier-records-purged-v2','1')}catch{}})();
 function resolveStation(){
   const ri=league.round,shapeKey=league.cities[ri][1],axial=SHAPES[shapeKey],city=league.cities[ri][0],gold=shapeKey==='gold',sCap=roundCapFor(shapeKey,isSprint(ri)),results=[];
   results.push(gameResult(game,bid=>raceDrivers[bid])); // 你嗰場
@@ -229,21 +231,26 @@ function resolveStation(){
     results.push(simRace(q,axial,raceWeather,gold,sCap,opt,half,modes));
   }
   for(const res of results)awardQuad(res);                             // 名次分 + 得失分 + 最速紀錄
-  const minR=Math.min(...results.map(r=>r.rounds));                    // 本站最速輪次
-  const fast=results.filter(r=>r.rounds===minR);
-  for(const r of fast)league.drivers[r.order[0]].pts++;               // 最速獲勝 +1
-  const champ=league.drivers[fast[0].order[0]],prev=records[city];let broke=false;
-  if(!prev||minR<prev.rounds){records[city]={rounds:minR,name:champ.name,color:champ.color};saveRecords();broke=true}
+  // 只有真正達標封王（完成 10/12 滿分，非圈數上限逼和）先算「最速」同入場地紀錄
+  const genuine=results.filter(r=>!r.capped);
+  let minR=null,broke=false;
+  if(genuine.length){
+    minR=Math.min(...genuine.map(r=>r.rounds));                        // 本站最速封王輪次
+    const fast=genuine.filter(r=>r.rounds===minR);
+    for(const r of fast)league.drivers[r.order[0]].pts++;             // 最速封王 +1
+    const champ=league.drivers[fast[0].order[0]],prev=records[city],winScore=fast[0].scores[0];
+    if(!prev||minR<prev.rounds){records[city]={rounds:minR,name:champ.name,color:champ.color,score:winScore};saveRecords();broke=true}
+  }
   league.drivers.forEach(d=>d.wonLast=false);                          // 上場贏家 → 下站扣一張資源
   for(const res of results)league.drivers[res.order[0]].wonLast=true;
   const stationWinners=new Set(results.map(r=>r.order[0]));            // 連勝熱度：本站頭名 +1，未奪頭名歸零
   league.drivers.forEach((d,i)=>{d.winStreak=stationWinners.has(i)?((d.winStreak||0)+1):0});
   const stationLast=new Set(results.map(r=>r.order[r.order.length-1])); // 墊底補償：本站包尾 +1，一唔包尾歸零
   league.drivers.forEach((d,i)=>{d.loseStreak=stationLast.has(i)?((d.loseStreak||0)+1):0});
-  const roundEntry={round:ri+1,city,races:results.map(r=>({o:r.order.slice(),fast:r.rounds===minR}))};
+  const roundEntry={round:ri+1,city,races:results.map(r=>({o:r.order.slice(),fast:!r.capped&&minR!=null&&r.rounds===minR}))};
   (league.roundLog=league.roundLog||[]).push(roundEntry);
-  const my=results[0],myFast=my.rounds===minR&&my.order[0]===0;
-  return{city,minR,myFast,broke,recName:records[city].name}
+  const my=results[0],myFast=!my.capped&&minR!=null&&my.rounds===minR&&my.order[0]===0;
+  return{city,minR,myFast,broke,recName:(records[city]&&records[city].name)||null}
 }
 function simRace(quad,axial,weather,gold,cap,opt,half,modes){
   opt=opt||raceOpts(quad,true);half=half||quad.map(di=>!!league.drivers[di].desertNext);modes=modes||[null,null,null,null];
@@ -1003,7 +1010,7 @@ function renderRecords(){
   const seen=new Set();
   $('#recordsList').innerHTML=list.filter(([c])=>{if(seen.has(c))return false;seen.add(c);return true}).map(([city,ly])=>{const r=records[city];
     return `<div class="recrow"><span class="rc-city">${city}<small>${SHAPE_NAME[ly]||''}</small></span>`+
-      (r?`<span class="rc-hold"><span class="dot" style="background:${r.color||'#888'}"></span>${r.name}</span><b class="rc-r">${r.rounds} 輪</b>`
+      (r?`<span class="rc-hold"><span class="dot" style="background:${r.color||'#888'}"></span>${r.name}</span><b class="rc-r">${r.rounds} 輪${r.score?` · ${r.score}分`:''}</b>`
         :`<span class="rc-hold none">未有紀錄</span><b class="rc-r">—</b>`)+`</div>`}).join('');
 }
 function renameTeam(){
@@ -1074,7 +1081,7 @@ function startExhibition(){
 }
 
 /* ============ 事件綁定 ============ */
-const VERSION='5.8';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
+const VERSION='5.9';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
 $('#exhibitBtn').onclick=startExhibition;
 {const c=$('#commentaryChk');if(c){c.checked=commentaryOn;c.addEventListener('change',()=>{commentaryOn=c.checked;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');if(!commentaryOn&&window.speechSynthesis)window.speechSynthesis.cancel()})}}
 $('#commentary')?.addEventListener('click',()=>setCommentary(!commentaryOn));
