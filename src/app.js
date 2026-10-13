@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,turboRoll,deckCounts,capWinner}from'./engine.js?v=5.10';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,turboRoll,deckCounts,capWinner}from'./engine.js?v=5.11';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 let VX=260,VY=245,VS=49;const sx=x=>VX+x*VS,sy=y=>VY+y*VS,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -218,18 +218,17 @@ let records=loadRecords();
 // 一次性：將舊中文站名紀錄併入英文站名（保留較快嗰個）
 const CN2EN={'摩納哥':'Monaco','新加坡':'Singapore','鈴鹿':'Suzuka','蒙薩':'Monza','銀石':'Silverstone','上海':'Shanghai','墨爾本':'Melbourne','聖保羅':'Interlagos','阿布達比':'Abu Dhabi','蒙特利爾':'Montreal','拉斯維加斯':'Las Vegas','邁阿密':'Miami','奧斯汀':'Austin','巴林':'Bahrain','吉達':'Jeddah','伊莫拉':'Imola','斯帕':'Spa','布達佩斯':'Budapest','贊德福特':'Zandvoort','墨西哥城':'Mexico City'};
 (function mergeRecords(){let changed=false;for(const cn in CN2EN){if(records[cn]){const en=CN2EN[cn];if(!records[en]||records[cn].rounds<records[en].rounds)records[en]=records[cn];delete records[cn];changed=true}}if(changed)saveRecords()})();
-// 一次性清理：舊版紀錄可能係圈數上限逼和（唔夠滿分）污染嘅，冇記低分數嘅一律當不合格清走，之後只收真正達標封王
-// 一次性清理（保守）：只清走「輪數 = 嗰站歷來圈數上限（逼和結束）」嗰啲舊紀錄，其餘全部保留。
-// 有記低分數嘅係新版紀錄（已確認達標）→ 一律保留。舊版查唔返分數,只能用「輪數撞上限」判定逼和。
-(function purgeRecords(){if(localStorage.getItem('frontier-records-purged-v3'))return;
-  const big=new Set();[...CITY_POOL,...SPECIAL_CITIES].forEach(([c,sk])=>{if(islandBig(sk))big.add(c)});
-  const CAP10=[88,89,30,31,28,29,24,25,20,21],CAP12=[99,100,40,41,38,39,30,31,25,26]; // 10/12 分島歷代圈數上限（含收尾 +1 值）
-  let changed=false;
-  for(const c in records){const r=records[c];if(!r)continue;
-    if(typeof r.score==='number')continue;                 // 新版紀錄（已記分）→ 保留
-    const caps=big.has(c)?CAP12:CAP10;
-    if(caps.indexOf(r.rounds)>=0){delete records[c];changed=true}} // 舊版且輪數撞上限 → 逼和污染，清走
-  if(changed)saveRecords();try{localStorage.setItem('frontier-records-purged-v3','1')}catch{}})();
+// 注意：唔再載入時自動清理任何紀錄（保住玩家寶貴舊紀錄）。改為手動清理按鈕 cleanTimeoutRecords()，撳前會列明＋確認。
+const CAP10=[88,89,30,31,28,29,24,25,20,21],CAP12=[99,100,40,41,38,39,30,31,25,26]; // 10/12 分島歷代圈數上限（含收尾 +1 值）
+function timeoutRecordKeys(){const big=new Set();[...CITY_POOL,...SPECIAL_CITIES].forEach(([c,sk])=>{if(islandBig(sk))big.add(c)});
+  return Object.keys(records).filter(c=>{const r=records[c];if(!r)return false;if(typeof r.score==='number')return false;return (big.has(c)?CAP12:CAP10).indexOf(r.rounds)>=0})}
+function cleanTimeoutRecords(){
+  const keys=timeoutRecordKeys();
+  if(!keys.length){toast('冇發現逼和污染紀錄 👍');return}
+  const list=keys.map(c=>`${c}（${records[c].rounds}輪）`).join('\n');
+  if(!window.confirm(`以下 ${keys.length} 條舊紀錄嘅輪數啱好等於嗰站圈數上限，可能係逼和（非滿分）造成。\n確定清走？其餘紀錄會保留。\n\n${list}`))return;
+  keys.forEach(c=>delete records[c]);saveRecords();renderRecords();toast(`已清走 ${keys.length} 條逼和紀錄`);
+}
 function resolveStation(){
   const ri=league.round,shapeKey=league.cities[ri][1],axial=SHAPES[shapeKey],city=league.cities[ri][0],gold=shapeKey==='gold',sCap=roundCapFor(shapeKey,isSprint(ri)),results=[];
   results.push(gameResult(game,bid=>raceDrivers[bid])); // 你嗰場
@@ -1022,6 +1021,7 @@ function renderRecords(){
     return `<div class="recrow"><span class="rc-city">${city}<small>${SHAPE_NAME[ly]||''}</small></span>`+
       (r?`<span class="rc-hold"><span class="dot" style="background:${r.color||'#888'}"></span>${r.name}</span><b class="rc-r">${r.rounds} 輪${r.score?` · ${r.score}分`:''}</b>`
         :`<span class="rc-hold none">未有紀錄</span><b class="rc-r">—</b>`)+`</div>`}).join('');
+  {const n=timeoutRecordKeys().length,btn=$('#cleanRecords');if(btn){btn.hidden=n===0;btn.textContent=`🧹 清理 ${n} 條疑似逼和紀錄`}}
 }
 function renameTeam(){
   if(!league){toast('未有進行中嘅賽季');return}
@@ -1091,7 +1091,7 @@ function startExhibition(){
 }
 
 /* ============ 事件綁定 ============ */
-const VERSION='5.10';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
+const VERSION='5.11';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
 $('#exhibitBtn').onclick=startExhibition;
 {const c=$('#commentaryChk');if(c){c.checked=commentaryOn;c.addEventListener('change',()=>{commentaryOn=c.checked;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');if(!commentaryOn&&window.speechSynthesis)window.speechSynthesis.cancel()})}}
 $('#commentary')?.addEventListener('click',()=>setCommentary(!commentaryOn));
@@ -1112,6 +1112,7 @@ $('#tierPick')?.addEventListener('click',e=>{const b=e.target.closest('[data-tie
 $('#resetLeague')?.addEventListener('click',()=>{if(window.confirm('確定放棄呢個賽季？積分會清空（場地紀錄唔會刪）。')){try{localStorage.removeItem(LKEY);LEGACY_LKEYS.forEach(k=>localStorage.removeItem(k));localStorage.removeItem(LIVEKEY)}catch{}league=null;$('#leagueDialog').close();$('#startDialog').showModal()}});
 $('#recordsBtn')?.addEventListener('click',()=>{renderRecords();$('#recordsDialog').showModal()});
 $('#closeRecords')?.addEventListener('click',()=>$('#recordsDialog').close());
+$('#cleanRecords')?.addEventListener('click',cleanTimeoutRecords);
 $('#backupBtn')?.addEventListener('click',openBackup);
 $('#statsBtn')?.addEventListener('click',()=>{renderStats();$('#statsDialog').showModal()});
 $('#closeStats')?.addEventListener('click',()=>$('#statsDialog').close());
