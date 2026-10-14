@@ -56,15 +56,18 @@ export function makeGame(rng=Math.random,opts={}){
   shuffle(numPool,rng);let np=0;
   topo.tiles.forEach((t,i)=>{t.type=allTypes[i];t.num=t.type==='desert'?7:numPool[np++]});
   if(opts.gold){const gt=topo.tiles.find(t=>t.type!=='desert');if(gt)gt.type='gold'} // 黃金地塊（隨機資源）
-  const names=opts.names&&opts.names.length===4?opts.names:NAMES;
-  const cols=opts.colors&&opts.colors.length===4?opts.colors:COLORS;
-  const strs=opts.strengths&&opts.strengths.length===4?opts.strengths:[3,3,3,3];
-  const bonus=opts.bonusRes&&opts.bonusRes.length===4?opts.bonusRes:[null,null,null,null];
-  const pen=opts.penalties&&opts.penalties.length===4?opts.penalties:[0,0,0,0];
-  const half=opts.halfStart&&opts.halfStart.length===4?opts.halfStart:null;
-  const styl=opts.styles&&opts.styles.length===4?opts.styles:null;
-  const alts=opts.alts&&opts.alts.length===4?opts.alts:null;
-  const pers=opts.personas&&opts.personas.length===4?opts.personas:['balanced','balanced','balanced','balanced'];
+  // 支援 N 名玩家（標準 4，大混戰 6-7）
+  const NP=Math.max(2,(opts.names&&opts.names.length)||4);
+  const pick=(arr,def)=>(arr&&arr.length===NP)?arr:Array.from({length:NP},(_,i)=>(arr&&arr[i]!=null)?arr[i]:def(i));
+  const names=pick(opts.names,i=>NAMES[i]||('隊'+(i+1)));
+  const cols=pick(opts.colors,i=>COLORS[i%COLORS.length]);
+  const strs=pick(opts.strengths,()=>3);
+  const bonus=pick(opts.bonusRes,()=>null);
+  const pen=pick(opts.penalties,()=>0);
+  const half=(opts.halfStart&&opts.halfStart.length===NP)?opts.halfStart:null;
+  const styl=(opts.styles&&opts.styles.length===NP)?opts.styles:null;
+  const alts=(opts.alts&&opts.alts.length===NP)?opts.alts:null;
+  const pers=pick(opts.personas,()=>'balanced');
   const players=names.map((name,id)=>{
     const res={wood:2,brick:2,grain:2,wool:2,ore:1},b=bonus[id];
     if(b&&b.type&&res[b.type]!=null)res[b.type]+=b.amount;                     // 資源型車隊：開局多幾張
@@ -336,7 +339,7 @@ export function aiTurn(g,id,rng=Math.random){
 }
 export function endHumanTurn(g,rng=Math.random){
   if(g.phase!=='action')return false;
-  for(let id=1;id<4&&!g.winner;id++)aiTurn(g,id,rng);
+  for(let id=1;id<g.players.length&&!g.winner;id++)aiTurn(g,id,rng);
   if(!g.winner){g.round++;g.turn=0;g.phase='roll';g.log='新一輪開始：輪到你擲骰。'}
   return true
 }
