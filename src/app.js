@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,turboRoll,deckCounts,capWinner}from'./engine.js?v=5.11';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,turboRoll,deckCounts,capWinner}from'./engine.js?v=5.12';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 let VX=260,VY=245,VS=49;const sx=x=>VX+x*VS,sy=y=>VY+y*VS,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -125,6 +125,8 @@ function roundCapFor(sk,sprint){const big=islandBig(sk);return sprint?(big?25:20
 function isSprint(ri){return !!(league&&league.sprints&&league.sprints.indexOf(ri)>=0)}
 const LAYOUT_NAME={standard:'標準六島',large:'大島',cross:'十字島',irregular:'不規則島'};
 const PTS=[3,1];        // 冠軍 3 分、亞軍 1 分
+// 冠軍季分：若靠圈數上限逼和奪冠（非達標封王）且得分 ≤5，只攞 2 分
+function firstPlacePts(capped,winScore){return (capped&&winScore<=5)?2:PTS[0]}
 let pickedColor=HUMAN_COLORS[0],humanTier=3,league=null,leagueActive=false,raceDrivers=null,endHandled=false,playoffStage=null,kitArmed=false,forceDesert=false,aiKitDriver=null,aiKitSettleLeft=false,aiKitRoadLeft=false,aiKitLogEntry=null,humanKitEntry=null;
 // 人類拆卸包電量：rs/rr=擲到7先用嘅村/路；as/ar/ac=隨時用嘅村/路/城
 let kitH={rs:0,rr:0,as:0,ar:0,ac:0};
@@ -207,7 +209,7 @@ function standingsSorted(){return league.drivers.map((d,i)=>({...d,i})).sort((a,
 // 一場結果：名次、輪次、各名次總分（用嚟計得失分）
 function gameResult(g,map){const ord=finishOrder(g);return{order:ord.map(map),rounds:g.round,scores:ord.map(b=>totalScore(g,b)),capped:!!g.cappedOut}}
 function awardQuad(res){const{order,rounds,scores,capped}=res;
-  order.forEach((di,pos)=>{const d=league.drivers[di];d.races++;if(pos<PTS.length)d.pts+=PTS[pos];
+  order.forEach((di,pos)=>{const d=league.drivers[di];d.races++;const add=pos===0?firstPlacePts(capped,scores[0]):(pos<PTS.length?PTS[pos]:0);d.pts+=add;
     d.margin=(d.margin||0)+(pos===0?scores[0]-scores[1]:scores[pos]-scores[pos-1])});   // 淨勝分：冠軍贏鄰位／其餘輸畀上一位（足球得失球式，可正可負，累計）
   const w=order[0],dw=league.drivers[w];dw.wins++;if(!capped)dw.fastest=dw.fastest==null?rounds:Math.min(dw.fastest,rounds)} // 只有真正達標封王先計入最速紀錄
 /* 場地紀錄（跨賽季保存）：每個城市「最少輪次獲勝」嘅保持者 */
@@ -699,7 +701,7 @@ function showEnd(){
   }
   // 常規賽人類嗰站
   if(leagueActive){
-    const myPos=finishOrder(game).indexOf(0),basePts=myPos<PTS.length?PTS[myPos]:0;
+    const myPos=finishOrder(game).indexOf(0),basePts=myPos===0?firstPlacePts(!!game.cappedOut,totalScore(game,0)):(myPos<PTS.length?PTS[myPos]:0);
     const R=resolveStation();
     league.round++;if(league.round>=league.cities.length)enterPlayoff();saveLeague();leagueActive=false;
     const medal=['🥇','🥈','🥉','４'][myPos],gain=basePts+(R.myFast?1:0);
@@ -1091,7 +1093,7 @@ function startExhibition(){
 }
 
 /* ============ 事件綁定 ============ */
-const VERSION='5.11';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
+const VERSION='5.12';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
 $('#exhibitBtn').onclick=startExhibition;
 {const c=$('#commentaryChk');if(c){c.checked=commentaryOn;c.addEventListener('change',()=>{commentaryOn=c.checked;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');if(!commentaryOn&&window.speechSynthesis)window.speechSynthesis.cancel()})}}
 $('#commentary')?.addEventListener('click',()=>setCommentary(!commentaryOn));
