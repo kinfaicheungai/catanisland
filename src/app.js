@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,turboRoll,deckCounts,capWinner}from'./engine.js?v=5.15';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,turboRoll,deckCounts,capWinner}from'./engine.js?v=5.16';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 let VX=260,VY=245,VS=49;const sx=x=>VX+x*VS,sy=y=>VY+y*VS,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -120,12 +120,20 @@ function buildWeatherPlan(city,startW,cap){
   for(const r of rounds){const w=pickWeatherDiff(bias,cur);if(w&&w!==cur){plan.push({round:r,w});cur=w}}
   return plan;
 }
-// 島嶼大小（≥22 格為 12 分島）與輪數上限（sprint 站更短）
+// 島嶼大小（≥22 格為 12 分島）
 function islandBig(sk){return (SHAPES[sk]||[]).length>=22}
-function roundCapFor(sk,sprint){const big=islandBig(sk);return sprint?(big?25:20):(big?38:28)}
+// 輪次上限唔再硬性固定：每站開季時喺一個範圍內隨機抽一個，畀啲彈性
+function rollCap(sk,sprint,melee){const rnd=(lo,hi)=>lo+Math.floor(Math.random()*(hi-lo+1)),big=islandBig(sk);
+  if(melee)return rnd(39,45);                 // 大混戰（超大島）
+  if(sprint)return big?rnd(23,27):rnd(18,22); // sprint
+  return big?rnd(35,41):rnd(26,32);           // 常規：12 分島 35-41、10 分島 26-32
+}
+function roundCapFor(sk,sprint){const big=islandBig(sk);return sprint?(big?25:20):(big?38:28)} // 後備固定值（舊存檔／試玩）
 function isSprint(ri){return !!(league&&league.sprints&&league.sprints.indexOf(ri)>=0)}
 function isMelee(ri){return !!(league&&league.melees&&league.melees.indexOf(ri)>=0)}  // 大混戰站（6-7 隊同場）
-const MELEE_CAP=42;const MELEE_PTS=[5,3,2,1];   // 大混戰：超大島、42 輪、前四名 5/3/2/1
+// 某站嘅輪次上限：用開季抽好、存落 league.caps 嘅值（冇就即時後備計算）
+function stationCap(ri){if(league&&league.caps&&league.caps[ri])return league.caps[ri];return isMelee(ri)?MELEE_CAP:roundCapFor(league?league.cities[ri][1]:'hex',isSprint(ri))}
+const MELEE_CAP=42;const MELEE_PTS=[5,3,2,1];   // 大混戰：前四名 5/3/2/1（上限改為 39-45 隨機）
 const LAYOUT_NAME={standard:'標準六島',large:'大島',cross:'十字島',irregular:'不規則島'};
 const PTS=[3,1];        // 冠軍 3 分、亞軍 1 分
 // 冠軍季分：若靠圈數上限逼和奪冠（非達標封王）且得分 ≤5，只攞 2 分；否則攞 base（常規 3，大混戰 5）
@@ -151,8 +159,9 @@ function newLeague(name,color){
   const nSprint=3+Math.floor(Math.random()*2);
   const sprints=idxPool.slice(2,2+nSprint).sort((a,b)=>a-b);                      // sprint 唔會同大混戰重疊
   const schedule=cities.map((_,ri)=>{const order=shuffleArr(drivers.map((_,i)=>i)),size=melees.indexOf(ri)>=0?7:4,groups=[];for(let i=0;i<order.length;i+=size)groups.push(order.slice(i,i+size));return groups}); // 大混戰每組 7（20→7/7/6），其餘每組 4
+  const caps=cities.map((c,ri)=>rollCap(melees.indexOf(ri)>=0?'mega':c[1],sprints.indexOf(ri)>=0,melees.indexOf(ri)>=0)); // 每站隨機輪次上限
   planAiPacks(drivers,cities.length);                                            // 電腦預先安排邊站用資源/turbo 包
-  return{drivers,cities,schedule,sprints,melees,round:0,done:false,playoff:null,drifted:false,kitLog:[],roundLog:[]}
+  return{drivers,cities,schedule,sprints,melees,caps,round:0,done:false,playoff:null,drifted:false,kitLog:[],roundLog:[]}
 }
 // 電腦隊預先安排各技能包用喺邊一站（一站一包：資源/turbo/拆卸 各揀唔同站）
 function planAiPacks(drivers,nSt){
@@ -201,6 +210,7 @@ function migrateLeague(L){
   L.playoff=L.playoff??null;L.drifted=L.drifted??false;L.round=L.round??0;L.done=L.done??false;L.kitLog=L.kitLog??[];L.roundLog=L.roundLog??[];
   if(!Array.isArray(L.sprints)){const ns=3+Math.floor(Math.random()*2);L.sprints=shuffleArr(L.cities.map((_,i)=>i)).slice(0,ns).sort((a,b)=>a-b)} // 舊存檔補 sprint 站
   if(!Array.isArray(L.melees))L.melees=[];   // 舊存檔：今季唔追加大混戰（避免中途改組別），下季新開先有
+  if(!Array.isArray(L.caps))L.caps=L.cities.map((c,ri)=>rollCap((L.melees.indexOf(ri)>=0)?'mega':c[1],L.sprints.indexOf(ri)>=0,L.melees.indexOf(ri)>=0)); // 舊存檔：為每站補抽彈性輪次上限
   const oldMap={standard:'hex',large:'big',irregular:'hex'};
   L.cities.forEach(c=>{if(!SHAPES[c[1]])c[1]=oldMap[c[1]]||'hex'});
   L.drivers.forEach((d,i)=>{d.strength=d.strength??3;d.affinity=d.affinity??(i===0?'grain':(AI_AFFINITY[i-1]||'grain'));
@@ -238,7 +248,7 @@ function cleanTimeoutRecords(){
   keys.forEach(c=>delete records[c]);saveRecords();renderRecords();toast(`已清走 ${keys.length} 條逼和紀錄`);
 }
 function resolveStation(){
-  const ri=league.round,melee=isMelee(ri),shapeKey=melee?'mega':league.cities[ri][1],axial=SHAPES[shapeKey],city=league.cities[ri][0],gold=!melee&&shapeKey==='gold',sCap=melee?MELEE_CAP:roundCapFor(shapeKey,isSprint(ri)),PTAB=melee?MELEE_PTS:PTS,results=[];
+  const ri=league.round,melee=isMelee(ri),shapeKey=melee?'mega':league.cities[ri][1],axial=SHAPES[shapeKey],city=league.cities[ri][0],gold=!melee&&shapeKey==='gold',sCap=stationCap(ri),PTAB=melee?MELEE_PTS:PTS,results=[];
   results.push(gameResult(game,bid=>raceDrivers[bid])); // 你嗰場
   for(const q of league.schedule[ri])if(!q.includes(0)){
     const opt=raceOpts(q,true);                              // 讀今站代價（上站種落）
@@ -1094,7 +1104,7 @@ function playLeagueRace(){
   saveLeague();                                       // 即刻持久化，避免中途離開再入重複觸發代價
   initAudio();endHandled=false;prevArmy=null;prevRoad=null;leagueActive=true;playoffStage=null;
   const melee=isMelee(ri),sk=melee?'mega':league.cities[ri][1],theCity=league.cities[ri][0];raceWeather=pickWeather(theCity);
-  raceSprint=isSprint(ri);raceMelee=melee;const theCap=melee?MELEE_CAP:roundCapFor(sk,raceSprint);
+  raceSprint=isSprint(ri);raceMelee=melee;const theCap=stationCap(ri);
   game=makeGame(undefined,{axial:SHAPES[sk],...opt,halfStart:half,weather:raceWeather,gold:!melee&&sk==='gold',roundCap:theCap});game.isVolcano=!melee&&sk==='volcano';game.wplan=buildWeatherPlan(theCity,raceWeather,theCap);game.wpi=0;
   applyGamePacks(game,raceDrivers,modes);             // 資源包偏好資源 / turbo 剩餘次數
   game.players.forEach((p,k)=>p.seasonPts=league.drivers[raceDrivers[k]]?league.drivers[raceDrivers[k]].pts:0);
@@ -1112,7 +1122,7 @@ function startExhibition(){
 }
 
 /* ============ 事件綁定 ============ */
-const VERSION='5.15';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
+const VERSION='5.16';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
 $('#exhibitBtn').onclick=startExhibition;
 {const c=$('#commentaryChk');if(c){c.checked=commentaryOn;c.addEventListener('change',()=>{commentaryOn=c.checked;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');if(!commentaryOn&&window.speechSynthesis)window.speechSynthesis.cancel()})}}
 $('#commentary')?.addEventListener('click',()=>setCommentary(!commentaryOn));
