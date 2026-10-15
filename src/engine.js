@@ -276,7 +276,7 @@ export function turboRoll(g,id,rng=Math.random){
   return{dice:[a,b],n,got}}
 export function totalScore(g,id){return g.players[id].score+bonusPoints(g,id)}
 // 名次：由高分到低分（勝者總分必最高），平手用回合物資做次序
-export function finishOrder(g){return g.players.map(p=>p.id).sort((a,b)=>totalScore(g,b)-totalScore(g,a)||countResources(g.players[b])-countResources(g.players[a])||a-b)}
+export function finishOrder(g){return g.players.map(p=>p.id).sort((a,b)=>((g.players[a].retired?1:0)-(g.players[b].retired?1:0))||totalScore(g,b)-totalScore(g,a)||countResources(g.players[b])-countResources(g.players[a])||a-b)}
 export function checkWinner(g){updateBonuses(g);const t=g.target||10,w=g.players.find(p=>totalScore(g,p.id)>=t);if(w){g.winner=w.id;g.phase='end'}return w||null}
 // 輪次上限到：依總分（同分睇資源）定勝負
 export function capWinner(g){updateBonuses(g);const o=finishOrder(g);g.winner=o[0];g.phase='end';g.cappedOut=true;return o[0]}

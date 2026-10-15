@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,turboRoll,deckCounts,capWinner}from'./engine.js?v=5.14';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,turboRoll,deckCounts,capWinner}from'./engine.js?v=5.15';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 let VX=260,VY=245,VS=49;const sx=x=>VX+x*VS,sy=y=>VY+y*VS,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -468,6 +468,7 @@ function render(){
   $('#handBtn').disabled=busy||!me.cards.length;
   {const tb=$('#turboBtn'),tLeft=(game.turboLeft&&game.turboLeft[0])||0;if(tb){tb.hidden=demo||tLeft<=0;$('#turboCount').textContent=tLeft;tb.disabled=busy||!action||blk||game.round<=10}}
   {const db=$('#demoBtn'),aLeft=kitArmed?kitAnyLeft():0;if(db){db.hidden=demo||aLeft<=0;$('#demoCount').textContent=aLeft;db.disabled=busy||!action||blk}}
+  {const rb=$('#retireBtn');if(rb)rb.hidden=!(leagueActive&&game.winner===null&&!setup)}  // 放棄本場（聯賽/季後賽進行中先顯示）
   $$('[data-build]').forEach(b=>{const type=b.dataset.build,legal=type==='road'?legalRoads(game,0):type==='settlement'?legalSettlements(game,0):legalCities(game,0);const afford=(type==='road'&&roadFree)||canAfford(me,COSTS[type]);b.disabled=busy||!action||blk||!afford||!legal.length;b.classList.toggle('selected',mode===type)});
   const deckLeft=game.deck?game.deck.length:0;$('#cardBtn').disabled=busy||!action||blk||!canAfford(me,COSTS.card)||deckLeft===0;{const cb=$('#cardBtn small');if(cb)cb.textContent=deckLeft>0?('牌庫 '+deckLeft):'牌庫已空'}
   $('#tradeBtn').disabled=busy||!action||blk||!RESOURCES.some(r=>me.resources[r]>=tradeRatio(me,r));
@@ -703,7 +704,7 @@ function showEnd(){
     $('#endText').textContent=st==='final'?(myPos===0?'你贏得大獎盃總冠軍 🏆！':'總決賽完成，睇最終結果。'):(adv?'你晉級決賽圈！':'季後賽止步，睇埋大獎盃結果。');
     $('#playAgain').textContent='返回季後賽 →';
     $('#playAgain').onclick=()=>{$('#endDialog').close();renderHub();$('#leagueDialog').showModal()};
-    if(!$('#endDialog').open)$('#endDialog').showModal();return;
+    presentEnd();return;
   }
   // 常規賽人類嗰站
   if(leagueActive){
@@ -719,13 +720,23 @@ function showEnd(){
     $('#endText').textContent=txt;
     $('#playAgain').textContent=league.playoff?'季末大獎盃 🏆':'返回聯賽榜 →';
     $('#playAgain').onclick=()=>{$('#endDialog').close();renderHub();$('#leagueDialog').showModal()};
-    if(!$('#endDialog').open)$('#endDialog').showModal();return;
+    presentEnd();return;
   }
   const p=game.players[game.winner];
   $('#endTitle').textContent=game.winner===0?'你征服咗群島！':`${p.name} 勝出`;
   $('#endText').textContent=game.cappedOut?`輪次上限（${game.roundCap} 輪）到！${p.name} 以 ${totalScore(game,game.winner)} 分（最高）封王。`:`經過 ${game.round} 輪，${p.name} 率先取得 ${totalScore(game,game.winner)} 勝利點。`;
   $('#playAgain').textContent='再玩一次';$('#playAgain').onclick=()=>location.reload();
-  if(!$('#endDialog').open)$('#endDialog').showModal()
+  presentEnd()
+}
+// 顯示結算畫面；若剛放棄咗要直接返主頁，就唔開畫面，直接 reload
+function presentEnd(){if(exitHomeAfterEnd){exitHomeAfterEnd=false;location.reload();return}if(!$('#endDialog').open)$('#endDialog').showModal()}
+// 放棄本場：當最後一名完成本站，然後返主頁
+function retireRace(){
+  if(!game||game.winner!==null||setup||!leagueActive)return;
+  if(!window.confirm('確定放棄本場？你會以最後一名完成，今站攞 0 分，然後返主頁。'))return;
+  game.players[0].retired=true;game.cappedOut=true;           // 退賽：排最後、唔入場地紀錄
+  const ord=finishOrder(game);game.winner=ord[0];game.phase='end';busy=false;mode=null;
+  exitHomeAfterEnd=true;endHandled=false;showEnd();           // 正常結算（人類排尾 0 分、更新總榜）後自動返主頁
 }
 /* ---- 季後賽（前 8 名大獎盃）---- */
 function enterPlayoff(){
@@ -754,7 +765,7 @@ function playPlayoffRace(pending){
 function toast(t){$('#toast').textContent=t;$('#toast').classList.add('show');setTimeout(()=>$('#toast').classList.remove('show'),1600)}
 
 /* ============ 日文實況旁述（免費・瀏覽器語音）============ */
-let commentaryOn=(localStorage.getItem('frontier-commentary')??'1')==='1',jaVoice=null,raceCity='',raceStation='',raceWeather='clear',raceSprint=false,raceMelee=false,prevLeader=null,nearSaid=false,closeSaid=false;
+let commentaryOn=(localStorage.getItem('frontier-commentary')??'1')==='1',jaVoice=null,raceCity='',raceStation='',raceWeather='clear',raceSprint=false,raceMelee=false,exitHomeAfterEnd=false,prevLeader=null,nearSaid=false,closeSaid=false;
 function pickJaVoice(){try{const vs=window.speechSynthesis.getVoices();jaVoice=vs.find(v=>/^ja/i.test(v.lang))||vs.find(v=>/japan|日本|Kyoko|Otoya|Hattori|O-ren/i.test(v.name))||null}catch{}}
 if(typeof window!=='undefined'&&window.speechSynthesis){pickJaVoice();window.speechSynthesis.onvoiceschanged=pickJaVoice}
 // 車廠名日文假名讀音（令語音旁述唔會逐個字母串讀）
@@ -1101,7 +1112,7 @@ function startExhibition(){
 }
 
 /* ============ 事件綁定 ============ */
-const VERSION='5.14';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
+const VERSION='5.15';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
 $('#exhibitBtn').onclick=startExhibition;
 {const c=$('#commentaryChk');if(c){c.checked=commentaryOn;c.addEventListener('change',()=>{commentaryOn=c.checked;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');if(!commentaryOn&&window.speechSynthesis)window.speechSynthesis.cancel()})}}
 $('#commentary')?.addEventListener('click',()=>setCommentary(!commentaryOn));
@@ -1175,6 +1186,7 @@ window.addEventListener('mousemove',e=>{if(drag){const dx=e.clientX-drag.x,dy=e.
 window.addEventListener('mouseup',()=>{if(drag){drag=null;_mm().style.transition='';applyTransform()}});
 $('#rulesBtn').onclick=()=>$('#rulesDialog').showModal();$('#closeRules').onclick=()=>$('#rulesDialog').close();
 $('#soundBtn').onclick=()=>{muted=!muted;$('#soundBtn').textContent=muted?'🔇':'🔊';if(!muted)initAudio()};
+$('#retireBtn').onclick=retireRace;
 $('#newGameBtn').onclick=$('#playAgain').onclick=()=>location.reload();
 $('#exitHome').onclick=()=>location.reload();   // 每站完成後退出返主頁
 if(!restoreLive())$('#startDialog').showModal();
