@@ -128,14 +128,14 @@ export function roll(g,rng=Math.random){
         if(g.weather==='drought'&&(tile.type==='grain'||tile.type==='wool')&&rng()<0.5)continue; // 旱：農牧減產
         let type=tile.type;if(type==='gold')type=RESOURCES[Math.floor(rng()*RESOURCES.length)]; // 黃金：隨機資源
         g.players[v.owner].resources[type]+=v.level;g.production.push({id:v.owner,tile:tile.id,type,amount:v.level})}
-    // 車隊實力：收到資源時有機率額外 +1（強隊跑得快啲）
-    for(const p of g.players){const mine=g.production.filter(x=>x.id===p.id);if(mine.length){const ch=((p.strength||3)-1)*0.03;if(rng()<ch){const pk=mine[Math.floor(rng()*mine.length)];p.resources[pk.type]++;g.production.push({id:p.id,tile:pk.tile,type:pk.type,amount:1,bonus:true})}}}
-    // 保底：連續冇收成太耐（避免永無翻身），派 1 份最缺嘅資源
-    const DRY_LIMIT=8;
+    // 車隊實力：收到資源時有機率額外 +1（強隊明顯跑得快啲、資源優勢更大）
+    for(const p of g.players){const mine=g.production.filter(x=>x.id===p.id);if(mine.length){const ch=((p.strength||3)-1)*0.05;if(rng()<ch){const pk=mine[Math.floor(rng()*mine.length)];p.resources[pk.type]++;g.production.push({id:p.id,tile:pk.tile,type:pk.type,amount:1,bonus:true})}}}
+    // 保底：連續冇收成太耐（避免永無翻身），派 1 份最缺嘅資源 —— 但「分數領跑者」唔派，直到被反超先恢復
+    const DRY_LIMIT=8,lead=Math.max(...g.players.map(q=>totalScore(g,q.id)));
     for(const p of g.players){
       const got=g.production.some(x=>x.id===p.id);
       if(got){p.dry=0}
-      else{p.dry=(p.dry||0)+1;if(p.dry>=DRY_LIMIT){const least=RESOURCES.slice().sort((x,y)=>p.resources[x]-p.resources[y])[0];p.resources[least]++;g.production.push({id:p.id,type:least,amount:1,pity:true});p.dry=0}}
+      else{p.dry=(p.dry||0)+1;if(p.dry>=DRY_LIMIT&&totalScore(g,p.id)<lead){const least=RESOURCES.slice().sort((x,y)=>p.resources[x]-p.resources[y])[0];p.resources[least]++;g.production.push({id:p.id,type:least,amount:1,pity:true});p.dry=0}}
     }
     g.log=`擲出 ${n}：相同數字嘅島嶼完成生產。`
   }
@@ -288,10 +288,21 @@ export function aiResolve(g,id,rng=Math.random){
   if(g.robberPending)moveRobber(g,id,aiChooseRobber(g,id),rng)
 }
 // 交點產能估值：骰點權重 + 資源多樣性 + 港口價值
-function vVal(g,vid){let s=0;const kinds=new Set();for(const t of g.tiles)if(t.type!=='desert'&&t.vertices.includes(vid)){s+=(t.num?6-Math.abs(7-t.num):0);kinds.add(t.type)}
+// 全盤資源稀缺度（按總骰點權重）：愈罕有愈值錢；快取喺 g（棋盤固定）
+function resScarcity(g){if(g._scarce)return g._scarce;const tot={};for(const r of RESOURCES)tot[r]=0;
+  for(const t of g.tiles)if(t.type!=='desert'&&tot[t.type]!=null)tot[t.type]+=(t.num?6-Math.abs(7-t.num):0);
+  const avg=(RESOURCES.reduce((s,r)=>s+tot[r],0)/RESOURCES.length)||1,sc={};
+  for(const r of RESOURCES)sc[r]=avg/(tot[r]||0.5);g._scarce=sc;return sc}
+// 交點估值：骰點(按資源稀缺度加權) + 資源多樣性 + 港口 —— 即「判斷地形」
+function vVal(g,vid){let s=0;const kinds=new Set(),sc=resScarcity(g);
+  for(const t of g.tiles)if(t.type!=='desert'&&t.vertices.includes(vid)){const pip=t.num?6-Math.abs(7-t.num):0;s+=pip*(0.8+0.25*Math.min(2,sc[t.type]||1));kinds.add(t.type)}
   s+=kinds.size*0.8;                                                           // 資源多樣性（唔好押晒一兩種）
   if(g.ports)for(const port of g.ports)if(port.a===vid||port.b===vid)s+=(port.kind==='any'?1.2:1.9); // 港口：產品港 2:1 更值錢
   return s}
+// 建設時估值：疊加「我而家缺、起村/升城要用」嘅資源 —— 即「知道自己想要咩資源」
+function vValFor(g,vid,p){let bonus=0;const lack={};for(const r of RESOURCES)lack[r]=Math.max(0,(COSTS.settlement[r]||0)+(COSTS.city[r]||0)-p.resources[r]);
+  for(const t of g.tiles)if(t.type!=='desert'&&t.vertices.includes(vid)&&lack[t.type]>0)bonus+=(t.num?6-Math.abs(7-t.num):0)*0.3;
+  return vVal(g,vid)+bonus}
 function bestBy(list,fn){let best=list[0],bv=-Infinity;for(const x of list){const v=fn(x);if(v>bv){bv=v;best=x}}return best}
 export function aiPlan(g,id){
   if(blocked(g))return null;
@@ -300,7 +311,7 @@ export function aiPlan(g,id){
   const sc=totalScore(g,id),target=g.target||10;
   const roadPick=()=>{if(!smart)return roads[0];let best=roads[0],bv=-1;for(const eid of roads){const e=g.edges[eid];for(const vv of[e.a,e.b])if(g.vertices[vv].owner===null){const val=vVal(g,vv);if(val>bv){bv=val;best=eid}}}return best};
   const cityMove=()=>cities.length&&canAfford(p,COSTS.city)?{type:'city',vid:smart?bestBy(cities,v=>vVal(g,v)):cities[0]}:null;
-  const settMove=()=>setts.length&&canAfford(p,COSTS.settlement)?{type:'settlement',vid:smart?bestBy(setts,v=>vVal(g,v)):setts[0]}:null;
+  const settMove=()=>setts.length&&canAfford(p,COSTS.settlement)?{type:'settlement',vid:genius?bestBy(setts,v=>vValFor(g,v,p)):(smart?bestBy(setts,v=>vVal(g,v)):setts[0])}:null;
   const roadMove=()=>roads.length&&canAfford(p,COSTS.road)?{type:'road',eid:roadPick()}:null;
   const cardMove=()=>canAfford(p,COSTS.card)&&(g.deck&&g.deck.length)?{type:'card'}:null;
   const knightMove=()=>held.includes('騎士')?{type:'knight',idx:held.indexOf('騎士')}:null;
@@ -316,6 +327,8 @@ export function aiPlan(g,id){
   if(held.includes('築路')&&roads.length)return{type:'roadcard',idx:held.indexOf('築路')};
   // 臨門封王：爭差 1 分，任何 +1 建設即刻做；genius 仲會為封王而交易湊料
   if(sc>=target-1){const win=cityMove()||settMove();if(win)return win;if(genius){const t=smartTrade();if(t)return t}}
+  // 判斷形勢：genius 落後兩分以上時，打騎士移海盜去針對領跑者（讀對手）
+  if(genius&&knightMove()){let lead=-1;for(let q=0;q<g.players.length;q++)if(q!==id)lead=Math.max(lead,totalScore(g,q));if(lead>=sc+2)return knightMove()}
   // 各性格嘅行動優先次序（🏗建設 / 🧭開拓 / 💱交易 / ⚔侵略 / 均衡）
   const P={
     builder :[cityMove,plentyMove,settMove,tradeX,cardMove,()=>setts.length?null:roadMove()],

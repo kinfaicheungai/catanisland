@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,turboRoll,deckCounts,capWinner}from'./engine.js?v=5.16';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,turboRoll,deckCounts,capWinner}from'./engine.js?v=5.17';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 let VX=260,VY=245,VS=49;const sx=x=>VX+x*VS,sy=y=>VY+y*VS,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -35,7 +35,7 @@ const stars=n=>'★'.repeat(n)+'☆'.repeat(5-n);
 const RATKEY='frontier-ratings-v1',HISTKEY='frontier-history-v1';
 function loadHistory(){try{return JSON.parse(localStorage.getItem(HISTKEY))||[]}catch{return[]}}
 function archiveSeason(){try{const h=loadHistory(),rk=standingsSorted(),P=league.playoff,n=h.length+1;
-  const fin=(P&&P.results&&P.results.final||[]).slice(0,4).map(di=>league.drivers[di]?league.drivers[di].name:'?');
+  const fin=(P&&P.finalResult||[]).slice(0,4).map(di=>league.drivers[di]?league.drivers[di].name:'?');
   h.push({n,year:2020+n,champ:P&&P.champion!=null?league.drivers[P.champion].name:rk[0].name,champRounds:P?P.finalRounds:null,finalTop4:fin,standings:rk.map(d=>({name:d.name,pts:d.pts,wins:d.wins})),at:Date.now()});
   localStorage.setItem(HISTKEY,JSON.stringify(h.slice(-20)))}catch{}}
 function loadRatings(){try{return JSON.parse(localStorage.getItem(RATKEY))||{}}catch{return{}}}
@@ -573,6 +573,7 @@ async function humanRoll(){
     busy=false;beginRobber();return; // 之後你移動海盜
   }
   await animateProduction();
+  if(game.winner===null&&game.round<=2&&game.earlyLeft&&game.earlyLeft[0]>0){const r=turboRoll(game,0,Math.random);game.earlyLeft[0]--;if(r.got.length){const sum={};r.got.forEach(x=>sum[x.type]=(sum[x.type]||0)+x.amount);toast('🎲 種子優勢：額外收 '+Object.entries(sum).map(([t,a])=>'+'+a+' '+LABELS[t]).join('、'))}} // 半決賽種子頭兩輪額外擲
   busy=false;render()
 }
 function humanTurbo(){
@@ -611,6 +612,7 @@ async function playAiTurn(id){
     else if(act.type==='knight'&&game.robber!==before){flashTile(game.robber);toast(`🏴‍☠️ ${game.players[id].name} 打出騎士移動海盜`)}
     act.type==='trade'?sfx.coin():(act.type==='card'||act.type==='knight'||act.type==='plenty'||act.type==='roadcard')?sfx.card():sfx.build();await sleep(600)}
   if(game.winner===null&&game.round>10&&game.turboLeft&&game.turboLeft[id]>0){const r=turboRoll(game,id,Math.random);game.turboLeft[id]--;if(r.got.length){render();toast(`⚡ ${game.players[id].name} Turbo 加速收資源`);await sleep(420)}} // 電腦 turbo
+  if(game.winner===null&&game.round<=2&&game.earlyLeft&&game.earlyLeft[id]>0){turboRoll(game,id,Math.random);game.earlyLeft[id]--;render();await sleep(300)} // 半決賽種子：頭兩輪額外擲
   await sleep(220)
 }
 async function schedule(){
@@ -707,11 +709,17 @@ function showEnd(){
   commentary('win',{n:game.players[game.winner].name,city:raceCity||'このステージ'});
   // 季後賽（淘汰賽）人類嗰場
   if(leagueActive&&playoffStage){
-    const order=finishOrder(game).map(bid=>raceDrivers[bid]),myPos=order.indexOf(0),st=playoffStage;
-    league.playoff.results[st]=order;if(st==='final')league.playoff.finalRounds=game.round;playoffStage=null;leagueActive=false;saveLeague();
-    const nm=stageName(st),adv=myPos<2;
-    $('#endTitle').textContent=`${nm} · 第 ${myPos+1} 名`;
-    $('#endText').textContent=st==='final'?(myPos===0?'你贏得大獎盃總冠軍 🏆！':'總決賽完成，睇最終結果。'):(adv?'你晉級決賽圈！':'季後賽止步，睇埋大獎盃結果。');
+    const P=league.playoff,st=playoffStage;
+    const ord=finishOrder(game),orderDrivers=ord.map(bid=>raceDrivers[bid]),myPos=orderDrivers.indexOf(0);
+    const scoreByDriver={};ord.forEach(bid=>{scoreByDriver[raceDrivers[bid]]=totalScore(game,bid)});
+    if(st==='semi'){P.semiResult=orderDrivers;P.semiScore=scoreByDriver}
+    else{P.finalResult=orderDrivers;P.finalScore=scoreByDriver;P.finalRounds=game.cappedOut?null:game.round}
+    playoffStage=null;leagueActive=false;saveLeague();
+    $('#endTitle').textContent=`${stageName(st)} · 第 ${myPos+1} 名`;
+    if(st==='semi'){const adv=myPos<4;$('#endText').textContent=adv?`8 強超級大混戰排第 ${myPos+1}，晉級總決賽 🏁！你今場得 ${scoreByDriver[0]||0} 分，會以 40% 計入總冠軍。`:`8 強混戰排第 ${myPos+1}，季後賽止步，睇埋總決賽結果。`}
+    else{let champ=P.finalists[0],bv=-Infinity;for(const di of P.finalists){const c=(P.finalScore[di]||0)*0.6+(P.semiScore[di]||0)*0.4;if(c>bv){bv=c;champ=di}}
+      const mc=((P.finalScore[0]||0)*0.6+(P.semiScore[0]||0)*0.4);
+      $('#endText').textContent=champ===0?`加權總分 ${mc.toFixed(1)}（決賽 ${P.finalScore[0]||0}×0.6 ＋ 半決賽 ${P.semiScore[0]||0}×0.4）最高，你係總冠軍 🏆！`:`總決賽第 ${myPos+1} 名。加權總冠軍：${league.drivers[champ].name}。`}
     $('#playAgain').textContent='返回季後賽 →';
     $('#playAgain').onclick=()=>{$('#endDialog').close();renderHub();$('#leagueDialog').showModal()};
     presentEnd();return;
@@ -751,25 +759,57 @@ function retireRace(){
 /* ---- 季後賽（前 8 名大獎盃）---- */
 function enterPlayoff(){
   league.drivers.forEach(d=>d.wonLast=false);            // 季後賽唔帶常規賽扣分
-  const seed=standingsSorted().slice(0,8).map(d=>d.i);   // 前 8 車手（種子序）
-  league.playoff={semiA:[seed[0],seed[1],seed[6],seed[7]],semiB:[seed[2],seed[3],seed[4],seed[5]],
-    results:{semiA:null,semiB:null,final:null},finalists:null,champion:null};
+  const seed=standingsSorted().slice(0,8).map(d=>d.i);   // 前 8 車手（種子序＝常規賽名次）
+  league.playoff={seeds:seed,semiResult:null,semiScore:null,finalists:null,finalResult:null,finalScore:null,finalRounds:null,champion:null};
 }
-const stageName=st=>st==='final'?'總決賽':st==='semiA'?'半準決賽 A':'半準決賽 B';
-// 推進季後賽：AI-only 嘅場即刻模擬；遇到人類嗰場就停低等出賽；全部完成就定冠軍。
+const stageName=st=>st==='final'?'總決賽':'半決賽（8 強超級大混戰）';
+// 季後賽種子優勢：常規前 4 半決賽帶 1 勝利點；前 2 頭兩輪各多一次擲骰
+function seedStartVP(di){const r=league.playoff.seeds.indexOf(di);return(r>=0&&r<4)?1:0}
+function seedEarly(di){const r=league.playoff.seeds.indexOf(di);return(r>=0&&r<2)?2:0}
+// headless 模擬一場季後賽（N 人），回傳 {order:[driverIdx…], scores:[對應分數…]}
+function simRacePlayoff(parts,shape,withSeedAdv){
+  const names=parts.map(di=>league.drivers[di].name),colors=parts.map(di=>league.drivers[di].color),
+    strengths=parts.map(di=>league.drivers[di].strength),personas=parts.map(di=>league.drivers[di].persona||'balanced'),
+    bonusRes=parts.map(di=>bonusFor(league.drivers[di])),
+    startVP=parts.map(di=>withSeedAdv?seedStartVP(di):0);
+  const g=makeGame(Math.random,{axial:SHAPES[shape],names,colors,strengths,personas,bonusRes,startVP,weather:pickWeather('_final')});
+  g.earlyLeft=withSeedAdv?parts.map(di=>seedEarly(di)):null;
+  for(const id of gridOrder(g)){const vid=pickAiInitialSettlement(g,id);if(vid==null)continue;placeInitialSettlement(g,id,vid);const r=legalInitialRoads(g,id,vid);if(r.length)placeInitialRoad(g,id,r[Math.floor(Math.random()*r.length)])}
+  g.phase='action';g.turn=0;let n=0;
+  while(g.winner===null&&n<3000){for(let id=0;id<g.players.length&&g.winner===null;id++){aiTurn(g,id);if(g.earlyLeft&&g.earlyLeft[id]>0&&g.round<=2){turboRoll(g,id,Math.random);g.earlyLeft[id]--}}if(g.winner===null){g.round++;if(g.round>(g.roundCap||40)){capWinner(g);break}}n++}
+  const ord=finishOrder(g);return{order:ord.map(k=>parts[k]),scores:ord.map(k=>totalScore(g,k))};
+}
+// 推進季後賽：AI-only 嘅場即刻模擬；遇到人類嗰場就停低等出賽；全部完成就用加權定冠軍。
 function playoffStagePending(){
   const P=league.playoff;
-  for(const st of ['semiA','semiB']){if(!P.results[st]){if(P[st].includes(0))return{stage:st,participants:P[st]};P.results[st]=simRace(P[st],SHAPES.big).order}}
-  if(!P.finalists)P.finalists=[...P.results.semiA.slice(0,2),...P.results.semiB.slice(0,2)];
-  if(!P.results.final){if(P.finalists.includes(0))return{stage:'final',participants:P.finalists};const _fr=simRace(P.finalists,SHAPES.big);P.results.final=_fr.order;P.finalRounds=_fr.rounds}
-  if(P.champion==null){P.champion=P.results.final[0];league.done=true;driftRatings();archiveSeason();saveLeague()}
+  if(P&&!P.seeds)enterPlayoff();                          // 舊格式存檔：重建新制
+  if(!P.semiResult){                                     // 半決賽：8 強超級大混戰
+    if(P.seeds.includes(0))return{stage:'semi',participants:P.seeds.slice()};
+    const r=simRacePlayoff(P.seeds,'mega',true);P.semiResult=r.order;P.semiScore={};r.order.forEach((di,i)=>P.semiScore[di]=r.scores[i]);
+  }
+  if(!P.finalists)P.finalists=P.semiResult.slice(0,4);   // 半決賽前 4 入總決賽
+  if(!P.finalResult){                                   // 總決賽：4 人，各從 0 分開始
+    if(P.finalists.includes(0))return{stage:'final',participants:P.finalists.slice()};
+    const r=simRacePlayoff(P.finalists,'big',false);P.finalResult=r.order;P.finalScore={};r.order.forEach((di,i)=>P.finalScore[di]=r.scores[i]);P.finalRounds=null;
+  }
+  if(P.champion==null){                                 // 冠軍 = 總決賽*0.6 + 半決賽*0.4 最高
+    let best=P.finalists[0],bv=-Infinity;for(const di of P.finalists){const c=(P.finalScore[di]||0)*0.6+(P.semiScore[di]||0)*0.4;if(c>bv){bv=c;best=di}}
+    P.champion=best;league.done=true;driftRatings();archiveSeason();saveLeague();
+  }
   return null;
 }
 function playPlayoffRace(pending){
   const others=pending.participants.filter(i=>i!==0);raceDrivers=[0,...others];
-  initAudio();endHandled=false;prevArmy=null;prevRoad=null;leagueActive=true;playoffStage=pending.stage;kitArmed=false;forceDesert=false;kitH={rs:0,rr:0,as:0,ar:0,ac:0};humanPack=null;raceSprint=false;raceMelee=false;aiKitDriver=null;aiKitLogEntry=null;humanKitEntry=null;raceCity=stageName(pending.stage);raceStation='季後賽';prevLeader=null;nearSaid=false;closeSaid=false;
+  const semi=pending.stage==='semi';
+  initAudio();endHandled=false;prevArmy=null;prevRoad=null;leagueActive=true;playoffStage=pending.stage;kitArmed=false;forceDesert=false;kitH={rs:0,rr:0,as:0,ar:0,ac:0};humanPack=null;raceSprint=false;raceMelee=semi;aiKitDriver=null;aiKitLogEntry=null;humanKitEntry=null;raceCity=stageName(pending.stage);raceStation='季後賽';prevLeader=null;nearSaid=false;closeSaid=false;
   const opt=raceOpts(raceDrivers,false);deClash(opt);     // 季後賽：避免撞色
-  raceWeather=pickWeather('_final');raceSprint=false;game=makeGame(undefined,{axial:SHAPES.big,...opt,weather:raceWeather});game.wplan=buildWeatherPlan('_final',raceWeather,game.roundCap);game.wpi=0;game.players.forEach((p,k)=>p.seasonPts=league.drivers[raceDrivers[k]]?league.drivers[raceDrivers[k]].pts:0);
+  opt.startVP=raceDrivers.map(di=>semi?seedStartVP(di):0); // 半決賽：常規前 4 帶 1 分；總決賽：全部 0
+  const sk=semi?'mega':'big';
+  raceWeather=pickWeather('_final');
+  game=makeGame(undefined,{axial:SHAPES[sk],...opt,weather:raceWeather});
+  game.earlyLeft=semi?raceDrivers.map(di=>seedEarly(di)):null;   // 半決賽：常規前 2 頭兩輪各多擲一次
+  game.wplan=buildWeatherPlan('_final',raceWeather,game.roundCap);game.wpi=0;
+  game.players.forEach((p,k)=>p.seasonPts=league.drivers[raceDrivers[k]]?league.drivers[raceDrivers[k]].pts:0);
   $('#playerLabel').textContent=opt.names[0];$('#leagueDialog').close();beginSetup();
 }
 function toast(t){$('#toast').textContent=t;$('#toast').classList.add('show');setTimeout(()=>$('#toast').classList.remove('show'),1600)}
@@ -995,11 +1035,12 @@ function renderHub(){
   renderStandingsPanel();
 }
 function renderPlayoffHub(){
-  const P=league.playoff,pend=playoffStagePending();saveLeague();
+  const P=league.playoff;if(P&&!P.seeds)enterPlayoff();
+  const pend=playoffStagePending();saveLeague();
   const nm=i=>league.drivers[i].name;
-  const line=(label,part,res)=>`<div class="brk"><span class="brk-l">${label}</span><div class="brk-c">${part.map(i=>{const adv=res&&res.indexOf(i)<2;return `<span class="dchip${i===0?' you':''}${adv?' adv':''}" style="--dc:${league.drivers[i].color}">${nm(i)}</span>`}).join('')}</div></div>`;
-  let html=line('準決賽 A',P.semiA,P.results.semiA)+line('準決賽 B',P.semiB,P.results.semiB);
-  if(P.finalists)html+=line('總決賽',P.finalists,P.results.final);
+  const chip=(i,cls)=>`<span class="dchip${i===0?' you':''}${cls||''}" style="--dc:${league.drivers[i].color}">${nm(i)}</span>`;
+  let html=`<div class="brk"><span class="brk-l">半決賽 · 8 強超級大混戰</span><div class="brk-c">${P.seeds.map((i,k)=>chip(i,(P.semiResult?(P.semiResult.indexOf(i)<4?' adv':''):(k<4?' seed':'')))).join('')}</div></div>`;
+  if(P.finalists)html+=`<div class="brk"><span class="brk-l">總決賽 · 4 強（冠軍＝決賽×0.6＋半決賽×0.4）</span><div class="brk-c">${P.finalists.map(i=>chip(i,P.champion===i?' adv':'')).join('')}</div></div>`;
   $('#nextRace').innerHTML=`<div class="nr-city">🏆 季末大獎盃（前 8 強）</div>${html}`;
   if(P.champion!=null){$('#leagueTitle').textContent='大獎盃冠軍 🏆';$('#leagueSub').textContent=`${nm(P.champion)} 封王！`;$('#raceBtn').textContent='開新賽季';}
   else{$('#leagueTitle').textContent='季末大獎盃';$('#leagueSub').textContent=pend?`${stageName(pend.stage)}：輪到你出賽`:'季後賽進行中';$('#raceBtn').textContent=pend?`出賽（${stageName(pend.stage)}）→`:'繼續';}
@@ -1122,7 +1163,7 @@ function startExhibition(){
 }
 
 /* ============ 事件綁定 ============ */
-const VERSION='5.16';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
+const VERSION='5.17';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
 $('#exhibitBtn').onclick=startExhibition;
 {const c=$('#commentaryChk');if(c){c.checked=commentaryOn;c.addEventListener('change',()=>{commentaryOn=c.checked;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');if(!commentaryOn&&window.speechSynthesis)window.speechSynthesis.cancel()})}}
 $('#commentary')?.addEventListener('click',()=>setCommentary(!commentaryOn));
