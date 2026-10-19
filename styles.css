@@ -259,3 +259,13 @@
 
 /* v5.17 季後賽種子優勢標記 */
 .brk .dchip.seed{box-shadow:0 0 0 1.5px #ffd873aa}
+
+/* v5.18 即時排位 (board 右上角浮窗) */
+.liverank{position:absolute;top:8px;right:8px;z-index:3;background:#062e42d9;border:1px solid #ffffff2b;border-radius:10px;padding:5px 7px;max-width:40%;pointer-events:none;backdrop-filter:blur(2px)}
+.liverank>b{display:block;font-size:8px;letter-spacing:1px;color:#8fd3df;margin-bottom:3px;text-align:center}
+.lr-row{display:flex;align-items:center;gap:4px;font-size:9px;color:#eaf6fa;line-height:1.5}
+.lr-row i{width:11px;text-align:center;font-style:normal;font-weight:800;color:#f0c24a}
+.lr-row .dot{width:7px;height:7px;border-radius:50%;flex:none}
+.lr-row em{flex:1;font-style:normal;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:74px}
+.lr-row b{font-weight:800;color:#ffe08a}
+.lr-row.me em{color:#9ff0ff;font-weight:800}

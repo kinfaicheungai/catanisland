@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,turboRoll,deckCounts,capWinner}from'./engine.js?v=5.17';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,turboRoll,deckCounts,capWinner}from'./engine.js?v=5.18';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 let VX=260,VY=245,VS=49;const sx=x=>VX+x*VS,sy=y=>VY+y*VS,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -97,23 +97,30 @@ const CITY_POOL=[['Monaco','diamond'],['Singapore','wide'],['Suzuka','cross'],['
 const SEASON_LEN=15;   // 每賽季站數（11 城市 + 4 特殊）
 const WEATHER_META={clear:{name:'晴天',icon:'☀️'},rain:{name:'雨戰',icon:'🌧️'},drought:{name:'乾旱',icon:'🏜️'},wind:{name:'順風',icon:'💨'}};
 // 各站天氣偏向（權重）；未列出用預設
+// 每站只得 2 種天氣（大部分）或 3 種（少數），絕不四種齊。權重只列可能出現嗰啲。
 const WEATHER_BIAS={
-  Spa:{clear:2,rain:6,drought:0,wind:2},Singapore:{clear:3,rain:5,drought:1,wind:1},Silverstone:{clear:3,rain:3,drought:1,wind:3},
-  Melbourne:{clear:3,rain:3,drought:1,wind:2},Suzuka:{clear:3,rain:4,drought:0,wind:2},Imola:{clear:3,rain:3,drought:1,wind:2},
-  Bahrain:{clear:4,rain:0,drought:6,wind:1},Jeddah:{clear:4,rain:0,drought:5,wind:1},'Abu Dhabi':{clear:4,rain:0,drought:5,wind:2},
-  'Las Vegas':{clear:4,rain:0,drought:4,wind:2},'Mexico City':{clear:4,rain:1,drought:4,wind:1},Austin:{clear:4,rain:1,drought:4,wind:1},
-  Zandvoort:{clear:2,rain:2,drought:0,wind:6},Monaco:{clear:4,rain:2,drought:0,wind:3},
-  'Volcano Isle':{clear:3,rain:1,drought:4,wind:2}
+  // 多雨
+  Spa:{clear:3,rain:6},Singapore:{clear:3,rain:5},Suzuka:{clear:3,rain:4},Shanghai:{clear:3,rain:4},Interlagos:{clear:3,rain:5},
+  // 乾旱
+  Bahrain:{clear:4,drought:6},Jeddah:{clear:4,drought:5},'Abu Dhabi':{clear:4,drought:5},'Las Vegas':{clear:5,drought:4},
+  'Mexico City':{clear:5,drought:3},Austin:{clear:5,drought:3},Budapest:{clear:5,drought:3},'Volcano Isle':{clear:3,drought:4},'El Dorado':{clear:4,drought:3},
+  // 多風
+  Zandvoort:{clear:3,wind:6},Monaco:{clear:5,wind:3},Gemini:{clear:4,wind:3},'The Strait':{clear:3,wind:5},
+  // 一般多雨
+  Monza:{clear:5,rain:2},Montreal:{clear:4,rain:3},Miami:{clear:4,rain:3},
+  // 三種天氣（少數多變站）
+  Silverstone:{clear:3,rain:3,wind:3},Melbourne:{clear:4,rain:3,wind:2},Imola:{clear:4,rain:3,wind:2},
+  _final:{clear:4,rain:2,wind:2}
 };
-function pickWeather(city){const b=WEATHER_BIAS[city]||{clear:5,rain:2,drought:1,wind:2},keys=Object.keys(b),tot=keys.reduce((s,k)=>s+b[k],0);let r=Math.random()*tot;for(const k of keys){r-=b[k];if(r<0)return k}return 'clear'}
-// 由 bias 抽一個同 cur 唔同嘅天氣（cur 權重當 0）；全部得返 cur 就回 null（即唔變）
+function pickWeather(city){const b=WEATHER_BIAS[city]||{clear:5,rain:3},keys=Object.keys(b),tot=keys.reduce((s,k)=>s+b[k],0);let r=Math.random()*tot;for(const k of keys){r-=b[k];if(r<0)return k}return 'clear'}
+// 由 bias 抽一個同 cur 唔同嘅天氣（只會喺該站 2-3 種之內）
 function pickWeatherDiff(bias,cur){const keys=Object.keys(bias).filter(k=>k!==cur&&bias[k]>0);const tot=keys.reduce((s,k)=>s+bias[k],0);if(tot<=0)return null;let r=Math.random()*tot;for(const k of keys){r-=bias[k];if(r<0)return k}return keys[keys.length-1]}
-// 每站天氣計劃：主導型少變、多元型多變，全場大概 0~4 次變化，散落喺中段輪次
+// 變化次數：平均約 1.5、封頂 4；兩種天氣站更少變，三種站多變少少
+function weatherChangeCount(types){const r=Math.random();if(types>=3)return r<0.25?1:r<0.65?2:r<0.90?3:4;return r<0.22?0:r<0.65?1:r<0.90?2:3}
+// 每站天氣計劃：只喺該站 2-3 種天氣之內變，整場平均約 1.5 次、最多 4 次
 function buildWeatherPlan(city,startW,cap){
-  const bias=WEATHER_BIAS[city]||{clear:5,rain:2,drought:1,wind:2};
-  const active=Object.values(bias).filter(w=>w>=2).length;                       // 有幾多種「常見」天氣
-  const base=active<=1?0:active===2?1:active===3?2:3;                            // 愈多元,底變化愈多
-  const n=Math.max(0,Math.min(4,base+(Math.random()<0.5?0:1)-(Math.random()<0.25?1:0)));
+  const bias=WEATHER_BIAS[city]||{clear:5,rain:3},types=Object.values(bias).filter(w=>w>0).length;
+  const n=weatherChangeCount(types);
   const start=3,end=Math.max(start+1,cap-2),plan=[];let cur=startW;
   const rounds=[];for(let i=0;i<n;i++)rounds.push(start+Math.floor(Math.random()*(end-start)));
   rounds.sort((a,b)=>a-b);
@@ -134,6 +141,7 @@ function isMelee(ri){return !!(league&&league.melees&&league.melees.indexOf(ri)>
 // 某站嘅輪次上限：用開季抽好、存落 league.caps 嘅值（冇就即時後備計算）
 function stationCap(ri){if(league&&league.caps&&league.caps[ri])return league.caps[ri];return isMelee(ri)?MELEE_CAP:roundCapFor(league?league.cities[ri][1]:'hex',isSprint(ri))}
 const MELEE_CAP=42;const MELEE_PTS=[5,3,2,1];   // 大混戰：前四名 5/3/2/1（上限改為 39-45 隨機）
+const MELEE_DECK=1.4;   // 大混戰牌庫 +40%（對應更多隊）
 const LAYOUT_NAME={standard:'標準六島',large:'大島',cross:'十字島',irregular:'不規則島'};
 const PTS=[3,1];        // 冠軍 3 分、亞軍 1 分
 // 冠軍季分：若靠圈數上限逼和奪冠（非達標封王）且得分 ≤5，只攞 2 分；否則攞 base（常規 3，大混戰 5）
@@ -255,6 +263,7 @@ function resolveStation(){
     const half=q.map(di=>!!league.drivers[di].desertNext);
     q.forEach(di=>{league.drivers[di].lightNext=0;league.drivers[di].desertNext=false}); // 消耗今站代價
     const modes=activatePacks(q,ri,city);                    // 今站用包 → 種下站代價
+    if(melee)opt.deckMul=MELEE_DECK;                          // 大混戰牌庫 +40%
     results.push(simRace(q,axial,raceWeather,gold,sCap,opt,half,modes));
   }
   for(const res of results)awardQuad(res,PTAB);                        // 名次分 + 得失分 + 最速紀錄
@@ -467,6 +476,7 @@ function render(){
   $('#ticker').textContent=mode?modePrompt():game.log;
   $('#dice').textContent=game.dice?game.dice.map(face).join(' '):'⚄ ⚂';
   $('#rivals').innerHTML=game.players.slice(1).map(p=>`<article class="rv${p.id}${game.turn===p.id&&busy?' active':''}"><span style="--pc:${p.color};background:${cssPaint(p)}">${p.name[0]}</span><div><b>${p.name} ${trophy(p.id)}</b><small>${(PERSONA_NAME[p.persona]||'').slice(0,3)} · ${totalScore(game,p.id)}分 · 🛣${longestRoadLength(game,p.id)} · ⚔${p.knights}</small></div></article>`).join('');
+  {const lr=$('#liveRank');if(lr){const ord=game.players.map(p=>p.id).sort((a,b)=>totalScore(game,b)-totalScore(game,a)||countResources(game.players[b])-countResources(game.players[a]));lr.innerHTML='<b>即時排位</b>'+ord.map((id,i)=>`<span class="lr-row${id===0?' me':''}"><i>${i+1}</i><span class="dot" style="background:${cssPaint(game.players[id])}"></span><em>${game.players[id].name}</em><b>${totalScore(game,id)}</b></span>`).join('')}}
   $('#resources').innerHTML=RESOURCES.map(r=>`<div data-res="${r}"><span>${ICONS[r]}</span><b>${me.resources[r]}</b><small>${LABELS[r]}</small></div>`).join('');
   // 只顯示當前階段主掣（慳位）
   const demo=mode==='demo';
@@ -772,7 +782,7 @@ function simRacePlayoff(parts,shape,withSeedAdv){
     strengths=parts.map(di=>league.drivers[di].strength),personas=parts.map(di=>league.drivers[di].persona||'balanced'),
     bonusRes=parts.map(di=>bonusFor(league.drivers[di])),
     startVP=parts.map(di=>withSeedAdv?seedStartVP(di):0);
-  const g=makeGame(Math.random,{axial:SHAPES[shape],names,colors,strengths,personas,bonusRes,startVP,weather:pickWeather('_final')});
+  const g=makeGame(Math.random,{axial:SHAPES[shape],names,colors,strengths,personas,bonusRes,startVP,weather:pickWeather('_final'),deckMul:shape==='mega'?MELEE_DECK:1});
   g.earlyLeft=withSeedAdv?parts.map(di=>seedEarly(di)):null;
   for(const id of gridOrder(g)){const vid=pickAiInitialSettlement(g,id);if(vid==null)continue;placeInitialSettlement(g,id,vid);const r=legalInitialRoads(g,id,vid);if(r.length)placeInitialRoad(g,id,r[Math.floor(Math.random()*r.length)])}
   g.phase='action';g.turn=0;let n=0;
@@ -806,7 +816,7 @@ function playPlayoffRace(pending){
   opt.startVP=raceDrivers.map(di=>semi?seedStartVP(di):0); // 半決賽：常規前 4 帶 1 分；總決賽：全部 0
   const sk=semi?'mega':'big';
   raceWeather=pickWeather('_final');
-  game=makeGame(undefined,{axial:SHAPES[sk],...opt,weather:raceWeather});
+  game=makeGame(undefined,{axial:SHAPES[sk],...opt,weather:raceWeather,deckMul:semi?MELEE_DECK:1});
   game.earlyLeft=semi?raceDrivers.map(di=>seedEarly(di)):null;   // 半決賽：常規前 2 頭兩輪各多擲一次
   game.wplan=buildWeatherPlan('_final',raceWeather,game.roundCap);game.wpi=0;
   game.players.forEach((p,k)=>p.seasonPts=league.drivers[raceDrivers[k]]?league.drivers[raceDrivers[k]].pts:0);
@@ -1146,7 +1156,7 @@ function playLeagueRace(){
   initAudio();endHandled=false;prevArmy=null;prevRoad=null;leagueActive=true;playoffStage=null;
   const melee=isMelee(ri),sk=melee?'mega':league.cities[ri][1],theCity=league.cities[ri][0];raceWeather=pickWeather(theCity);
   raceSprint=isSprint(ri);raceMelee=melee;const theCap=stationCap(ri);
-  game=makeGame(undefined,{axial:SHAPES[sk],...opt,halfStart:half,weather:raceWeather,gold:!melee&&sk==='gold',roundCap:theCap});game.isVolcano=!melee&&sk==='volcano';game.wplan=buildWeatherPlan(theCity,raceWeather,theCap);game.wpi=0;
+  game=makeGame(undefined,{axial:SHAPES[sk],...opt,halfStart:half,weather:raceWeather,gold:!melee&&sk==='gold',roundCap:theCap,deckMul:melee?MELEE_DECK:1});game.isVolcano=!melee&&sk==='volcano';game.wplan=buildWeatherPlan(theCity,raceWeather,theCap);game.wpi=0;
   applyGamePacks(game,raceDrivers,modes);             // 資源包偏好資源 / turbo 剩餘次數
   game.players.forEach((p,k)=>p.seasonPts=league.drivers[raceDrivers[k]]?league.drivers[raceDrivers[k]].pts:0);
   clearLive();$('#playerLabel').textContent=opt.names[0];$('#leagueDialog').close();beginSetup()
@@ -1163,7 +1173,7 @@ function startExhibition(){
 }
 
 /* ============ 事件綁定 ============ */
-const VERSION='5.17';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
+const VERSION='5.18';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
 $('#exhibitBtn').onclick=startExhibition;
 {const c=$('#commentaryChk');if(c){c.checked=commentaryOn;c.addEventListener('change',()=>{commentaryOn=c.checked;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');if(!commentaryOn&&window.speechSynthesis)window.speechSynthesis.cancel()})}}
 $('#commentary')?.addEventListener('click',()=>setCommentary(!commentaryOn));

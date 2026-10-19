@@ -78,7 +78,7 @@ export function makeGame(rng=Math.random,opts={}){
   if(opts.startVP)players.forEach((p,id)=>{p.score+=(opts.startVP[id]||0)}); // 墊底補償：帶勝利點開局
   const coast=topo.edges.filter(e=>edgeTileCount(topo,e.id)===1),nPorts=Math.min(9,Math.max(6,Math.floor(coast.length/3))),portKinds=['wood','brick','grain','wool','ore','any','any','any','any','any','any'],ports=[];
   for(let i=0;i<nPorts;i++){const e=coast[Math.floor(i*coast.length/nPorts)];ports.push({edge:e.id,a:e.a,b:e.b,kind:portKinds[i%portKinds.length],ratio:portKinds[i%portKinds.length]==='any'?3:2})}
-  return{round:1,turn:0,phase:'setup',layout:kind,target:(kind==='large'||N>=22)?12:10,roundCap:opts.roundCap||((kind==='large'||N>=22)?38:28),deck:buildDeck(rng),...topo,players,ports,winner:null,largestArmy:null,longestRoad:null,lastRoll:null,dice:null,production:[],robber:topo.tiles.find(t=>t.type==='desert').id,discards:null,robberPending:false,robberFromCard:false,freeRoads:0,steal:null,weather:opts.weather||'clear',log:'開局：每支隊伍揀選一座村莊同一條相連航線嘅位置。'}
+  return{round:1,turn:0,phase:'setup',layout:kind,target:(kind==='large'||N>=22)?12:10,roundCap:opts.roundCap||((kind==='large'||N>=22)?38:28),deck:buildDeck(rng,opts.deckMul),...topo,players,ports,winner:null,largestArmy:null,longestRoad:null,lastRoll:null,dice:null,production:[],robber:topo.tiles.find(t=>t.type==='desert').id,discards:null,robberPending:false,robberFromCard:false,freeRoads:0,steal:null,weather:opts.weather||'clear',log:'開局：每支隊伍揀選一座村莊同一條相連航線嘅位置。'}
 }
 
 /* ---------- 開局選址（初始擺放）---------- */
@@ -209,7 +209,7 @@ export function trade(g,id,from,to){const p=g.players[id];let ratio=tradeRatio(p
 // 買一張航海卡入手牌（只有「勝利點」即時計分，其餘要之後打出）。
 export const CARD_TYPES=['騎士','豐收','築路','勝利點'];
 export const DECK_COMPOSITION={騎士:12,勝利點:8,築路:4,豐收:4}; // 每局牌庫（固定稀缺）
-function buildDeck(rng){const d=[];for(const c in DECK_COMPOSITION)for(let i=0;i<DECK_COMPOSITION[c];i++)d.push(c);return shuffle(d,rng)}
+function buildDeck(rng,mul){const d=[];for(const c in DECK_COMPOSITION){const n=Math.round(DECK_COMPOSITION[c]*(mul||1));for(let i=0;i<n;i++)d.push(c)}return shuffle(d,rng)} // mul：大混戰加量
 export function deckCounts(g){const c={騎士:0,豐收:0,築路:0,勝利點:0};for(const x of (g.deck||[]))c[x]=(c[x]||0)+1;return c}
 export function drawCard(g,id,rng=Math.random){
   const p=g.players[id];if(blocked(g)||g.phase!=='action'||!canAfford(p,COSTS.card))return null;
