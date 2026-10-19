@@ -261,6 +261,29 @@ export function demolishSettlement(g,vid){const v=g.vertices[vid];if(v.owner===n
   if(g.vertices.filter(x=>x.owner===o).length<=1)return false;   // 保留至少一座建築，確保仲有收成
   g.players[o].score=Math.max(0,g.players[o].score-1);v.owner=null;v.level=0;updateBonuses(g);return o}
 export function demolishRoad(g,eid){const e=g.edges[eid];if(!e||e.owner===null)return false;const o=e.owner;g.players[o].roads=Math.max(0,g.players[o].roads-1);e.owner=null;updateBonuses(g);return o}
+// 填海：喺指定村莊（島邊港口）相鄰嘅海上，加一塊自選資源、自選骰點嘅地塊。回傳新地塊 id，或 false。
+function spliceHex(g,q,r,type,num){
+  const vmap=new Map();g.vertices.forEach(v=>vmap.set(key(v.x,v.y),v.id));
+  const cx=Math.sqrt(3)*(q+r/2),cy=1.5*r,vs=[];
+  for(let k=0;k<6;k++){const a=Math.PI/180*(60*k-30),x=cx+Math.cos(a),y=cy+Math.sin(a),vk=key(x,y);
+    if(!vmap.has(vk)){const id=g.vertices.length;g.vertices.push({id,x,y,owner:null,level:0});vmap.set(vk,id);g.adjacency[id]=[]}
+    vs.push(vmap.get(vk))}
+  const emap=new Map();g.edges.forEach(e=>emap.set(e.a<e.b?e.a+'-'+e.b:e.b+'-'+e.a,e.id));
+  const es=[];
+  for(let k=0;k<6;k++){const a=vs[k],b=vs[(k+1)%6],ek=a<b?a+'-'+b:b+'-'+a;
+    if(!emap.has(ek)){const id=g.edges.length;g.edges.push({id,a,b,owner:null});emap.set(ek,id);
+      if(!g.adjacency[a].includes(b))g.adjacency[a].push(b);if(!g.adjacency[b].includes(a))g.adjacency[b].push(a)}
+    es.push(emap.get(ek))}
+  const tid=g.tiles.length;g.tiles.push({id:tid,q,r,type,num,vertices:vs,edges:es});return tid;
+}
+// 搵某村莊相鄰、而家係海（未有地塊）嘅位置；該位置要以呢個村為角
+export function reclaimCandidates(g,vid){const V=g.vertices[vid];if(!V)return[];const have=new Set(g.tiles.map(t=>t.q+','+t.r)),out=[],seen=new Set();
+  for(const t of g.tiles)if(t.vertices.includes(vid))for(const[dq,dr]of HEXDIRS){const nq=t.q+dq,nr=t.r+dr,k=nq+','+nr;if(have.has(k)||seen.has(k))continue;
+    const cx=Math.sqrt(3)*(nq+nr/2),cy=1.5*nr;let corner=false;
+    for(let kk=0;kk<6;kk++){const a=Math.PI/180*(60*kk-30);if(key(cx+Math.cos(a),cy+Math.sin(a))===key(V.x,V.y)){corner=true;break}}
+    if(corner){seen.add(k);out.push({q:nq,r:nr})}}
+  return out;}
+export function reclaimTile(g,vid,resource,num){const c=reclaimCandidates(g,vid);if(!c.length)return false;return spliceHex(g,c[0].q,c[0].r,resource,num)}
 // 拆卸包「攻城」：拆一座港城（對手 −2 分）
 export function demolishCity(g,vid){const v=g.vertices[vid];if(!v||v.owner===null||v.level!==2)return false;const o=v.owner;
   if(g.vertices.filter(x=>x.owner===o).length<=1)return false;
