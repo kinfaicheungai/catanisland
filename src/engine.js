@@ -73,12 +73,12 @@ export function makeGame(rng=Math.random,opts={}){
     if(b&&b.type&&res[b.type]!=null)res[b.type]+=b.amount;                     // 資源型車隊：開局多幾張
     let dock=pen[id]||0;for(const r of ['wool','grain','brick','wood','ore']){while(dock>0&&res[r]>0){res[r]--;dock--}} // 上場贏家：扣起始資源
     if(half&&half[id])for(const r of RESOURCES)res[r]=Math.floor(res[r]/2); // 拆卸包代價：起始資源減半
-    return{id,name,color:cols[id],style:styl?styl[id]:'solid',alt:alts?alts[id]:null,strength:strs[id],persona:pers[id],heat:(opts.heats&&opts.heats[id])||0,score:0,roads:0,cards:[],knights:0,resources:res,ports:[]}
+    return{id,name,color:cols[id],style:styl?styl[id]:'solid',alt:alts?alts[id]:null,strength:strs[id],persona:pers[id],heat:(opts.heats&&opts.heats[id])||0,score:0,roads:0,cards:[],knights:0,resources:res,ports:[],vpBought:0}
   });
   if(opts.startVP)players.forEach((p,id)=>{p.score+=(opts.startVP[id]||0)}); // 墊底補償：帶勝利點開局
   const coast=topo.edges.filter(e=>edgeTileCount(topo,e.id)===1),nPorts=Math.min(9,Math.max(6,Math.floor(coast.length/3))),portKinds=['wood','brick','grain','wool','ore','any','any','any','any','any','any'],ports=[];
   for(let i=0;i<nPorts;i++){const e=coast[Math.floor(i*coast.length/nPorts)];ports.push({edge:e.id,a:e.a,b:e.b,kind:portKinds[i%portKinds.length],ratio:portKinds[i%portKinds.length]==='any'?3:2})}
-  return{round:1,turn:0,phase:'setup',layout:kind,target:(kind==='large'||N>=22)?12:10,roundCap:opts.roundCap||((kind==='large'||N>=22)?38:28),deck:buildDeck(rng,opts.deckMul),...topo,players,ports,winner:null,largestArmy:null,longestRoad:null,lastRoll:null,dice:null,production:[],robber:topo.tiles.find(t=>t.type==='desert').id,discards:null,robberPending:false,robberFromCard:false,freeRoads:0,steal:null,weather:opts.weather||'clear',log:'開局：每支隊伍揀選一座村莊同一條相連航線嘅位置。'}
+  return{round:1,turn:0,phase:'setup',layout:kind,target:opts.target||((kind==='large'||N>=22)?12:10),roundCap:opts.roundCap||((kind==='large'||N>=22)?38:28),rally:opts.rally||null,raidLeft:opts.rally?names.map(()=>opts.rally.raidUses||0):null,deck:buildDeck(rng,opts.deckMul),...topo,players,ports,winner:null,largestArmy:null,longestRoad:null,lastRoll:null,dice:null,production:[],robber:topo.tiles.find(t=>t.type==='desert').id,discards:null,robberPending:false,robberFromCard:false,freeRoads:0,steal:null,weather:opts.weather||'clear',log:'開局：每支隊伍揀選一座村莊同一條相連航線嘅位置。'}
 }
 
 /* ---------- 開局選址（初始擺放）---------- */
@@ -298,6 +298,26 @@ export function turboRoll(g,id,rng=Math.random){
     g.players[id].resources[type]+=v.level;got.push({type,amount:v.level,tile:tile.id})}
   return{dice:[a,b],n,got}}
 export function totalScore(g,id){return g.players[id].score+bonusPoints(g,id)}
+/* ===== 超級拉力賽：資源兌換勝利分 + 劫分突襲（全部制衡只打當前第一名）===== */
+// 換分成本：基礎 + 每買一分遞增；落後領頭羊 >=4 分有折扣（至 min 封底）
+export function rallyCost(g,id){const cfg=g.rally;if(!cfg)return Infinity;const p=g.players[id];let c=(cfg.base||8)+(cfg.step||2)*(p.vpBought||0);
+  const lead=Math.max(...g.players.map(q=>totalScore(g,q.id)));
+  if(totalScore(g,id)<=lead-4)c-=(cfg.disc||2);
+  return Math.max(cfg.min||4,c)}
+export function canExchange(g,id){return !!g.rally&&g.phase==='action'&&g.winner===null&&countResources(g.players[id])>=rallyCost(g,id)}
+export function doExchange(g,id){if(!canExchange(g,id))return false;const p=g.players[id];let need=rallyCost(g,id);
+  const ord=[...RESOURCES].sort((a,b)=>p.resources[b]-p.resources[a]);for(const r of ord){while(need>0&&p.resources[r]>0){p.resources[r]--;need--}}
+  p.score++;p.vpBought=(p.vpBought||0)+1;g.log=`${p.name} 用資源兌換咗 1 勝利分。`;checkWinner(g);return true}
+// 劫分突襲：只准打「當前第一名」且領先你 >=2 分；偷 1 分過嚟
+export function raidTargets(g,id){if(!g.rally||g.winner!==null)return [];
+  const my=totalScore(g,id),top=Math.max(...g.players.map(q=>totalScore(g,q.id)));
+  if(top<=my)return [];
+  return g.players.filter(q=>q.id!==id&&totalScore(g,q.id)===top&&totalScore(g,q.id)>=my+2).map(q=>q.id)}
+export function canRaid(g,id){return !!g.rally&&g.phase==='action'&&g.winner===null&&!!(g.raidLeft&&g.raidLeft[id]>0)&&canAfford(g.players[id],g.rally.raidCost||{})&&raidTargets(g,id).length>0}
+export function doRaid(g,id,rng=Math.random){if(!canRaid(g,id))return false;const tg=raidTargets(g,id),victim=tg[Math.floor((rng()||0)*tg.length)%tg.length];
+  pay(g.players[id],g.rally.raidCost||{});g.raidLeft[id]--;
+  g.players[victim].score=Math.max(0,g.players[victim].score-1);g.players[id].score++;
+  g.log=`${g.players[id].name} 向領頭嘅 ${g.players[victim].name} 發動劫分突襲，搶走 1 分！`;checkWinner(g);return {victim}}
 // 名次：由高分到低分（勝者總分必最高），平手用回合物資做次序
 export function finishOrder(g){return g.players.map(p=>p.id).sort((a,b)=>((g.players[a].retired?1:0)-(g.players[b].retired?1:0))||totalScore(g,b)-totalScore(g,a)||countResources(g.players[b])-countResources(g.players[a])||a-b)}
 export function checkWinner(g){updateBonuses(g);const t=g.target||10,w=g.players.find(p=>totalScore(g,p.id)>=t);if(w){g.winner=w.id;g.phase='end'}return w||null}

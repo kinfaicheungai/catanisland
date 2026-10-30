@@ -75,6 +75,8 @@
 
 /* v2.6：顏色選擇 + 聯賽 */
 .leaguebtn{background:#126b80;color:#fff;margin-top:8px}
+.rallybtn{background:linear-gradient(90deg,#b8860b,#f0b53b);color:#3a2a00;margin-top:8px;font-weight:900}
+#raidBtn b{color:#e5484d}#exchangeBtn b{color:#0b7}
 .swatches{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 10px}
 .swatches .sw{width:30px;height:30px;border-radius:50%;background:var(--sc);border:3px solid #fff;box-shadow:0 0 0 1px #0002;cursor:pointer;padding:0}
 .swatches .sw.on{box-shadow:0 0 0 3px var(--ink);transform:scale(1.08)}
@@ -111,6 +113,8 @@
 .records{border:1px solid #e3d9bd;border-radius:10px;overflow:hidden}
 .recrow{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:8px;padding:9px 11px;border-bottom:1px solid #efe6cd;font-size:12px}
 .recrow:last-child{border-bottom:0}
+.rec-fast{padding:9px 11px;background:#fff3cf;border-bottom:1px solid #efe6cd;font-size:12px}
+.rec-row{display:flex;align-items:center;gap:8px;padding:8px 11px;border-bottom:1px solid #efe6cd;font-size:12px}.rec-row:last-child{border-bottom:0}.rec-row .dot{width:11px;height:11px;border-radius:50%;flex:none}.rec-row b{flex:1}.rec-row small{color:#8a7f63}
 .rc-city{font-weight:800;display:flex;flex-direction:column}
 .rc-city small{font-size:8px;color:#8a8f84;font-weight:600}
 .rc-hold{display:flex;align-items:center;gap:5px;font-size:11px}

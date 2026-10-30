@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,turboRoll,reclaimTile,reclaimCandidates,deckCounts,capWinner}from'./engine.js?v=5.22';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,turboRoll,reclaimTile,reclaimCandidates,deckCounts,capWinner,rallyCost,canExchange,doExchange,raidTargets,canRaid,doRaid}from'./engine.js?v=5.23';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 let VX=260,VY=245,VS=49;const sx=x=>VX+x*VS,sy=y=>VY+y*VS,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -87,7 +87,8 @@ const SHAPES={
   diamond:rc([1,3,5,3,1]), wide:rc([6,7,6]), delta:rc([1,2,3,4,5]),
   tall:rc([2,3,3,3,3,2]), atoll:rmTiles(LAYOUTS.large(),[[0,0]]),
   strait:rc([2,2,2,2,2,2,2]), twin:rc([3,4,2,4,3]), volcano:LAYOUTS.standard(), gold:LAYOUTS.standard(),
-  mega:rc([6,7,8,7,6])   // 大混戰超大島（34 格，容納 6-7 隊）
+  mega:rc([6,7,8,7,6]),   // 大混戰超大島（34 格，容納 6-7 隊）
+  superisle:rc([5,6,7,8,9,8,7,6,5])   // 超級拉力島（61 格，容納 10 隊）
 };
 const SHAPE_NAME={hex:'標準六島',big:'大島',cross:'十字島',diamond:'鑽石島',wide:'闊島',delta:'三角洲',tall:'長島',atoll:'環礁',strait:'海峽',twin:'雙子島',volcano:'🌋火山島',gold:'💰黃金島',mega:'⚔ 超大混戰島'};
 // 特殊站（4 個特殊地圖，每季必出）
@@ -208,14 +209,18 @@ const LEGACY_LKEYS=['frontier-league-v6','frontier-league-v5','frontier-league-v
 function saveLeague(){try{localStorage.setItem(LKEY,JSON.stringify(league))}catch{}}
 /* 進行中對局存檔（中途離開可續玩）*/
 const LIVEKEY='frontier-live';
-function saveLive(){try{localStorage.setItem(LIVEKEY,JSON.stringify({game,raceDrivers,leagueActive,playoffStage,kitArmed,kitH,kitHit,humanPack,raceSprint,raceMelee,aiKitDriver,aiKitSettleLeft,aiKitRoadLeft}))}catch{}}
+// 超級拉力賽（獨立杯賽，唔影響聯賽）
+let rallyActive=false;
+const RALLYKEY='frontier-rally';
+const RALLY_CFG={base:8,step:1,min:4,disc:2,raidCost:{ore:1,grain:1,wool:1},raidUses:3,turbo:6,kit:4,land:3};
+function saveLive(){try{localStorage.setItem(LIVEKEY,JSON.stringify({game,raceDrivers,leagueActive,rallyActive,playoffStage,kitArmed,kitH,kitHit,humanPack,raceSprint,raceMelee,landArmed,raceCity,raceStation,aiKitDriver,aiKitSettleLeft,aiKitRoadLeft}))}catch{}}
 function clearLive(){try{localStorage.removeItem(LIVEKEY)}catch{}}
 function restoreLive(){
   let raw;try{raw=localStorage.getItem(LIVEKEY)}catch{return false}
   if(!raw)return false;let d;try{d=JSON.parse(raw)}catch{return false}
   if(!d||!d.game||d.game.winner!==null||!Array.isArray(d.game.tiles))return false;
-  game=d.game;raceDrivers=d.raceDrivers||null;leagueActive=!!d.leagueActive;playoffStage=d.playoffStage||null;
-  kitArmed=!!d.kitArmed;kitH=d.kitH||{rs:0,rr:0,as:0,ar:0,rc:0,ac:0};kitHit=d.kitHit||{};humanPack=d.humanPack||null;raceSprint=!!d.raceSprint;raceMelee=!!d.raceMelee;aiKitDriver=(d.aiKitDriver===undefined?null:d.aiKitDriver);aiKitSettleLeft=!!d.aiKitSettleLeft;aiKitRoadLeft=!!d.aiKitRoadLeft;
+  game=d.game;raceDrivers=d.raceDrivers||null;leagueActive=!!d.leagueActive;rallyActive=!!d.rallyActive;playoffStage=d.playoffStage||null;
+  kitArmed=!!d.kitArmed;kitH=d.kitH||{rs:0,rr:0,as:0,ar:0,rc:0,ac:0};kitHit=d.kitHit||{};humanPack=d.humanPack||null;raceSprint=!!d.raceSprint;raceMelee=!!d.raceMelee;landArmed=!!d.landArmed;if(d.raceCity)raceCity=d.raceCity;if(d.raceStation)raceStation=d.raceStation;aiKitDriver=(d.aiKitDriver===undefined?null:d.aiKitDriver);aiKitSettleLeft=!!d.aiKitSettleLeft;aiKitRoadLeft=!!d.aiKitRoadLeft;
   if(leagueActive){const L=loadLeague();if(L)league=L}
   busy=false;mode=null;setup=null;endHandled=false;
   $('#playerLabel').textContent=game.players[0].name;
@@ -462,7 +467,9 @@ function openReclaimChooser(){mode=null;reclaimRes='wood';reclaimNum=8;
   $$('#reclaimNum button').forEach(b=>b.onclick=()=>{reclaimNum=+b.dataset.n;$$('#reclaimNum button').forEach(x=>x.classList.toggle('on',x===b))});
   $('#reclaimDialog').showModal();render();
 }
-function doReclaim(){if(reclaimVid==null){$('#reclaimDialog').close();return}const t=reclaimTile(game,reclaimVid,reclaimRes,reclaimNum);$('#reclaimDialog').close();if(t===false){toast('🏝 呢度填唔到海');return}landArmed=false;reclaimVid=null;mode=null;sfx.build();if(league){league.landLog=league.landLog||[];league.landLog.push({d:0,round:league.round+1,res:reclaimRes,num:reclaimNum})}logSkill('🏝 你填海造地：新增 '+LABELS[reclaimRes]+'（'+reclaimNum+'）');saveLive();render()}
+function doReclaim(){if(reclaimVid==null){$('#reclaimDialog').close();return}const t=reclaimTile(game,reclaimVid,reclaimRes,reclaimNum);$('#reclaimDialog').close();if(t===false){toast('🏝 呢度填唔到海');return}
+  if(rallyActive){game.landLeftHuman=(game.landLeftHuman||1)-1;if(game.landLeftHuman<=0)landArmed=false}else landArmed=false;
+  reclaimVid=null;mode=null;sfx.build();if(league){league.landLog=league.landLog||[];league.landLog.push({d:0,round:league.round+1,res:reclaimRes,num:reclaimNum})}logSkill('🏝 你填海造地：新增 '+LABELS[reclaimRes]+'（'+reclaimNum+'）'+(rallyActive?('（仲剩 '+(game.landLeftHuman||0)+' 次）'):''));saveLive();render()}
 // 電腦填海：喺佢預先安排嘅站（第 13 站起、放棄拆卸嘅個性）造地
 function aiTryReclaim(g,boardId,driverIdx,ri){
   const d=league&&league.drivers[driverIdx];
@@ -532,7 +539,9 @@ function render(){
   {const tb=$('#turboBtn'),tLeft=(game.turboLeft&&game.turboLeft[0])||0;if(tb){tb.hidden=demo||tLeft<=0;$('#turboCount').textContent=tLeft;tb.disabled=busy||!action||blk||game.round<=10}}
   {const db=$('#demoBtn'),aLeft=kitArmed?kitAnyLeft():0;if(db){db.hidden=demo||aLeft<=0;$('#demoCount').textContent=aLeft;db.disabled=busy||!action||blk}}
   {const rcb=$('#reclaimBtn');if(rcb){rcb.hidden=demo||mode==='reclaim'||!landArmed||reclaimableVerts().length===0;rcb.disabled=busy||!action||blk}}
-  {const rb=$('#retireBtn');if(rb)rb.hidden=!(leagueActive&&game.winner===null&&!setup)}  // 放棄本場（聯賽/季後賽進行中先顯示）
+  {const xb=$('#exchangeBtn');if(xb){xb.hidden=!rallyActive||demo;if(rallyActive){const c=rallyCost(game,0);$('#exCost').textContent=c;xb.disabled=busy||!action||blk||!canExchange(game,0)}}}
+  {const rdb=$('#raidBtn');if(rdb){const rl=(game.raidLeft&&game.raidLeft[0])||0;rdb.hidden=!rallyActive||demo||rl<=0;$('#raidCount').textContent=rl;rdb.disabled=busy||!action||blk||!canRaid(game,0)}}
+  {const rb=$('#retireBtn');if(rb)rb.hidden=!((leagueActive||rallyActive)&&game.winner===null&&!setup)}  // 放棄本場（聯賽/季後賽/拉力賽進行中先顯示）
   $$('[data-build]').forEach(b=>{const type=b.dataset.build,legal=type==='road'?legalRoads(game,0):type==='settlement'?legalSettlements(game,0):legalCities(game,0);const afford=(type==='road'&&roadFree)||canAfford(me,COSTS[type]);b.disabled=busy||!action||blk||!afford||!legal.length;b.classList.toggle('selected',mode===type)});
   const deckLeft=game.deck?game.deck.length:0;$('#cardBtn').disabled=busy||!action||blk||!canAfford(me,COSTS.card)||deckLeft===0;{const cb=$('#cardBtn small');if(cb)cb.textContent=deckLeft>0?('牌庫 '+deckLeft):'牌庫已空'}
   $('#tradeBtn').disabled=busy||!action||blk||!RESOURCES.some(r=>me.resources[r]>=tradeRatio(me,r));
@@ -668,8 +677,39 @@ async function playAiTurn(id){
   if(game.winner===null&&game.round>10&&game.turboLeft&&game.turboLeft[id]>0){const r=turboRoll(game,id,Math.random);game.turboLeft[id]--;if(r.got.length){render();logSkill(`⚡ ${game.players[id].name} 用 Turbo 加速收資源`);await sleep(420)}} // 電腦 turbo
   if(game.winner===null&&game.round<=2&&game.earlyLeft&&game.earlyLeft[id]>0){turboRoll(game,id,Math.random);game.earlyLeft[id]--;render();await sleep(300)} // 半決賽種子：頭兩輪額外擲
   if(game.winner===null&&leagueActive&&!playoffStage&&raceDrivers&&game.round>=3){const nt=aiTryReclaim(game,id,raceDrivers[id],league.round);if(nt){render();sfx.build();flashTile(game.tiles.length-1);logSkill('🏝 '+game.players[id].name+' 填海造地！');saveLeague();await sleep(640)}} // 電腦填海
+  if(rallyActive&&game.winner===null)await rallyAiActs(id);
   await sleep(220)
 }
+// 拉力賽：電腦用換分 / 劫分 / 拆卸 / 填海（制衡火力瞄準當前第一名）
+const RAID_PERSONA={raider:0.85,balanced:0.55,trader:0.5,expander:0.45,builder:0.35};
+async function rallyAiActs(id){
+  const p=game.players[id],per=p.persona||'balanced';
+  // 1) 劫分突襲：落後時瞄準第一名出手
+  if(canRaid(game,id)&&Math.random()<(RAID_PERSONA[per]||0.5)){const r=doRaid(game,id);if(r){render();sfx.build();logSkill('🏴 '+p.name+' 劫走領頭 '+game.players[r.victim].name+' 1 分！');await sleep(560);if(game.winner!==null)return}}
+  // 2) 拆卸：破壞型/突襲型偶爾拆領頭羊嘅城/村/路
+  if(game.rallyKit&&game.rallyKit[id]>0&&(per==='raider'||per==='balanced')&&Math.random()<0.4){
+    const sc=b=>totalScore(game,b),lead=Math.max(...game.players.map(q=>sc(q.id)));
+    let done=false;
+    // 優先拆領頭羊嘅城
+    const cityT=game.vertices.filter(v=>v.owner!=null&&v.owner!==id&&v.level===2&&sc(v.owner)>=lead-1).sort((a,b)=>sc(b.owner)-sc(a.owner))[0];
+    if(cityT){const o=demolishCity(game,cityT.id);if(o!==false){done=true;flashVertex(cityT.id);logSkill('💣 '+p.name+' 拆咗 '+game.players[o].name+' 一座港城（−2）')}}
+    if(!done){const setT=game.vertices.filter(v=>v.owner!=null&&v.owner!==id&&v.level===1&&game.vertices.filter(x=>x.owner===v.owner).length>1&&sc(v.owner)>=lead-1).sort((a,b)=>sc(b.owner)-sc(a.owner))[0];
+      if(setT){const o=demolishSettlement(game,setT.id);if(o!==false){done=true;flashVertex(setT.id);logSkill('💣 '+p.name+' 拆咗 '+game.players[o].name+' 一座村莊')}}}
+    if(done){game.rallyKit[id]--;render();sfx.build();await sleep(560);if(game.winner!==null)return}
+  }
+  // 3) 填海：建設型/開拓型造地
+  if(game.rallyLand&&game.rallyLand[id]>0&&(per==='builder'||per==='expander')&&Math.random()<0.5){
+    const mine=game.vertices.filter(v=>v.owner===id&&onPort(game,v.id)&&reclaimCandidates(game,v.id).length>0);
+    if(mine.length){const t=reclaimTile(game,mine[0].id,p.affinity||'grain',[6,8][Math.floor(Math.random()*2)]);if(t!==false){game.rallyLand[id]--;render();sfx.build();flashTile(game.tiles.length-1);logSkill('🏝 '+p.name+' 填海造地！');await sleep(560);if(game.winner!==null)return}}
+  }
+  // 4) 換分：手上夠資源就買（最多 2 次／回合，靜靜地做，睇即時排位反映）
+  let t=0;while(t++<2&&game.winner===null&&canExchange(game,id))doExchange(game,id);
+  render();
+}
+function humanExchange(){if(busy||!rallyActive)return;if(!canExchange(game,0)){toast('🏦 資源唔夠，依家換 1 分要 '+rallyCost(game,0)+' 份資源');return}doExchange(game,0);sfx.coin();logSkill('🏦 你用資源換咗 1 勝利分！');render();if(game.winner!==null){showEnd();return}saveLive()}
+function humanRaid(){if(busy||!rallyActive)return;
+  if(!canRaid(game,0)){const t=raidTargets(game,0);if(!(game.raidLeft&&game.raidLeft[0]>0))toast('🏴 劫分次數用晒');else if(!t.length)toast('🏴 淨係可以劫當前第一名（要領先你 2 分以上）');else toast('🏴 資源唔夠（要 1 礦 1 糧 1 羊）');return}
+  const r=doRaid(game,0);if(r){sfx.build();logSkill('🏴 你向領頭嘅 '+game.players[r.victim].name+' 劫走 1 分！');render();if(game.winner!==null){showEnd();return}saveLive()}}
 async function schedule(){
   if(!game||game.winner!==null){busy=false;render();if(game&&game.winner!==null)sfx.win();return}
   busy=true;
@@ -763,6 +803,18 @@ function zoom(d){scale=Math.max(.72,Math.min(2.4,scale+d));clampPan();applyTrans
 function showEnd(){
   if(!game||game.winner===null||endHandled)return;endHandled=true;clearLive();
   commentary('win',{n:game.players[game.winner].name,city:raceCity||'このステージ'});
+  // 超級拉力錦標賽（獨立杯賽）
+  if(rallyActive){
+    rallyActive=false;clearLive();
+    const ord=finishOrder(game),myPos=ord.indexOf(0),champ=game.players[ord[0]];
+    recordRally(champ,game.cappedOut?null:game.round);
+    const medal=['🥇','🥈','🥉'][myPos]||('第 '+(myPos+1)+' 名');
+    $('#endTitle').textContent=`超級拉力賽 · ${medal}`;
+    const top5=ord.slice(0,5).map((bid,i)=>`${['🥇','🥈','🥉','4.','5.'][i]} ${game.players[bid].name} ${totalScore(game,bid)}分`).join('　');
+    $('#endText').textContent=(game.winner===0?'你贏咗超級拉力錦標賽 🏆！':`${champ.name} 封王。`)+`（經過 ${game.round} 輪${game.cappedOut?'·逼和':''}）　前五：${top5}`;
+    $('#playAgain').textContent='再戰一屆 🏆';$('#playAgain').onclick=()=>{$('#endDialog').close();startRally()};
+    presentEnd();return;
+  }
   // 季後賽（淘汰賽）人類嗰場
   if(leagueActive&&playoffStage){
     const P=league.playoff,st=playoffStage;
@@ -806,8 +858,8 @@ function showEnd(){
 function presentEnd(){if(exitHomeAfterEnd){exitHomeAfterEnd=false;location.reload();return}if(!$('#endDialog').open)$('#endDialog').showModal()}
 // 放棄本場：當最後一名完成本站，然後返主頁
 function retireRace(){
-  if(!game||game.winner!==null||setup||!leagueActive)return;
-  if(!window.confirm('確定放棄本場？你會以最後一名完成，今站攞 0 分，然後返主頁。'))return;
+  if(!game||game.winner!==null||setup||!(leagueActive||rallyActive))return;
+  if(!window.confirm('確定放棄本場？你會以最後一名完成，然後返主頁。'))return;
   game.players[0].retired=true;game.cappedOut=true;           // 退賽：排最後、唔入場地紀錄
   const ord=finishOrder(game);game.winner=ord[0];game.phase='end';busy=false;mode=null;
   exitHomeAfterEnd=true;endHandled=false;showEnd();           // 正常結算（人類排尾 0 分、更新總榜）後自動返主頁
@@ -1228,9 +1280,34 @@ function startExhibition(){
   deClash({colors,styles,alts});raceWeather='clear';game=makeGame(undefined,{layout:mapChoice,names,colors,strengths,bonusRes,styles,alts,personas});
   clearLive();$('#playerLabel').textContent=nm;$('#startDialog').close();beginSetup()
 }
+/* ============ 超級拉力錦標賽（獨立 10 隊杯賽）============ */
+function startRally(){
+  initAudio();endHandled=false;leagueActive=false;playoffStage=null;rallyActive=true;prevArmy=null;prevRoad=null;
+  forceDesert=false;humanPack=null;aiKitDriver=null;raceDrivers=null;raceSprint=false;raceMelee=false;prevLeader=null;nearSaid=false;closeSaid=false;humanKitEntry=null;reclaimVid=null;
+  const nm=$('#playerName')?.value.trim()||(league&&league.drivers[0]&&league.drivers[0].name)||'珊瑚拓荒團';
+  const N=10,names=[nm],colors=[pickedColor],strengths=[humanTier],affs=['grain'],personas=['balanced'],styles=['solid'],alts=[null];
+  for(let k=0;k<N-1;k++){names.push(AI_NAMES[k]);colors.push(AI_COLORS[k]);strengths.push(AI_STR[k]);affs.push(AI_AFFINITY[k]);personas.push(AI_PERSONA[k]);styles.push(AI_STYLE[k]);alts.push(AI_ALT[k])}
+  const bonusRes=strengths.map((s,k)=>s>=4?{type:affs[k],amount:s>=5?2:1}:null);
+  deClash({colors,styles,alts});raceWeather='clear';raceCity='超級拉力賽';raceStation=`${N} 隊混戰 · 目標 30 分`;
+  game=makeGame(undefined,{axial:SHAPES.superisle,names,colors,strengths,bonusRes,styles,alts,personas,target:30,roundCap:400,rally:{...RALLY_CFG}});
+  game.players.forEach((p,k)=>p.affinity=affs[k]);                 // 填海用得著
+  game.turboLeft=game.players.map(()=>RALLY_CFG.turbo);            // ⚡ 全隊 turbo 次數
+  game.rallyKit=game.players.map(()=>RALLY_CFG.kit);              // 💣 電腦拆卸預算
+  game.rallyLand=game.players.map(()=>RALLY_CFG.land);            // 🏝 電腦填海預算
+  kitArmed=true;landArmed=true;kitHit={};kitH={rs:0,rr:0,as:RALLY_CFG.kit,ar:RALLY_CFG.kit,rc:0,ac:RALLY_CFG.kit};  // 人類：隨時拆卸（預算制）
+  game.landLeftHuman=RALLY_CFG.land;                               // 人類填海預算
+  clearLive();$('#playerLabel').textContent=nm;$('#startDialog').close();beginSetup()
+}
+/* ---- 拉力冠軍殿堂（獨立 localStorage，唔影響聯賽）---- */
+function loadRally(){try{return JSON.parse(localStorage.getItem(RALLYKEY))||{champs:[],fastest:null}}catch{return{champs:[],fastest:null}}}
+function recordRally(champ,rounds){const d=loadRally();d.champs=d.champs||[];d.champs.unshift({name:champ.name,color:champ.color,rounds,t:Date.now()});if(d.champs.length>30)d.champs.length=30;if(rounds!=null&&(!d.fastest||rounds<d.fastest.rounds))d.fastest={name:champ.name,color:champ.color,rounds};try{localStorage.setItem(RALLYKEY,JSON.stringify(d))}catch{}}
+function renderRallyHall(){const d=loadRally(),el=$('#rallyList');if(!el)return;
+  if(!d.champs||!d.champs.length){el.innerHTML='<p style="text-align:center;color:#8aa">仲未有紀錄，去打一屆拉力賽先！</p>';return}
+  const fast=d.fastest?`<div class="rec-fast">🏁 最速封王：<b>${d.fastest.name}</b> · ${d.fastest.rounds} 輪</div>`:'';
+  el.innerHTML=fast+d.champs.map((c,i)=>`<div class="rec-row"><span class="dot" style="background:${c.color}"></span><b>${c.name}</b><small>${c.rounds!=null?c.rounds+' 輪':'逼和'}</small></div>`).join('')}
 
 /* ============ 事件綁定 ============ */
-const VERSION='5.22';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
+const VERSION='5.23';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
 $('#exhibitBtn').onclick=startExhibition;
 {const c=$('#commentaryChk');if(c){c.checked=commentaryOn;c.addEventListener('change',()=>{commentaryOn=c.checked;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');if(!commentaryOn&&window.speechSynthesis)window.speechSynthesis.cancel()})}}
 $('#commentary')?.addEventListener('click',()=>setCommentary(!commentaryOn));
@@ -1274,6 +1351,11 @@ $('#turboBtn').onclick=humanTurbo;
 $('#demoBtn').onclick=beginAnyDemolish;
 $('#reclaimBtn').onclick=beginReclaim;
 $('#confirmReclaim').onclick=doReclaim;
+$('#exchangeBtn')?.addEventListener('click',()=>{if(!busy&&game&&game.phase==='action')humanExchange()});
+$('#raidBtn')?.addEventListener('click',()=>{if(!busy&&game&&game.phase==='action')humanRaid()});
+$('#rallyBtn')?.addEventListener('click',startRally);
+$('#rallyHallBtn')?.addEventListener('click',()=>{renderRallyHall();$('#rallyDialog').showModal()});
+$('#closeRally')?.addEventListener('click',()=>$('#rallyDialog').close());
 $('#closeReclaim').onclick=()=>{$('#reclaimDialog').close()};
 function closePanel(){$('#buildPanel').hidden=true;$('#buildToggle').classList.remove('open')}
 $('#buildToggle').onclick=()=>{if(busy||game.phase!=='action'||blocked(game))return;const p=$('#buildPanel');p.hidden=!p.hidden;$('#buildToggle').classList.toggle('open',!p.hidden)};
