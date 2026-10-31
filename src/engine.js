@@ -300,9 +300,11 @@ export function turboRoll(g,id,rng=Math.random){
 export function totalScore(g,id){return g.players[id].score+bonusPoints(g,id)}
 /* ===== 超級拉力賽：資源兌換勝利分 + 劫分突襲（全部制衡只打當前第一名）===== */
 // 換分成本：固定一籃子（預設每樣資源 ×2，要均衡生產先儲到）
-export function rallyBundle(g){const cfg=g.rally;if(!cfg)return null;if(cfg.bundle)return cfg.bundle;const each=cfg.bundleEach||2,b={};for(const r of RESOURCES)b[r]=each;return b}
-export function canExchange(g,id){const b=rallyBundle(g);return !!g.rally&&g.phase==='action'&&g.winner===null&&!!b&&canAfford(g.players[id],b)}
-export function doExchange(g,id){if(!canExchange(g,id))return false;const p=g.players[id];pay(p,rallyBundle(g));
+export function rallyBundle(g,id){const cfg=g.rally;if(!cfg)return null;if(cfg.bundle)return cfg.bundle;let each=cfg.bundleEach||2;
+  if(id!=null&&cfg.discGap){const lead=Math.max(...g.players.map(q=>totalScore(g,q.id)));if(totalScore(g,id)<=lead-cfg.discGap)each=Math.max(1,Math.round(each*(cfg.discMul||0.5)))}
+  const b={};for(const r of RESOURCES)b[r]=each;return b}
+export function canExchange(g,id){const b=rallyBundle(g,id);return !!g.rally&&g.phase==='action'&&g.winner===null&&!!b&&canAfford(g.players[id],b)}
+export function doExchange(g,id){if(!canExchange(g,id))return false;const p=g.players[id];pay(p,rallyBundle(g,id));
   p.score++;p.vpBought=(p.vpBought||0)+1;g.log=`${p.name} 用一籃子資源兌換咗 1 勝利分。`;checkWinner(g);return true}
 // 劫分突襲：只准打「當前第一名」且領先你 >=2 分；偷 1 分過嚟
 export function raidTargets(g,id){if(!g.rally||g.winner!==null)return [];
