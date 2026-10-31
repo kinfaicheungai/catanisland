@@ -78,7 +78,7 @@ export function makeGame(rng=Math.random,opts={}){
   if(opts.startVP)players.forEach((p,id)=>{p.score+=(opts.startVP[id]||0)}); // 墊底補償：帶勝利點開局
   const coast=topo.edges.filter(e=>edgeTileCount(topo,e.id)===1),nPorts=Math.min(9,Math.max(6,Math.floor(coast.length/3))),portKinds=['wood','brick','grain','wool','ore','any','any','any','any','any','any'],ports=[];
   for(let i=0;i<nPorts;i++){const e=coast[Math.floor(i*coast.length/nPorts)];ports.push({edge:e.id,a:e.a,b:e.b,kind:portKinds[i%portKinds.length],ratio:portKinds[i%portKinds.length]==='any'?3:2})}
-  return{round:1,turn:0,phase:'setup',layout:kind,target:opts.target||((kind==='large'||N>=22)?12:10),roundCap:opts.roundCap||((kind==='large'||N>=22)?38:28),rally:opts.rally||null,raidLeft:opts.rally?names.map(()=>opts.rally.raidUses||0):null,deck:buildDeck(rng,opts.deckMul),...topo,players,ports,winner:null,largestArmy:null,longestRoad:null,lastRoll:null,dice:null,production:[],robber:topo.tiles.find(t=>t.type==='desert').id,discards:null,robberPending:false,robberFromCard:false,freeRoads:0,steal:null,weather:opts.weather||'clear',log:'開局：每支隊伍揀選一座村莊同一條相連航線嘅位置。'}
+  return{round:1,turn:0,phase:'setup',layout:kind,target:opts.target||((kind==='large'||N>=22)?12:10),roundCap:opts.roundCap||((kind==='large'||N>=22)?38:28),pieces:opts.pieces||null,rally:opts.rally||null,raidLeft:opts.rally?names.map(()=>opts.rally.raidUses||0):null,deck:buildDeck(rng,opts.deckMul),...topo,players,ports,winner:null,largestArmy:null,longestRoad:null,lastRoll:null,dice:null,production:[],robber:topo.tiles.find(t=>t.type==='desert').id,discards:null,robberPending:false,robberFromCard:false,freeRoads:0,steal:null,weather:opts.weather||'clear',log:'開局：每支隊伍揀選一座村莊同一條相連航線嘅位置。'}
 }
 
 /* ---------- 開局選址（初始擺放）---------- */
@@ -194,9 +194,9 @@ function pay(p,cost){for(const[r,n]of Object.entries(cost))p.resources[r]-=n}
 /* ---------- 行動階段建造 ---------- */
 export const PIECES={roads:15,settlements:5,cities:4};
 export function pieceCounts(g,id){let s=0,c=0;for(const v of g.vertices){if(v.owner===id){if(v.level===2)c++;else s++}}return{roads:g.players[id].roads,settlements:s,cities:c}}
-export function legalRoads(g,id){if(g.phase!=='action'||g.players[id].roads>=PIECES.roads)return[];return g.edges.filter(e=>e.owner===null&&([e.a,e.b].some(v=>g.vertices[v].owner===id)||g.edges.some(o=>o.owner===id&&(o.a===e.a||o.a===e.b||o.b===e.a||o.b===e.b)))).map(e=>e.id)}
-export function legalSettlements(g,id){if(g.phase!=='action'||pieceCounts(g,id).settlements>=PIECES.settlements)return[];const linked=new Set();for(const e of g.edges.filter(e=>e.owner===id)){linked.add(e.a);linked.add(e.b)}return g.vertices.filter(v=>v.owner===null&&linked.has(v.id)&&g.adjacency[v.id].every(n=>g.vertices[n].owner===null)).map(v=>v.id)}
-export function legalCities(g,id){return g.phase==='action'&&pieceCounts(g,id).cities<PIECES.cities?g.vertices.filter(v=>v.owner===id&&v.level===1).map(v=>v.id):[]}
+export function legalRoads(g,id){if(g.phase!=='action'||g.players[id].roads>=((g.pieces&&g.pieces.roads)||PIECES.roads))return[];return g.edges.filter(e=>e.owner===null&&([e.a,e.b].some(v=>g.vertices[v].owner===id)||g.edges.some(o=>o.owner===id&&(o.a===e.a||o.a===e.b||o.b===e.a||o.b===e.b)))).map(e=>e.id)}
+export function legalSettlements(g,id){if(g.phase!=='action'||pieceCounts(g,id).settlements>=((g.pieces&&g.pieces.settlements)||PIECES.settlements))return[];const linked=new Set();for(const e of g.edges.filter(e=>e.owner===id)){linked.add(e.a);linked.add(e.b)}return g.vertices.filter(v=>v.owner===null&&linked.has(v.id)&&g.adjacency[v.id].every(n=>g.vertices[n].owner===null)).map(v=>v.id)}
+export function legalCities(g,id){return g.phase==='action'&&pieceCounts(g,id).cities<((g.pieces&&g.pieces.cities)||PIECES.cities)?g.vertices.filter(v=>v.owner===id&&v.level===1).map(v=>v.id):[]}
 export function blocked(g){return !!(g.robberPending||g.discards)}
 export function placeRoad(g,id,eid){const e=g.edges[eid],p=g.players[id];if(blocked(g)||!e||!legalRoads(g,id).includes(eid))return false;const free=g.freeRoads>0;if(!free&&!canAfford(p,COSTS.road))return false;if(free)g.freeRoads--;else pay(p,COSTS.road);e.owner=id;p.roads++;g.log=free?`${p.name} 免費建立一條新航線。`:`${p.name} 建立一條新航線。`;updateBonuses(g);return true}
 export function placeSettlement(g,id,vid){const v=g.vertices[vid],p=g.players[id];if(blocked(g)||!v||!legalSettlements(g,id).includes(vid)||!canAfford(p,COSTS.settlement))return false;pay(p,COSTS.settlement);v.owner=id;v.level=1;p.score++;awardPorts(g,id,vid);updateBonuses(g);g.log=`${p.name} 建立一座新村莊。`;return true}
@@ -299,15 +299,11 @@ export function turboRoll(g,id,rng=Math.random){
   return{dice:[a,b],n,got}}
 export function totalScore(g,id){return g.players[id].score+bonusPoints(g,id)}
 /* ===== 超級拉力賽：資源兌換勝利分 + 劫分突襲（全部制衡只打當前第一名）===== */
-// 換分成本：基礎 + 每買一分遞增；落後領頭羊 >=4 分有折扣（至 min 封底）
-export function rallyCost(g,id){const cfg=g.rally;if(!cfg)return Infinity;const p=g.players[id];let c=(cfg.base||8)+(cfg.step||2)*(p.vpBought||0);
-  const lead=Math.max(...g.players.map(q=>totalScore(g,q.id)));
-  if(totalScore(g,id)<=lead-4)c-=(cfg.disc||2);
-  return Math.max(cfg.min||4,c)}
-export function canExchange(g,id){return !!g.rally&&g.phase==='action'&&g.winner===null&&countResources(g.players[id])>=rallyCost(g,id)}
-export function doExchange(g,id){if(!canExchange(g,id))return false;const p=g.players[id];let need=rallyCost(g,id);
-  const ord=[...RESOURCES].sort((a,b)=>p.resources[b]-p.resources[a]);for(const r of ord){while(need>0&&p.resources[r]>0){p.resources[r]--;need--}}
-  p.score++;p.vpBought=(p.vpBought||0)+1;g.log=`${p.name} 用資源兌換咗 1 勝利分。`;checkWinner(g);return true}
+// 換分成本：固定一籃子（預設每樣資源 ×2，要均衡生產先儲到）
+export function rallyBundle(g){const cfg=g.rally;if(!cfg)return null;if(cfg.bundle)return cfg.bundle;const each=cfg.bundleEach||2,b={};for(const r of RESOURCES)b[r]=each;return b}
+export function canExchange(g,id){const b=rallyBundle(g);return !!g.rally&&g.phase==='action'&&g.winner===null&&!!b&&canAfford(g.players[id],b)}
+export function doExchange(g,id){if(!canExchange(g,id))return false;const p=g.players[id];pay(p,rallyBundle(g));
+  p.score++;p.vpBought=(p.vpBought||0)+1;g.log=`${p.name} 用一籃子資源兌換咗 1 勝利分。`;checkWinner(g);return true}
 // 劫分突襲：只准打「當前第一名」且領先你 >=2 分；偷 1 分過嚟
 export function raidTargets(g,id){if(!g.rally||g.winner!==null)return [];
   const my=totalScore(g,id),top=Math.max(...g.players.map(q=>totalScore(g,q.id)));
