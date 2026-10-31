@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,turboRoll,reclaimTile,reclaimCandidates,deckCounts,capWinner,rallyBundle,rallySurcharge,canExchange,doExchange,raidTargets,canRaid,doRaid,canLease,doLease,rentFor,leaseRenter}from'./engine.js?v=5.29';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,turboRoll,reclaimTile,reclaimCandidates,deckCounts,capWinner,rallyBundle,rallySurcharge,canExchange,doExchange,raidTargets,canRaid,doRaid,canLease,doLease,rentFor,leaseRenter}from'./engine.js?v=5.30';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 let VX=260,VY=245,VS=49;const sx=x=>VX+x*VS,sy=y=>VY+y*VS,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -939,10 +939,17 @@ function playPlayoffRace(pending){
   $('#playerLabel').textContent=opt.names[0];$('#leagueDialog').close();beginSetup();
 }
 function toast(t){$('#toast').textContent=t;$('#toast').classList.add('show');setTimeout(()=>$('#toast').classList.remove('show'),1600)}
-// 技能使用即時提示：中央 toast + 棋盤左上長駐記錄（任何車隊用任何技能都睇得到）
-let feedList=[];
-function logSkill(t,quiet){if(!quiet)toast(t);feedList.push(t);if(feedList.length>6)feedList.shift();const f=$('#skillFeed');if(f)f.innerHTML=feedList.map((x,i)=>`<div class="${i<feedList.length-3?'dim':''}">${x}</div>`).join('')}
-function clearFeed(){feedList=[];const f=$('#skillFeed');if(f)f.innerHTML=''}
+// 技能使用提示：中央 toast + 棋盤左上浮動（幾秒自動散、最多 3 條）+ 📜 全場記錄
+let feedLog=[];
+function logSkill(t,quiet){if(!quiet)toast(t);
+  feedLog.push(t);if(feedLog.length>80)feedLog.shift();
+  const f=$('#skillFeed');if(f){const d=document.createElement('div');d.textContent=t;f.appendChild(d);
+    while(f.children.length>3)f.removeChild(f.firstChild);
+    setTimeout(()=>{d.classList.add('out');setTimeout(()=>d.remove(),420)},4500);}
+  updateLogBtn()}
+function clearFeed(){feedLog=[];const f=$('#skillFeed');if(f)f.innerHTML='';updateLogBtn()}
+function updateLogBtn(){const b=$('#logBtn');if(b){b.hidden=feedLog.length===0;const c=$('#logCount');if(c)c.textContent=feedLog.length}}
+function openLog(){const el=$('#logList');if(el)el.innerHTML=feedLog.length?feedLog.slice().reverse().map(x=>`<div class="logrow">${x}</div>`).join(''):'<p style="text-align:center;color:#8aa">仲未有技能使用紀錄</p>';$('#logDialog').showModal()}
 
 /* ============ 日文實況旁述（免費・瀏覽器語音）============ */
 let commentaryOn=(localStorage.getItem('frontier-commentary')??'1')==='1',jaVoice=null,raceCity='',raceStation='',raceWeather='clear',raceSprint=false,raceMelee=false,exitHomeAfterEnd=false,prevLeader=null,nearSaid=false,closeSaid=false;
@@ -1337,7 +1344,7 @@ function renderRallyHall(){const d=loadRally(),el=$('#rallyList');if(!el)return;
   el.innerHTML=fast+d.champs.map((c,i)=>`<div class="rec-row"><span class="dot" style="background:${c.color}"></span><b>${c.name}</b><small>${c.rounds!=null?c.rounds+' 輪':'逼和'}</small></div>`).join('')}
 
 /* ============ 事件綁定 ============ */
-const VERSION='5.29';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
+const VERSION='5.30';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
 $('#exhibitBtn').onclick=startExhibition;
 {const c=$('#commentaryChk');if(c){c.checked=commentaryOn;c.addEventListener('change',()=>{commentaryOn=c.checked;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');if(!commentaryOn&&window.speechSynthesis)window.speechSynthesis.cancel()})}}
 $('#commentary')?.addEventListener('click',()=>setCommentary(!commentaryOn));
@@ -1385,6 +1392,8 @@ $('#exchangeBtn')?.addEventListener('click',()=>{if(!busy&&game&&game.phase==='a
 $('#raidBtn')?.addEventListener('click',()=>{if(!busy&&game&&game.phase==='action')humanRaid()});
 $('#leaseBtn')?.addEventListener('click',()=>{if(!busy&&game&&game.phase==='action')beginLease()});
 $('#rallyBtn')?.addEventListener('click',startRally);
+$('#logBtn')?.addEventListener('click',openLog);
+$('#closeLog')?.addEventListener('click',()=>$('#logDialog').close());
 $('#rallyHallBtn')?.addEventListener('click',()=>{renderRallyHall();$('#rallyDialog').showModal()});
 $('#closeRally')?.addEventListener('click',()=>$('#rallyDialog').close());
 $('#closeReclaim').onclick=()=>{$('#reclaimDialog').close()};
