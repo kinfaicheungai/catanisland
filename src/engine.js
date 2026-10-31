@@ -126,8 +126,10 @@ export function roll(g,rng=Math.random){
       for(const vid of tile.vertices){const v=g.vertices[vid];if(v.owner===null)continue;
         if(g.weather==='rain'&&rng()<0.2)continue;                                   // 雨：濕滑，資源流失
         if(g.weather==='drought'&&(tile.type==='grain'||tile.type==='wool')&&rng()<0.5)continue; // 旱：農牧減產
+        const rc2=leaseRenter(g,vid),dest=rc2!=null?rc2:v.owner;                     // 租借中：產出歸租客
         let type=tile.type;if(type==='gold')type=RESOURCES[Math.floor(rng()*RESOURCES.length)]; // 黃金：隨機資源
-        g.players[v.owner].resources[type]+=v.level;g.production.push({id:v.owner,tile:tile.id,type,amount:v.level})}
+        if(tile.hub)type=RESOURCES.slice().sort((x,y)=>g.players[dest].resources[x]-g.players[dest].resources[y])[0]; // 萬能金地：自動畀最缺嗰種
+        g.players[dest].resources[type]+=v.level;g.production.push({id:dest,tile:tile.id,type,amount:v.level,leased:rc2!=null})}
     // 車隊實力：收到資源時有機率額外 +1（強隊明顯跑得快啲、資源優勢更大）
     for(const p of g.players){const mine=g.production.filter(x=>x.id===p.id);if(mine.length){const ch=((p.strength||3)-1)*0.05;if(rng()<ch){const pk=mine[Math.floor(rng()*mine.length)];p.resources[pk.type]++;g.production.push({id:p.id,tile:pk.tile,type:pk.type,amount:1,bonus:true})}}}
     // 保底：連續冇收成太耐（避免永無翻身），派 1 份最缺嘅資源 —— 但「分數領跑者」唔派，直到被反超先恢復
@@ -297,19 +299,37 @@ export function turboRoll(g,id,rng=Math.random){
     let type=tile.type;if(type==='gold')type=RESOURCES[Math.floor(rng()*RESOURCES.length)];
     g.players[id].resources[type]+=v.level;got.push({type,amount:v.level,tile:tile.id})}
   return{dice:[a,b],n,got}}
-export function totalScore(g,id){return g.players[id].score+bonusPoints(g,id)}
+export function totalScore(g,id){return g.players[id].score+bonusPoints(g,id)-leasedVP(g,id)}
 /* ===== 超級拉力賽：資源兌換勝利分 + 劫分突襲（全部制衡只打當前第一名）===== */
 // 換分成本：固定一籃子（預設每樣資源 ×2，要均衡生產先儲到）
 export function rallyBundle(g,id){const cfg=g.rally;if(!cfg)return null;if(cfg.bundle)return cfg.bundle;let each=cfg.bundleEach||2;
   if(id!=null&&cfg.discGap){const lead=Math.max(...g.players.map(q=>totalScore(g,q.id)));if(totalScore(g,id)<=lead-cfg.discGap)each=Math.max(1,Math.round(each*(cfg.discMul||0.5)))}
   const b={};for(const r of RESOURCES)b[r]=each;return b}
 // 越換越貴：買得越多，額外要畀嘅附加資源越多（任何資源，棄最多嗰種）
-export function rallySurcharge(g,id){const cfg=g.rally;if(!cfg||!cfg.escStep)return 0;return Math.floor((g.players[id].vpBought||0)*cfg.escStep)}
+// 越換越貴（指數式，唔封頂）：附加資源 = escA × 已買分數 ^ escP
+export function rallySurcharge(g,id){const cfg=g.rally;if(!cfg||!cfg.escA)return 0;return Math.round(cfg.escA*Math.pow(g.players[id].vpBought||0,cfg.escP||2))}
 export function canExchange(g,id){const b=rallyBundle(g,id);if(!g.rally||g.phase!=='action'||g.winner!==null||!b||!canAfford(g.players[id],b))return false;
   const sum=RESOURCES.reduce((s,r)=>s+b[r],0);return countResources(g.players[id])>=sum+rallySurcharge(g,id)}
 export function doExchange(g,id){if(!canExchange(g,id))return false;const p=g.players[id];pay(p,rallyBundle(g,id));
   let sur=rallySurcharge(g,id);const ord=[...RESOURCES].sort((a,b)=>p.resources[b]-p.resources[a]);for(const r of ord){while(sur>0&&p.resources[r]>0){p.resources[r]--;sur--}}
   p.score++;p.vpBought=(p.vpBought||0)+1;g.log=`${p.name} 用資源兌換咗 1 勝利分。`;checkWinner(g);return true}
+/* ===== 租借村城：一次性租金（視地塊骰子數字），租期內該座產出歸租客、分數擁有者同租客都唔計 ===== */
+export function leaseRenter(g,vid){if(!g.leases)return null;const L=g.leases.find(x=>x.vid===vid&&g.round<=x.until);return L?L.renter:null}
+export function leasedVP(g,id){if(!g.leases)return 0;let s=0;for(const L of g.leases){if(g.round<=L.until&&L.owner===id){const v=g.vertices[L.vid];if(v&&v.owner===id)s+=v.level}}return s}
+function pipW(n){return n&&n!==7?6-Math.abs(7-n):0}
+// 租金（資源份數）：該村城所觸及地塊嘅旺度總和 × 等級
+export function rentFor(g,vid){const v=g.vertices[vid];if(!v)return Infinity;let s=0;for(const t of g.tiles)if(t.type!=='desert'&&t.vertices.includes(vid))s+=pipW(t.num);return Math.max(3,Math.round(s*(v.level||1)))}
+export function canLease(g,id,vid){if(!g.rally||g.phase!=='action'||g.winner!==null)return false;const v=g.vertices[vid];
+  if(!v||v.owner==null||v.owner===id||v.level<1)return false;                       // 只准租對手已有嘅村/城
+  if(leaseRenter(g,vid)!=null)return false;                                          // 已被租緊
+  if((g.players[id].leaseLeft!=null?g.players[id].leaseLeft:0)<=0)return false;      // 自己仲有租借次數
+  return countResources(g.players[id])>=rentFor(g,vid)}
+export function doLease(g,id,vid){if(!canLease(g,id,vid))return false;const v=g.vertices[vid],owner=v.owner,p=g.players[id],o=g.players[owner];
+  let rent=rentFor(g,vid);const ord=[...RESOURCES].sort((a,b)=>p.resources[b]-p.resources[a]);
+  for(const r of ord){while(rent>0&&p.resources[r]>0){p.resources[r]--;o.resources[r]++;rent--}}   // 租金過數畀擁有者
+  g.leases=g.leases||[];g.leases.push({vid,owner,renter:id,until:g.round+((g.rally.leaseTurns)||3)});
+  p.leaseLeft=(p.leaseLeft!=null?p.leaseLeft:0)-1;checkWinner(g);
+  g.log=`${p.name} 向 ${o.name} 租借咗一座${v.level===2?'港城':'村莊'}（${(g.rally.leaseTurns)||3} 輪）。`;return {owner,rent:rentFor(g,vid)}}
 // 劫分突襲：只准打「當前第一名」且領先你 >=2 分；偷 1 分過嚟
 export function raidTargets(g,id){if(!g.rally||g.winner!==null)return [];
   const my=totalScore(g,id),top=Math.max(...g.players.map(q=>totalScore(g,q.id)));
