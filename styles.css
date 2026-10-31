@@ -76,6 +76,7 @@
 /* v2.6：顏色選擇 + 聯賽 */
 .leaguebtn{background:#126b80;color:#fff;margin-top:8px}
 .rallybtn{background:linear-gradient(90deg,#b8860b,#f0b53b);color:#3a2a00;margin-top:8px;font-weight:900}
+.cup-note{margin-top:8px;padding:8px 11px;border-radius:10px;background:#fff3cf;border:1px solid #ead89c;font-size:11px;color:#6b5a1f;line-height:1.5}.cup-note.dim{background:#f3eedd;opacity:.75}
 #raidBtn b{color:#e5484d}#exchangeBtn b{color:#0b7}
 .swatches{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 10px}
 .swatches .sw{width:30px;height:30px;border-radius:50%;background:var(--sc);border:3px solid #fff;box-shadow:0 0 0 1px #0002;cursor:pointer;padding:0}
