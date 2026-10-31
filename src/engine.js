@@ -303,9 +303,13 @@ export function totalScore(g,id){return g.players[id].score+bonusPoints(g,id)}
 export function rallyBundle(g,id){const cfg=g.rally;if(!cfg)return null;if(cfg.bundle)return cfg.bundle;let each=cfg.bundleEach||2;
   if(id!=null&&cfg.discGap){const lead=Math.max(...g.players.map(q=>totalScore(g,q.id)));if(totalScore(g,id)<=lead-cfg.discGap)each=Math.max(1,Math.round(each*(cfg.discMul||0.5)))}
   const b={};for(const r of RESOURCES)b[r]=each;return b}
-export function canExchange(g,id){const b=rallyBundle(g,id);return !!g.rally&&g.phase==='action'&&g.winner===null&&!!b&&canAfford(g.players[id],b)}
+// 越換越貴：買得越多，額外要畀嘅附加資源越多（任何資源，棄最多嗰種）
+export function rallySurcharge(g,id){const cfg=g.rally;if(!cfg||!cfg.escStep)return 0;return Math.floor((g.players[id].vpBought||0)*cfg.escStep)}
+export function canExchange(g,id){const b=rallyBundle(g,id);if(!g.rally||g.phase!=='action'||g.winner!==null||!b||!canAfford(g.players[id],b))return false;
+  const sum=RESOURCES.reduce((s,r)=>s+b[r],0);return countResources(g.players[id])>=sum+rallySurcharge(g,id)}
 export function doExchange(g,id){if(!canExchange(g,id))return false;const p=g.players[id];pay(p,rallyBundle(g,id));
-  p.score++;p.vpBought=(p.vpBought||0)+1;g.log=`${p.name} 用一籃子資源兌換咗 1 勝利分。`;checkWinner(g);return true}
+  let sur=rallySurcharge(g,id);const ord=[...RESOURCES].sort((a,b)=>p.resources[b]-p.resources[a]);for(const r of ord){while(sur>0&&p.resources[r]>0){p.resources[r]--;sur--}}
+  p.score++;p.vpBought=(p.vpBought||0)+1;g.log=`${p.name} 用資源兌換咗 1 勝利分。`;checkWinner(g);return true}
 // 劫分突襲：只准打「當前第一名」且領先你 >=2 分；偷 1 分過嚟
 export function raidTargets(g,id){if(!g.rally||g.winner!==null)return [];
   const my=totalScore(g,id),top=Math.max(...g.players.map(q=>totalScore(g,q.id)));
