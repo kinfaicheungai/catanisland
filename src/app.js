@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,canTarget,turboRoll,reclaimTile,reclaimCost,reclaimCandidates,deckCounts,capWinner,rallyBundle,rallySurcharge,canExchange,doExchange,raidTargets,raidCandidates,canRaid,doRaid,canLease,doLease,rentFor,rentBase,leaseRenter,leaseWouldAccept,leaseReservation,leaseAcceptsOffer,eliminateLast}from'./engine.js?v=5.38';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,canTarget,turboRoll,reclaimTile,reclaimCost,reclaimCandidates,deckCounts,capWinner,rallyBundle,rallySurcharge,canExchange,doExchange,raidTargets,raidCandidates,canRaid,doRaid,canLease,doLease,rentFor,rentBase,leaseRenter,leaseWouldAccept,leaseReservation,leaseAcceptsOffer,eliminateLast}from'./engine.js?v=5.39';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 let VX=260,VY=245,VS=49;const sx=x=>VX+x*VS,sy=y=>VY+y*VS,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -715,7 +715,32 @@ function turboWorthwhile(id){const p=game.players[id];const tot=countResources(p
   const nearCity=(p.resources.ore>=2&&p.resources.grain>=1)||(p.resources.ore>=3);
   if(nearCity&&tot<=6)return true;
   return false}
+// 電腦追里程碑（按個性分工，實現多元策略）；回傳有冇出手
+function aiPursueMilestones(id){const g=game,p=g.players[id],per=p.persona||'balanced';p.ms=p.ms||{};
+  const wantInd=per==='builder'||per==='balanced',wantCom=per==='trader'||per==='balanced',wantRoad=per==='expander'||per==='balanced';
+  // 🏭 工業：黃金地段升／起城
+  if(wantInd&&!p.ms.ind){for(const t of g.tiles){if(!t.hub)continue;const myV=t.vertices.filter(vi=>g.vertices[vi].owner===id);
+    if(myV.filter(vi=>g.vertices[vi].level===2).length>=2)break;
+    const up=myV.find(vi=>g.vertices[vi].level===1&&legalCities(g,id).includes(vi)&&canAfford(p,COSTS.city));
+    if(up!=null){placeCity(g,id,up);return 1}
+    const bd=t.vertices.find(vi=>legalSettlements(g,id).includes(vi)&&canAfford(p,COSTS.settlement));
+    if(bd!=null){placeSettlement(g,id,bd);return 1}}}
+  // ⚓ 商業：集 3 種資源港
+  if(wantCom&&!p.ms.p3){const have=new Set();g.ports.forEach(port=>{if(port.kind!=='any'&&(g.vertices[port.a].owner===id||g.vertices[port.b].owner===id))have.add(port.kind)});
+    if(have.size<3)for(const port of g.ports){if(port.kind==='any'||have.has(port.kind))continue;const vid=[port.a,port.b].find(v=>legalSettlements(g,id).includes(v)&&canAfford(p,COSTS.settlement));if(vid!=null){placeSettlement(g,id,vid);return 1}}}
+  // 🛣 公路：朝未掂到嘅港口鋪路
+  if(wantRoad&&!p.ms.p5){const touched=new Set();g.ports.forEach((port,pi)=>{if(g.edges.some(e=>e.owner===id&&(e.a===port.a||e.b===port.a||e.a===port.b||e.b===port.b)))touched.add(pi)});
+    if(touched.size<5&&canAfford(p,COSTS.road)){const legal=legalRoads(g,id);
+      // 優先揀掂到新港口嘅合法路
+      let best=legal.find(eid=>{const e=g.edges[eid];return g.ports.some((port,pi)=>!touched.has(pi)&&(e.a===port.a||e.b===port.a||e.a===port.b||e.b===port.b))});
+      if(best==null){ // 否則揀最近未掂港口嘅路（靠港口頂點距離）
+        const targets=g.ports.map((port,pi)=>({pi,v:port.a})).filter(x=>!touched.has(x.pi));
+        if(targets.length){const pv=g.vertices;let bd=Infinity;for(const eid of legal){const e=g.edges[eid];for(const tg of targets){const tv=pv[tg.v],ev=pv[e.a];const d=(tv.x-ev.x)**2+(tv.y-ev.y)**2;if(d<bd){bd=d;best=eid}}}}}
+      if(best!=null){placeRoad(g,id,best);return 1}}}
+  return 0}
 async function rallyAiActs(id){
+  // 0) 追里程碑（最多 2 個建造動作/回合）
+  let mb=0;while(mb++<2&&game.winner===null&&aiPursueMilestones(id)){render();sfx.build();checkMilestones();await sleep(360);if(game.winner!==null)return}
   const p=game.players[id],per=p.persona||'balanced';
   // 1) 劫分突襲：落後時瞄準第一名出手
   if(canRaid(game,id)&&Math.random()<(RAID_PERSONA[per]||0.5)){const r=doRaid(game,id);if(r){render();sfx.build();logSkill('🏴 '+p.name+' 向第 '+r.rank+' 名 '+game.players[r.victim].name+' 劫走 1 分！');await sleep(560);if(game.winner!==null)return}}
@@ -1405,7 +1430,7 @@ function startRally(){
   forceDesert=false;humanPack=null;aiKitDriver=null;raceDrivers=null;raceSprint=false;raceMelee=false;prevLeader=null;nearSaid=false;closeSaid=false;humanKitEntry=null;reclaimVid=null;
   const opt=raceOpts(rallyDrivers,false);deClash(opt);              // 用聯賽車隊屬性，無墊底補償/熱度扣分（盃賽獨立）
   raceWeather='clear';raceCity='超級拉力盃';raceStation=`季中盃 · ${rallyDrivers.length} 隊 · 目標 30`;
-  game=makeGame(undefined,{axial:SHAPES.superisle,...opt,target:36,roundCap:128,pieces:{...RALLY_PIECES},deckMul:RALLY_DECK,rally:{...RALLY_CFG}});
+  game=makeGame(undefined,{axial:SHAPES.superisle,...opt,target:30,roundCap:128,pieces:{...RALLY_PIECES},deckMul:RALLY_DECK,rally:{...RALLY_CFG}});
   game.players.forEach((p,k)=>{p.affinity=league.drivers[rallyDrivers[k]].affinity;p.leaseLeft=RALLY_CFG.leaseUses});
   game.leases=[];
   {const nb=new Set(game.tiles.map(t=>t.q+','+t.r));  // 兩個內陸黃金地段（離海岸遠：六面都有鄰地）
@@ -1429,7 +1454,7 @@ function renderRallyHall(){const d=loadRally(),el=$('#rallyList');if(!el)return;
   el.innerHTML=fast+d.champs.map((c,i)=>`<div class="rec-row"><span class="dot" style="background:${c.color}"></span><b>${c.name}</b><small>${c.rounds!=null?c.rounds+' 輪':'逼和'}</small></div>`).join('')}
 
 /* ============ 事件綁定 ============ */
-const VERSION='5.38';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
+const VERSION='5.39';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
 $('#exhibitBtn').onclick=startExhibition;
 {const c=$('#commentaryChk');if(c){c.checked=commentaryOn;c.addEventListener('change',()=>{commentaryOn=c.checked;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');if(!commentaryOn&&window.speechSynthesis)window.speechSynthesis.cancel()})}}
 $('#commentary')?.addEventListener('click',()=>setCommentary(!commentaryOn));
