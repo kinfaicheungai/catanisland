@@ -286,6 +286,8 @@
 .st-nm{display:flex;align-items:center;gap:5px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .st-nm i{font-style:normal;font-weight:800;color:#c8911a;width:14px}.st-nm .dot{width:9px;height:9px;border-radius:50%;flex:none}
 .st-h .st-nm{color:#6b5a1f}
+.st-nm .lo{color:#9a7b2a;font-size:8px;background:#fff3cf;border-radius:5px;padding:0 4px}
+.st-foot{padding:7px 9px;font-size:10px;color:#6b5a1f;background:#f3eedd;border-top:1px solid #e3d9bd}
 .liverank{position:absolute;top:8px;right:8px;z-index:3;background:#062e42d9;border:1px solid #ffffff2b;border-radius:10px;padding:5px 7px;max-width:40%;pointer-events:none;backdrop-filter:blur(2px)}
 .liverank>b{display:block;font-size:8px;letter-spacing:1px;color:#8fd3df;margin-bottom:3px;text-align:center}
 .lr-row{display:flex;align-items:center;gap:4px;font-size:9px;color:#eaf6fa;line-height:1.5}

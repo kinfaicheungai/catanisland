@@ -73,12 +73,12 @@ export function makeGame(rng=Math.random,opts={}){
     if(b&&b.type&&res[b.type]!=null)res[b.type]+=b.amount;                     // 資源型車隊：開局多幾張
     let dock=pen[id]||0;for(const r of ['wool','grain','brick','wood','ore']){while(dock>0&&res[r]>0){res[r]--;dock--}} // 上場贏家：扣起始資源
     if(half&&half[id])for(const r of RESOURCES)res[r]=Math.floor(res[r]/2); // 拆卸包代價：起始資源減半
-    return{id,name,color:cols[id],style:styl?styl[id]:'solid',alt:alts?alts[id]:null,strength:strs[id],persona:pers[id],heat:(opts.heats&&opts.heats[id])||0,score:0,roads:0,cards:[],knights:0,resources:res,ports:[],vpBought:0}
+    return{id,name,color:cols[id],style:styl?styl[id]:'solid',alt:alts?alts[id]:null,strength:strs[id],persona:pers[id],heat:(opts.heats&&opts.heats[id])||0,score:0,roads:0,cards:[],knights:0,resources:res,ports:[],vpBought:0,leasedOut:0}
   });
   if(opts.startVP)players.forEach((p,id)=>{p.score+=(opts.startVP[id]||0)}); // 墊底補償：帶勝利點開局
   const coast=topo.edges.filter(e=>edgeTileCount(topo,e.id)===1),nPorts=Math.min(9,Math.max(6,Math.floor(coast.length/3))),portKinds=['wood','brick','grain','wool','ore','any','any','any','any','any','any'],ports=[];
   for(let i=0;i<nPorts;i++){const e=coast[Math.floor(i*coast.length/nPorts)];ports.push({edge:e.id,a:e.a,b:e.b,kind:portKinds[i%portKinds.length],ratio:portKinds[i%portKinds.length]==='any'?3:2})}
-  return{round:1,turn:0,phase:'setup',layout:kind,target:opts.target||((kind==='large'||N>=22)?12:10),roundCap:opts.roundCap||((kind==='large'||N>=22)?38:28),pieces:opts.pieces||null,rally:opts.rally||null,raidLeft:opts.rally?names.map(()=>opts.rally.raidUses||0):null,deck:buildDeck(rng,opts.deckMul),...topo,players,ports,winner:null,largestArmy:null,longestRoad:null,lastRoll:null,dice:null,production:[],robber:topo.tiles.find(t=>t.type==='desert').id,discards:null,robberPending:false,robberFromCard:false,freeRoads:0,steal:null,weather:opts.weather||'clear',log:'開局：每支隊伍揀選一座村莊同一條相連航線嘅位置。'}
+  return{round:1,turn:0,phase:'setup',layout:kind,target:opts.target||((kind==='large'||N>=22)?12:10),roundCap:opts.roundCap||((kind==='large'||N>=22)?38:28),pieces:opts.pieces||null,rally:opts.rally||null,raidLeft:opts.rally?names.map(()=>opts.rally.raidUses||0):null,deck:buildDeck(rng,opts.deckMul),...topo,players,ports,winner:null,largestArmy:null,longestRoad:null,topLessor:null,lastRoll:null,dice:null,production:[],robber:topo.tiles.find(t=>t.type==='desert').id,discards:null,robberPending:false,robberFromCard:false,freeRoads:0,steal:null,weather:opts.weather||'clear',log:'開局：每支隊伍揀選一座村莊同一條相連航線嘅位置。'}
 }
 
 /* ---------- 開局選址（初始擺放）---------- */
@@ -256,8 +256,14 @@ export function updateBonuses(g){
   else{const top=g.players.filter((p,i)=>Ls[i]===maxL).map(p=>p.id);
     if(top.length===1)g.longestRoad=top[0];
     else if(!(g.longestRoad!=null&&Ls[g.longestRoad]>=LONGEST_ROAD_MIN))g.longestRoad=top[0]}
+  // 放租王：放租最多次（≥門檻），嚴格超越現任先易手
+  const Lmin=(g.rally&&g.rally.lessorMin)||3;
+  let bl=g.topLessor,blc=(bl!=null&&!g.players[bl].retired)?(g.players[bl].leasedOut||0):Lmin-1;
+  for(const p of g.players)if(!p.retired&&(p.leasedOut||0)>=Lmin&&(p.leasedOut||0)>blc){bl=p.id;blc=p.leasedOut||0}
+  if(bl!=null&&(g.players[bl].retired||(g.players[bl].leasedOut||0)<Lmin))bl=null;
+  g.topLessor=bl;
 }
-export function bonusPoints(g,id){return (g.largestArmy===id?2:0)+(g.longestRoad===id?2:0)}
+export function bonusPoints(g,id){return (g.largestArmy===id?2:0)+(g.longestRoad===id?2:0)+(g.topLessor===id?2:0)}
 // 拆卸包：拆對手一座村莊 / 一條航線
 export function demolishSettlement(g,vid){const v=g.vertices[vid];if(v.owner===null||v.level!==1)return false;const o=v.owner;
   if(g.vertices.filter(x=>x.owner===o).length<=1)return false;   // 保留至少一座建築，確保仲有收成
@@ -326,17 +332,19 @@ export function canLease(g,id,vid){if(!g.rally||g.phase!=='action'||g.winner!==n
   if(leaseRenter(g,vid)!=null)return false;                                          // 已被租緊
   if((g.players[id].leaseLeft!=null?g.players[id].leaseLeft:0)<=0)return false;      // 自己仲有租借次數
   return countResources(g.players[id])>=rentFor(g,vid)}
-// 擁有者（電腦）會唔會肯租？——快贏／頭三名唔肯放（唔想失分），其餘收硬租金願意
+// 擁有者（電腦）會唔會肯租？快封王唔肯；仲追緊「放租王」（放租 <門檻）就算領先都肯放；
+// 已有放租王資格後，淨係中下游先繼續肯放
 export function leaseWouldAccept(g,ownerId){const o=g.players[ownerId];if(!o||o.retired)return false;
-  const s=totalScore(g,ownerId),target=g.target||30;
-  if(s>=target-5)return false;                                  // 快封王，唔肯畀
+  const s=totalScore(g,ownerId),target=g.target||30,Lmin=(g.rally&&g.rally.lessorMin)||3;
+  if(s>=target-4)return false;                                  // 太接近封王，唔肯放
+  if((o.leasedOut||0)<Lmin)return true;                         // 追緊放租王（+2），即使領先都肯放
   const better=g.players.filter(p=>!p.retired&&totalScore(g,p.id)>s).length;
-  if(better<3)return false;                                     // 頭三名唔肯放（保住名次）
-  return true}
+  return better>=3}                                             // 已夠放租次數：中下游先繼續放
 export function doLease(g,id,vid){if(!canLease(g,id,vid))return false;const v=g.vertices[vid],owner=v.owner,p=g.players[id],o=g.players[owner];
   let rent=rentFor(g,vid);const ord=[...RESOURCES].sort((a,b)=>p.resources[b]-p.resources[a]);
   for(const r of ord){while(rent>0&&p.resources[r]>0){p.resources[r]--;o.resources[r]++;rent--}}   // 租金過數畀擁有者
   g.leases=g.leases||[];g.leases.push({vid,owner,renter:id,until:g.round+((g.rally.leaseTurns)||3)});
+  o.leasedOut=(o.leasedOut||0)+1;                                   // 放租王:擁有者放租次數
   p.leaseLeft=(p.leaseLeft!=null?p.leaseLeft:0)-1;checkWinner(g);
   g.log=`${p.name} 向 ${o.name} 租借咗一座${v.level===2?'港城':'村莊'}（${(g.rally.leaseTurns)||3} 輪）。`;return {owner,rent:rentFor(g,vid)}}
 // 劫分突襲：要落後目標 >=4 分先可以劫；可劫第一名（原價）或第二名（成本翻倍）；偷 1 分
