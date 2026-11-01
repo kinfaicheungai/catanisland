@@ -284,6 +284,7 @@
 .lr-row i{width:11px;text-align:center;font-style:normal;font-weight:800;color:#f0c24a}
 .lr-row .dot{width:7px;height:7px;border-radius:50%;flex:none}
 .lr-row em{flex:1;font-style:normal;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:74px}
+.lr-row.out{opacity:.4;text-decoration:line-through}.lr-row.out b{color:#e5857a;text-decoration:none}
 .lr-row b{font-weight:800;color:#ffe08a}
 .lr-row.me em{color:#9ff0ff;font-weight:800}
 

@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,turboRoll,reclaimTile,reclaimCandidates,deckCounts,capWinner,rallyBundle,rallySurcharge,canExchange,doExchange,raidTargets,canRaid,doRaid,canLease,doLease,rentFor,leaseRenter}from'./engine.js?v=5.30';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,turboRoll,reclaimTile,reclaimCandidates,deckCounts,capWinner,rallyBundle,rallySurcharge,canExchange,doExchange,raidTargets,canRaid,doRaid,canLease,doLease,rentFor,leaseRenter,leaseWouldAccept,eliminateLast}from'./engine.js?v=5.31';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 let VX=260,VY=245,VS=49;const sx=x=>VX+x*VS,sy=y=>VY+y*VS,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -497,7 +497,8 @@ function chooseVertex(id){
     if(v.level===1&&kitH[sKey]>0&&kitCanSettle(v.owner)){const o=demolishSettlement(game,id);if(o!==false){sfx.build();flashVertex(id);logSkill('💣 你拆咗 '+game.players[o].name+' 一座村莊');commentary('demolish',{n:game.players[0].name,v:game.players[o].name},.9);if(humanKitEntry&&humanKitEntry.to==null&&raceDrivers)humanKitEntry.to=raceDrivers[o];kitH[sKey]--;kitMark(o,'s');rallyKitSpend();saveLeague();afterDemolish()}return}
     return}
   if(mode==='lease'){if(!canLease(game,0,id)){toast('🤝 呢座租唔到');return}const v=game.vertices[id],rent=rentFor(game,id),owner=game.players[v.owner].name;
-    if(window.confirm(`租借 ${owner} 一座${v.level===2?'港城':'村莊'}？\n一次性租金 ${rent} 份資源（會過數畀對方），租期 ${(game.rally&&game.rally.leaseTurns)||3} 輪。\n租期內嗰座產出歸你，佢暫時失去嗰座勝利分。`)){const r=doLease(game,0,id);if(r){mode=null;sfx.coin();flashVertex(id);logSkill('🤝 你租咗 '+owner+' 一座'+(v.level===2?'港城':'村莊')+'（'+r.rent+' 份租金）');render();if(game.winner!==null){showEnd();return}saveLive()}}return}
+    if(!leaseWouldAccept(game,v.owner)){toast('🤝 '+owner+' 唔肯租（佢位置太前／快封王）');mode=null;render();return}  // 要對方肯先租到
+    if(window.confirm(`向 ${owner} 提出租借一座${v.level===2?'港城':'村莊'}？\n一次性租金 ${rent} 份資源（過數畀對方），租期 ${(game.rally&&game.rally.leaseTurns)||3} 輪。\n租期內嗰座產出歸你，佢暫時失去嗰座勝利分。\n（${owner} 已表示願意成交）`)){const r=doLease(game,0,id);if(r){mode=null;sfx.coin();flashVertex(id);logSkill('🤝 你同 '+owner+' 達成租約，租咗一座'+(v.level===2?'港城':'村莊')+'（'+r.rent+' 份租金）');render();if(game.winner!==null){showEnd();return}saveLive()}}return}
   if(mode==='initSettle'){if(placeInitialSettlement(game,0,id)){setup.vid=id;mode='initRoad';render();flashVertex(id);sfx.build()}return}
   const ok=mode==='settlement'?placeSettlement(game,0,id):mode==='city'?placeCity(game,0,id):false;
   if(ok){mode=null;render();flashVertex(id);sfx.build()}
@@ -532,7 +533,7 @@ function render(){
   $('#ticker').textContent=mode?modePrompt():game.log;
   $('#dice').textContent=game.dice?game.dice.map(face).join(' '):'⚄ ⚂';
   $('#rivals').innerHTML=game.players.slice(1).map(p=>`<article class="rv${p.id}${game.turn===p.id&&busy?' active':''}"><span style="--pc:${p.color};background:${cssPaint(p)}">${p.name[0]}</span><div><b>${p.name} ${trophy(p.id)}</b><small>${(PERSONA_NAME[p.persona]||'').slice(0,3)} · ${totalScore(game,p.id)}分 · 🛣${longestRoadLength(game,p.id)} · ⚔${p.knights}</small></div></article>`).join('');
-  {const lr=$('#liveRank');if(lr){const ord=game.players.map(p=>p.id).sort((a,b)=>totalScore(game,b)-totalScore(game,a)||countResources(game.players[b])-countResources(game.players[a]));lr.innerHTML='<b>即時排位</b>'+ord.map((id,i)=>`<span class="lr-row${id===0?' me':''}"><i>${i+1}</i><span class="dot" style="background:${cssPaint(game.players[id])}"></span><em>${game.players[id].name}</em><b>${totalScore(game,id)}</b></span>`).join('')}}
+  {const lr=$('#liveRank');if(lr){const ord=game.players.map(p=>p.id).sort((a,b)=>((game.players[a].retired?1:0)-(game.players[b].retired?1:0))||totalScore(game,b)-totalScore(game,a)||countResources(game.players[b])-countResources(game.players[a]));lr.innerHTML='<b>即時排位</b>'+ord.map((id,i)=>{const rt=game.players[id].retired;return `<span class="lr-row${id===0?' me':''}${rt?' out':''}"><i>${rt?'⛔':i+1}</i><span class="dot" style="background:${cssPaint(game.players[id])}"></span><em>${game.players[id].name}</em><b>${rt?'OUT':totalScore(game,id)}</b></span>`}).join('')}}
   $('#resources').innerHTML=RESOURCES.map(r=>`<div data-res="${r}"><span>${ICONS[r]}</span><b>${me.resources[r]}</b><small>${LABELS[r]}</small></div>`).join('');
   // 只顯示當前階段主掣（慳位）
   const demo=mode==='demo';
@@ -709,12 +710,15 @@ async function rallyAiActs(id){
     const mine=game.vertices.filter(v=>v.owner===id&&onPort(game,v.id)&&reclaimCandidates(game,v.id).length>0);
     if(mine.length){const t=reclaimTile(game,mine[0].id,p.affinity||'grain',[6,8][Math.floor(Math.random()*2)]);if(t!==false){game.rallyLand[id]--;render();sfx.build();flashTile(game.tiles.length-1);logSkill('🏝 '+p.name+' 填海造地！');await sleep(560);if(game.winner!==null)return}}
   }
-  // 4) 租借：精明型/貿易型偶爾租對手旺地（優先租領頭羊，搶產出兼暫停佢分數）
+  // 4) 租借：精明型/貿易型偶爾租「肯放」嘅對手旺地（搶產出）。租人類要人類肯；租電腦睇佢位置
   if((game.players[id].leaseLeft||0)>0&&(per==='trader'||per==='balanced'||per==='expander')&&Math.random()<0.35){
-    const sc=b=>totalScore(game,b),lead=Math.max(...game.players.map(q=>sc(q.id)));
-    const cands=game.vertices.filter(v=>v.owner!=null&&v.owner!==id&&v.level>=1&&canLease(game,id,v.id)&&sc(v.owner)>=lead-2)
-      .sort((a,b)=>(sc(b.owner)*10+b.level)-(sc(a.owner)*10+a.level));
-    if(cands.length){const r=doLease(game,id,cands[0].id);if(r){render();sfx.coin();flashVertex(cands[0].id);logSkill('🤝 '+p.name+' 租咗 '+game.players[r.owner].name+' 一座'+(game.vertices[cands[0].id].level===2?'港城':'村莊'));await sleep(560);if(game.winner!==null)return}}
+    const cands=game.vertices.filter(v=>v.owner!=null&&v.owner!==id&&v.level>=1&&canLease(game,id,v.id)&&(v.owner===0||leaseWouldAccept(game,v.owner)))
+      .sort((a,b)=>rentFor(game,b.id)-rentFor(game,a.id));   // 揀最旺（產出最高）嗰座
+    if(cands.length){const tv=cands[0],ownerNm=game.players[tv.owner].name,rent=rentFor(game,tv.id);
+      let ok=true;
+      if(tv.owner===0){ok=window.confirm(`🤝 ${p.name} 想租你一座${tv.level===2?'港城':'村莊'} ${(game.rally&&game.rally.leaseTurns)||3} 輪，畀你 ${rent} 份資源。\n租期內嗰座產出歸佢，你暫時失去嗰座勝利分。\n接受合約？`);}
+      if(ok){const r=doLease(game,id,tv.id);if(r){render();sfx.coin();flashVertex(tv.id);logSkill('🤝 '+p.name+' 同 '+ownerNm+' 達成租約，租咗一座'+(tv.level===2?'港城':'村莊'));await sleep(560);if(game.winner!==null)return}}
+      else{logSkill('🤝 你拒絕咗 '+p.name+' 嘅租約')}}
   }
   // 5) 換分：手上夠資源就買（最多 2 次／回合，靜靜地做，睇即時排位反映）
   let t=0;while(t++<2&&game.winner===null&&canExchange(game,id))doExchange(game,id);
@@ -725,13 +729,22 @@ function humanExchange(){if(busy||!rallyActive)return;if(!canExchange(game,0)){c
 function humanRaid(){if(busy||!rallyActive)return;
   if(!canRaid(game,0)){const t=raidTargets(game,0);if(!(game.raidLeft&&game.raidLeft[0]>0))toast('🏴 劫分次數用晒');else if(!t.length)toast('🏴 淨係可以劫當前第一名（要領先你 2 分以上）');else toast('🏴 資源唔夠（要 1 礦 1 糧 1 羊）');return}
   const r=doRaid(game,0);if(r){sfx.build();logSkill('🏴 你向領頭嘅 '+game.players[r.victim].name+' 劫走 1 分！');render();if(game.winner!==null){showEnd();return}saveLive()}}
-function leasableVerts(){if(!rallyActive)return[];return game.vertices.filter(v=>canLease(game,0,v.id)).map(v=>v.id)}
+function leasableVerts(){if(!rallyActive)return[];return game.vertices.filter(v=>canLease(game,0,v.id)&&leaseWouldAccept(game,v.owner)).map(v=>v.id)}
 function beginLease(){if(busy||!rallyActive||game.phase!=='action'||blocked(game))return;if(mode==='lease'){mode=null;game.log='收起租借。';render();return}const vs=leasableVerts();if(!vs.length){toast('🤝 冇啱嘅對手村城（要租金夠、未被租）');return}mode='lease';game.log='🤝 租借：點一個對手嘅發光村/城（租期 '+((game.rally&&game.rally.leaseTurns)||3)+' 輪，產出歸你、佢暫時失去嗰座分數）';render();toast('🤝 揀一個對手村城嚟租')}
+async function doEliminate(at){
+  const res=eliminateLast(game);if(!res)return;
+  const elimNm=game.players[res.elim].name,t1=game.players[res.top1].name,t2=game.players[res.top2].name;
+  logSkill(`⛔ 第 ${at} 輪淘汰：${elimNm} 包尾出局！資產瓜分 → ${t1}+${res.vp1}分、${t2}+${res.vp2}分`);
+  toast(`⛔ ${at} 輪淘汰：${elimNm} 出局，資產歸 ${t1}／${t2}`);
+  render();await sleep(1100);
+  if(res.elim===0){toast('⛔ 你喺第 '+at+' 輪包尾被淘汰，盃賽對你結束。');game.cappedOut=true;game.winner=finishOrder(game)[0];game.phase='end'}
+}
 async function schedule(){
   if(!game||game.winner!==null){busy=false;render();if(game&&game.winner!==null)sfx.win();return}
   busy=true;
   while(game.op<game.order.length){
     const id=game.order[game.op];
+    if(game.players[id].retired){game.op++;continue}  // 已淘汰：跳過
     if(game.round===1&&game.players[id].skipFirst){game.players[id].skipFirst=false;if(id===0)toast('🚧 拆卸代價：你首輪停擺');else toast('🚧 '+game.players[id].name+' 首輪停擺');game.op++;continue} // 拆卸代價：首輪停擺
     if(id===0){game.turn=0;game.phase='roll';game.freeRoads=0;busy=false;game.log=`排位第 ${game.op+1} 位 · 輪到你擲骰。`;render();return}
     await playAiTurn(id);
@@ -739,6 +752,11 @@ async function schedule(){
     game.op++;
   }
   game.round++;game.op=0;
+  // 拉力賽淘汰賽制：32 輪後、64 輪後，當前最後一名被迫退賽，資產由頭兩名瓜分
+  if(rallyActive&&game.winner===null){
+    if(game.round>32&&!game.elim32){game.elim32=true;await doEliminate(32);if(game.winner!==null){busy=false;render();sfx.win();return}}
+    if(game.round>64&&!game.elim64){game.elim64=true;await doEliminate(64);if(game.winner!==null){busy=false;render();sfx.win();return}}
+  }
   if(game.round>(game.roundCap||30)&&game.winner===null){capWinner(game);busy=false;render();sfx.win();return}
   if(game.resAff&&game.round<=6&&game.winner===null){applyResPacks(game);if(game.resAff[0])toast('📦 資源包：+1 '+LABELS[game.resAff[0]])} // 資源包派資源（前 6 輪）
   // 天氣：跟本站預先計好嘅計劃變化（每站有氣候偏向、頻率有高有低）
@@ -1344,7 +1362,7 @@ function renderRallyHall(){const d=loadRally(),el=$('#rallyList');if(!el)return;
   el.innerHTML=fast+d.champs.map((c,i)=>`<div class="rec-row"><span class="dot" style="background:${c.color}"></span><b>${c.name}</b><small>${c.rounds!=null?c.rounds+' 輪':'逼和'}</small></div>`).join('')}
 
 /* ============ 事件綁定 ============ */
-const VERSION='5.30';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
+const VERSION='5.31';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
 $('#exhibitBtn').onclick=startExhibition;
 {const c=$('#commentaryChk');if(c){c.checked=commentaryOn;c.addEventListener('change',()=>{commentaryOn=c.checked;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');if(!commentaryOn&&window.speechSynthesis)window.speechSynthesis.cancel()})}}
 $('#commentary')?.addEventListener('click',()=>setCommentary(!commentaryOn));
