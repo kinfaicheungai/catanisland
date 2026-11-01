@@ -325,28 +325,33 @@ export function doExchange(g,id){if(!canExchange(g,id))return false;const p=g.pl
 export function leaseRenter(g,vid){if(!g.leases)return null;const L=g.leases.find(x=>x.vid===vid&&g.round<=x.until);return L?L.renter:null}
 export function leasedVP(g,id){if(!g.leases)return 0;let s=0;for(const L of g.leases){if(g.round<=L.until&&L.owner===id){const v=g.vertices[L.vid];if(v&&v.owner===id)s+=v.level}}return s}
 function pipW(n){return n&&n!==7?6-Math.abs(7-n):0}
-// 租金（資源份數）：該村城所觸及地塊嘅旺度總和 × 等級
-export function rentFor(g,vid){const v=g.vertices[vid];if(!v)return Infinity;let s=0;for(const t of g.tiles)if(t.type!=='desert'&&t.vertices.includes(vid))s+=pipW(t.num);return Math.max(3,Math.round(s*(v.level||1)))}
-export function canLease(g,id,vid){if(!g.rally||g.phase!=='action'||g.winner!==null)return false;const v=g.vertices[vid];
+// 旺度基準（滿價 = 旺度總和 × 等級）
+export function rentBase(g,vid){const v=g.vertices[vid];if(!v)return Infinity;let s=0;for(const t of g.tiles)if(t.type!=='desert'&&t.vertices.includes(vid))s+=pipW(t.num);return s*(v.level||1)}
+// 實際租金 = 基準 × 出價倍率（談判範圍 leaseMinMul~leaseMaxMul，預設 leaseDefMul）
+export function rentFor(g,vid,mul){const cfg=g.rally||{};const m=(mul!=null?mul:(cfg.leaseDefMul||0.6));return Math.max(3,Math.round(rentBase(g,vid)*m))}
+export function canLease(g,id,vid,mul){if(!g.rally||g.phase!=='action'||g.winner!==null)return false;const v=g.vertices[vid];
   if(!v||v.owner==null||v.owner===id||v.level<1)return false;                       // 只准租對手已有嘅村/城
   if(leaseRenter(g,vid)!=null)return false;                                          // 已被租緊
   if((g.players[id].leaseLeft!=null?g.players[id].leaseLeft:0)<=0)return false;      // 自己仲有租借次數
-  return countResources(g.players[id])>=rentFor(g,vid)}
-// 擁有者（電腦）會唔會肯租？快封王唔肯；仲追緊「放租王」（放租 <門檻）就算領先都肯放；
-// 已有放租王資格後，淨係中下游先繼續肯放
-export function leaseWouldAccept(g,ownerId){const o=g.players[ownerId];if(!o||o.retired)return false;
-  const s=totalScore(g,ownerId),target=g.target||30,Lmin=(g.rally&&g.rally.lessorMin)||3;
-  if(s>=target-4)return false;                                  // 太接近封王，唔肯放
-  if((o.leasedOut||0)<Lmin)return true;                         // 追緊放租王（+2），即使領先都肯放
+  return countResources(g.players[id])>=rentFor(g,vid,mul)}
+// 擁有者（電腦）嘅保留價：肯接受嘅最低出價倍率（null = 任何價都唔租）
+export function leaseReservation(g,ownerId){const o=g.players[ownerId];if(!o||o.retired)return null;
+  const s=totalScore(g,ownerId),target=g.target||30,Lmin=(g.rally&&g.rally.lessorMin)||3,minM=(g.rally&&g.rally.leaseMinMul)||0.5;
+  if(s>=target-4)return null;                                   // 太接近封王，唔租
+  if((o.leasedOut||0)<Lmin)return minM;                         // 追緊放租王：收最低價都肯
   const better=g.players.filter(p=>!p.retired&&totalScore(g,p.id)>s).length;
-  return better>=3}                                             // 已夠放租次數：中下游先繼續放
-export function doLease(g,id,vid){if(!canLease(g,id,vid))return false;const v=g.vertices[vid],owner=v.owner,p=g.players[id],o=g.players[owner];
-  let rent=rentFor(g,vid);const ord=[...RESOURCES].sort((a,b)=>p.resources[b]-p.resources[a]);
+  if(better<3)return null;                                      // 已攞獎又領先：唔租
+  return 0.7}                                                   // 中下游：想要至少七成價
+export function leaseWouldAccept(g,ownerId){return leaseReservation(g,ownerId)!=null}
+export function leaseAcceptsOffer(g,ownerId,mul){const r=leaseReservation(g,ownerId);return r!=null&&mul>=r-1e-9}
+export function doLease(g,id,vid,mul){if(!canLease(g,id,vid,mul))return false;const v=g.vertices[vid],owner=v.owner,p=g.players[id],o=g.players[owner];
+  let rent=rentFor(g,vid,mul);const ord=[...RESOURCES].sort((a,b)=>p.resources[b]-p.resources[a]);
   for(const r of ord){while(rent>0&&p.resources[r]>0){p.resources[r]--;o.resources[r]++;rent--}}   // 租金過數畀擁有者
   g.leases=g.leases||[];g.leases.push({vid,owner,renter:id,until:g.round+((g.rally.leaseTurns)||3)});
   o.leasedOut=(o.leasedOut||0)+1;                                   // 放租王:擁有者放租次數
   p.leaseLeft=(p.leaseLeft!=null?p.leaseLeft:0)-1;checkWinner(g);
-  g.log=`${p.name} 向 ${o.name} 租借咗一座${v.level===2?'港城':'村莊'}（${(g.rally.leaseTurns)||3} 輪）。`;return {owner,rent:rentFor(g,vid)}}
+  const paid=Math.max(3,Math.round(rentBase(g,vid)*(mul!=null?mul:(g.rally.leaseDefMul||0.6))));
+  g.log=`${p.name} 向 ${o.name} 租借咗一座${v.level===2?'港城':'村莊'}（${(g.rally.leaseTurns)||4} 輪）。`;return {owner,rent:paid}}
 // 劫分突襲：要落後目標 >=4 分先可以劫；可劫第一名（原價）或第二名（成本翻倍）；偷 1 分
 function scaleCost(cost,m){const o={};for(const k in cost)o[k]=(cost[k]||0)*m;return o}
 export function raidCandidates(g,id){if(!g.rally||g.winner!==null)return [];
