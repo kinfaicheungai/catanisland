@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,turboRoll,reclaimTile,reclaimCandidates,deckCounts,capWinner,rallyBundle,rallySurcharge,canExchange,doExchange,raidTargets,canRaid,doRaid,canLease,doLease,rentFor,leaseRenter,leaseWouldAccept,eliminateLast}from'./engine.js?v=5.31';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,turboRoll,reclaimTile,reclaimCandidates,deckCounts,capWinner,rallyBundle,rallySurcharge,canExchange,doExchange,raidTargets,raidCandidates,canRaid,doRaid,canLease,doLease,rentFor,leaseRenter,leaseWouldAccept,eliminateLast}from'./engine.js?v=5.32';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 let VX=260,VY=245,VS=49;const sx=x=>VX+x*VS,sy=y=>VY+y*VS,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -549,6 +549,7 @@ function render(){
   {const xb=$('#exchangeBtn');if(xb){xb.hidden=!rallyActive||demo;if(rallyActive){const bd=rallyBundle(game,0)||{},ok=RESOURCES.filter(r=>me.resources[r]>=(bd[r]||0)).length,ea=bd.wood||2,sur=rallySurcharge(game,0);$('#exCost').textContent=ok+'/5'+(ea<2?'·半':'')+(sur>0?('+'+sur):'');xb.disabled=busy||!action||blk||!canExchange(game,0)}}}
   {const rdb=$('#raidBtn');if(rdb){const rl=(game.raidLeft&&game.raidLeft[0])||0;rdb.hidden=!rallyActive||demo||rl<=0;$('#raidCount').textContent=rl;rdb.disabled=busy||!action||blk||!canRaid(game,0)}}
   {const lb=$('#leaseBtn');if(lb){const ll=(game.players[0].leaseLeft)||0;lb.hidden=!rallyActive||demo||ll<=0;$('#leaseCount').textContent=ll;lb.disabled=busy||!action||blk;lb.classList.toggle('selected',mode==='lease')}}
+  {const stb=$('#statusBtn');if(stb)stb.hidden=!rallyActive}
   {const rb=$('#retireBtn');if(rb)rb.hidden=!((leagueActive||rallyActive)&&game.winner===null&&!setup)}  // 放棄本場（聯賽/季後賽/拉力賽進行中先顯示）
   $$('[data-build]').forEach(b=>{const type=b.dataset.build,legal=type==='road'?legalRoads(game,0):type==='settlement'?legalSettlements(game,0):legalCities(game,0);const afford=(type==='road'&&roadFree)||canAfford(me,COSTS[type]);b.disabled=busy||!action||blk||!afford||!legal.length;b.classList.toggle('selected',mode===type)});
   const deckLeft=game.deck?game.deck.length:0;$('#cardBtn').disabled=busy||!action||blk||!canAfford(me,COSTS.card)||deckLeft===0;{const cb=$('#cardBtn small');if(cb)cb.textContent=deckLeft>0?('牌庫 '+deckLeft):'牌庫已空'}
@@ -693,7 +694,7 @@ const RAID_PERSONA={raider:0.85,balanced:0.55,trader:0.5,expander:0.45,builder:0
 async function rallyAiActs(id){
   const p=game.players[id],per=p.persona||'balanced';
   // 1) 劫分突襲：落後時瞄準第一名出手
-  if(canRaid(game,id)&&Math.random()<(RAID_PERSONA[per]||0.5)){const r=doRaid(game,id);if(r){render();sfx.build();logSkill('🏴 '+p.name+' 劫走領頭 '+game.players[r.victim].name+' 1 分！');await sleep(560);if(game.winner!==null)return}}
+  if(canRaid(game,id)&&Math.random()<(RAID_PERSONA[per]||0.5)){const r=doRaid(game,id);if(r){render();sfx.build();logSkill('🏴 '+p.name+' 向第 '+r.rank+' 名 '+game.players[r.victim].name+' 劫走 1 分！');await sleep(560);if(game.winner!==null)return}}
   // 2) 拆卸：破壞型/突襲型偶爾拆領頭羊嘅城/村/路
   if(game.rallyKit&&game.rallyKit[id]>0&&(per==='raider'||per==='balanced')&&Math.random()<0.4){
     const sc=b=>totalScore(game,b),lead=Math.max(...game.players.map(q=>sc(q.id)));
@@ -726,9 +727,18 @@ async function rallyAiActs(id){
 }
 function rallyKitSpend(){if(!rallyActive)return;game.kitLeftHuman=(game.kitLeftHuman||1)-1;if(game.kitLeftHuman<=0){kitH.as=kitH.ar=kitH.ac=0;kitArmed=false}}
 function humanExchange(){if(busy||!rallyActive)return;if(!canExchange(game,0)){const bd=rallyBundle(game,0)||{},e=bd.wood||2,sur=rallySurcharge(game,0);toast('🏦 換 1 分要每樣各 '+e+' 份'+(sur>0?('，再加 '+sur+' 份任何資源（越換越貴）'):'')+'（木磚糧羊礦要齊）');return}doExchange(game,0);sfx.coin();logSkill('🏦 你用一籃子資源換咗 1 勝利分！');render();if(game.winner!==null){showEnd();return}saveLive()}
+function costStr(c){return RESOURCES.filter(r=>c[r]>0).map(r=>c[r]+' '+LABELS[r]).join('＋')}
+function doHumanRaid(victim){const r=doRaid(game,0,victim);if(r){sfx.build();logSkill('🏴 你向第 '+r.rank+' 名 '+game.players[r.victim].name+' 劫走 1 分！');render();if(game.winner!==null){showEnd();return}saveLive()}}
 function humanRaid(){if(busy||!rallyActive)return;
-  if(!canRaid(game,0)){const t=raidTargets(game,0);if(!(game.raidLeft&&game.raidLeft[0]>0))toast('🏴 劫分次數用晒');else if(!t.length)toast('🏴 淨係可以劫當前第一名（要領先你 2 分以上）');else toast('🏴 資源唔夠（要 1 礦 1 糧 1 羊）');return}
-  const r=doRaid(game,0);if(r){sfx.build();logSkill('🏴 你向領頭嘅 '+game.players[r.victim].name+' 劫走 1 分！');render();if(game.winner!==null){showEnd();return}saveLive()}}
+  const all=raidCandidates(game,0);
+  if(!all.length){if(!(game.raidLeft&&game.raidLeft[0]>0))toast('🏴 劫分次數用晒');else toast('🏴 要落後第一／第二名 4 分或以上先可以劫');return}
+  const ok=all.filter(c=>canAfford(game.players[0],c.cost));
+  if(!ok.length){const c=all[0];toast('🏴 資源唔夠（劫第 '+c.rank+' 名要 '+costStr(c.cost)+'）');return}
+  if(ok.length===1){const c=ok[0];if(window.confirm(`劫第 ${c.rank} 名 ${game.players[c.victim].name}？\n成本 ${costStr(c.cost)}${c.rank===2?'（第二名雙倍）':''}，搶 1 分過嚟。`))doHumanRaid(c.victim);return}
+  // 兩個目標都劫得起：揀邊個
+  const c1=ok.find(c=>c.rank===1),c2=ok.find(c=>c.rank===2);
+  if(window.confirm(`劫第 1 名 ${game.players[c1.victim].name}（成本 ${costStr(c1.cost)}）？\n\n撳「取消」改為劫第 2 名 ${game.players[c2.victim].name}（成本 ${costStr(c2.cost)}・雙倍）`))doHumanRaid(c1.victim);
+  else if(window.confirm(`確定改劫第 2 名 ${game.players[c2.victim].name}？成本 ${costStr(c2.cost)}（雙倍）。`))doHumanRaid(c2.victim)}
 function leasableVerts(){if(!rallyActive)return[];return game.vertices.filter(v=>canLease(game,0,v.id)&&leaseWouldAccept(game,v.owner)).map(v=>v.id)}
 function beginLease(){if(busy||!rallyActive||game.phase!=='action'||blocked(game))return;if(mode==='lease'){mode=null;game.log='收起租借。';render();return}const vs=leasableVerts();if(!vs.length){toast('🤝 冇啱嘅對手村城（要租金夠、未被租）');return}mode='lease';game.log='🤝 租借：點一個對手嘅發光村/城（租期 '+((game.rally&&game.rally.leaseTurns)||3)+' 輪，產出歸你、佢暫時失去嗰座分數）';render();toast('🤝 揀一個對手村城嚟租')}
 async function doEliminate(at){
@@ -967,6 +977,13 @@ function logSkill(t,quiet){if(!quiet)toast(t);
   updateLogBtn()}
 function clearFeed(){feedLog=[];const f=$('#skillFeed');if(f)f.innerHTML='';updateLogBtn()}
 function updateLogBtn(){const b=$('#logBtn');if(b){b.hidden=feedLog.length===0;const c=$('#logCount');if(c)c.textContent=feedLog.length}}
+function renderStatus(){const el=$('#statusBody');if(!el||!game)return;
+  const ord=game.players.map(p=>p.id).sort((a,b)=>((game.players[a].retired?1:0)-(game.players[b].retired?1:0))||totalScore(game,b)-totalScore(game,a));
+  const dem=id=>id===0?(game.kitLeftHuman||0):((game.rallyKit&&game.rallyKit[id])||0);
+  const lnd=id=>id===0?(game.landLeftHuman||0):((game.rallyLand&&game.rallyLand[id])||0);
+  const tur=id=>(game.turboLeft&&game.turboLeft[id])||0,lea=id=>game.players[id].leaseLeft||0,rai=id=>(game.raidLeft&&game.raidLeft[id])||0;
+  el.innerHTML=`<div class="st-h"><span class="st-nm">車隊</span><b>分</b><span>⚡</span><span>💣</span><span>🏝</span><span>🤝</span><span>🏴</span></div>`+
+    ord.map((id,i)=>{const rt=game.players[id].retired;return `<div class="st-row${id===0?' me':''}${rt?' out':''}"><span class="st-nm"><i>${rt?'⛔':i+1}</i><span class="dot" style="background:${cssPaint(game.players[id])}"></span>${game.players[id].name}</span><b>${rt?'—':totalScore(game,id)}</b><span>${rt?'—':tur(id)}</span><span>${rt?'—':dem(id)}</span><span>${rt?'—':lnd(id)}</span><span>${rt?'—':lea(id)}</span><span>${rt?'—':rai(id)}</span></div>`}).join('')}
 function openLog(){const el=$('#logList');if(el)el.innerHTML=feedLog.length?feedLog.slice().reverse().map(x=>`<div class="logrow">${x}</div>`).join(''):'<p style="text-align:center;color:#8aa">仲未有技能使用紀錄</p>';$('#logDialog').showModal()}
 
 /* ============ 日文實況旁述（免費・瀏覽器語音）============ */
@@ -1362,7 +1379,7 @@ function renderRallyHall(){const d=loadRally(),el=$('#rallyList');if(!el)return;
   el.innerHTML=fast+d.champs.map((c,i)=>`<div class="rec-row"><span class="dot" style="background:${c.color}"></span><b>${c.name}</b><small>${c.rounds!=null?c.rounds+' 輪':'逼和'}</small></div>`).join('')}
 
 /* ============ 事件綁定 ============ */
-const VERSION='5.31';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
+const VERSION='5.32';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
 $('#exhibitBtn').onclick=startExhibition;
 {const c=$('#commentaryChk');if(c){c.checked=commentaryOn;c.addEventListener('change',()=>{commentaryOn=c.checked;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');if(!commentaryOn&&window.speechSynthesis)window.speechSynthesis.cancel()})}}
 $('#commentary')?.addEventListener('click',()=>setCommentary(!commentaryOn));
@@ -1412,6 +1429,8 @@ $('#leaseBtn')?.addEventListener('click',()=>{if(!busy&&game&&game.phase==='acti
 $('#rallyBtn')?.addEventListener('click',startRally);
 $('#logBtn')?.addEventListener('click',openLog);
 $('#closeLog')?.addEventListener('click',()=>$('#logDialog').close());
+$('#statusBtn')?.addEventListener('click',()=>{renderStatus();$('#statusDialog').showModal()});
+$('#closeStatus')?.addEventListener('click',()=>$('#statusDialog').close());
 $('#rallyHallBtn')?.addEventListener('click',()=>{renderRallyHall();$('#rallyDialog').showModal()});
 $('#closeRally')?.addEventListener('click',()=>$('#rallyDialog').close());
 $('#closeReclaim').onclick=()=>{$('#reclaimDialog').close()};

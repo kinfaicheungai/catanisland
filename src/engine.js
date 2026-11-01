@@ -339,16 +339,22 @@ export function doLease(g,id,vid){if(!canLease(g,id,vid))return false;const v=g.
   g.leases=g.leases||[];g.leases.push({vid,owner,renter:id,until:g.round+((g.rally.leaseTurns)||3)});
   p.leaseLeft=(p.leaseLeft!=null?p.leaseLeft:0)-1;checkWinner(g);
   g.log=`${p.name} 向 ${o.name} 租借咗一座${v.level===2?'港城':'村莊'}（${(g.rally.leaseTurns)||3} 輪）。`;return {owner,rent:rentFor(g,vid)}}
-// 劫分突襲：只准打「當前第一名」且領先你 >=2 分；偷 1 分過嚟
-export function raidTargets(g,id){if(!g.rally||g.winner!==null)return [];
-  const my=totalScore(g,id),top=Math.max(...g.players.map(q=>totalScore(g,q.id)));
-  if(top<=my)return [];
-  return g.players.filter(q=>q.id!==id&&totalScore(g,q.id)===top&&totalScore(g,q.id)>=my+2).map(q=>q.id)}
-export function canRaid(g,id){return !!g.rally&&g.phase==='action'&&g.winner===null&&!!(g.raidLeft&&g.raidLeft[id]>0)&&canAfford(g.players[id],g.rally.raidCost||{})&&raidTargets(g,id).length>0}
-export function doRaid(g,id,rng=Math.random){if(!canRaid(g,id))return false;const tg=raidTargets(g,id),victim=tg[Math.floor((rng()||0)*tg.length)%tg.length];
-  pay(g.players[id],g.rally.raidCost||{});g.raidLeft[id]--;
-  g.players[victim].score=Math.max(0,g.players[victim].score-1);g.players[id].score++;
-  g.log=`${g.players[id].name} 向領頭嘅 ${g.players[victim].name} 發動劫分突襲，搶走 1 分！`;checkWinner(g);return {victim}}
+// 劫分突襲：要落後目標 >=4 分先可以劫；可劫第一名（原價）或第二名（成本翻倍）；偷 1 分
+function scaleCost(cost,m){const o={};for(const k in cost)o[k]=(cost[k]||0)*m;return o}
+export function raidCandidates(g,id){if(!g.rally||g.winner!==null)return [];
+  const my=totalScore(g,id),base=g.rally.raidCost||{};
+  const ranked=g.players.filter(p=>!p.retired).sort((a,b)=>totalScore(g,b.id)-totalScore(g,a.id)||a.id-b.id);
+  const out=[];
+  [0,1].forEach(r=>{const p=ranked[r];if(!p||p.id===id)return;if(totalScore(g,p.id)-my>=4)out.push({victim:p.id,rank:r+1,cost:scaleCost(base,r===0?1:2)})});
+  return out}
+export function raidTargets(g,id){return raidCandidates(g,id).map(c=>c.victim)}  // 兼容舊呼叫
+export function canRaid(g,id){return !!g.rally&&g.phase==='action'&&g.winner===null&&!!(g.raidLeft&&g.raidLeft[id]>0)&&raidCandidates(g,id).some(c=>canAfford(g.players[id],c.cost))}
+export function doRaid(g,id,victim,rng=Math.random){if(!g.rally||g.phase!=='action'||g.winner!==null||!(g.raidLeft&&g.raidLeft[id]>0))return false;
+  const cands=raidCandidates(g,id).filter(c=>canAfford(g.players[id],c.cost));if(!cands.length)return false;
+  let pick;if(victim!=null)pick=cands.find(c=>c.victim===victim);if(!pick)pick=cands[0];   // 預設劫第一名
+  pay(g.players[id],pick.cost);g.raidLeft[id]--;
+  g.players[pick.victim].score=Math.max(0,g.players[pick.victim].score-1);g.players[id].score++;
+  g.log=`${g.players[id].name} 向第 ${pick.rank} 名 ${g.players[pick.victim].name} 發動劫分突襲，搶走 1 分！`;checkWinner(g);return {victim:pick.victim,rank:pick.rank}}
 // 名次：由高分到低分（勝者總分必最高），平手用回合物資做次序
 export function finishOrder(g){return g.players.map(p=>p.id).sort((a,b)=>((g.players[a].retired?1:0)-(g.players[b].retired?1:0))||totalScore(g,b)-totalScore(g,a)||countResources(g.players[b])-countResources(g.players[a])||a-b)}
 export function checkWinner(g){updateBonuses(g);const t=g.target||10,w=g.players.find(p=>!p.retired&&totalScore(g,p.id)>=t);if(w){g.winner=w.id;g.phase='end'}return w||null}
