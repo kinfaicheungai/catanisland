@@ -245,30 +245,37 @@ export function longestRoadLength(g,id){
   return best
 }
 export function updateBonuses(g){
-  // 最大軍閥：出過最多騎士（≥3），要嚴格超越現任先易手
-  let ba=g.largestArmy,bn=ba!=null?g.players[ba].knights:LARGEST_ARMY_MIN-1;
-  for(const p of g.players)if(p.knights>=LARGEST_ARMY_MIN&&p.knights>bn){ba=p.id;bn=p.knights}
+  // 最大軍閥：出過最多騎士（≥3），嚴格超越現任先易手；排除已淘汰
+  let ba=(g.largestArmy!=null&&!g.players[g.largestArmy].retired)?g.largestArmy:null;
+  let bn=ba!=null?g.players[ba].knights:LARGEST_ARMY_MIN-1;
+  for(const p of g.players)if(!p.retired&&p.knights>=LARGEST_ARMY_MIN&&p.knights>bn){ba=p.id;bn=p.knights}
   g.largestArmy=ba;
-  // 最長道路：最長連續航線（≥門檻），破紀錄先易手
-  const Ls=g.players.map(p=>longestRoadLength(g,p.id)),maxL=Math.max(...Ls);
+  // 最長道路：最長連續航線（≥門檻），排除已淘汰
+  const Ls=g.players.map(p=>p.retired?0:longestRoadLength(g,p.id)),maxL=Math.max(...Ls);
   if(maxL<LONGEST_ROAD_MIN)g.longestRoad=null;
-  else if(g.longestRoad!=null&&Ls[g.longestRoad]===maxL){/* 現任平手，保留 */}
-  else{const top=g.players.filter((p,i)=>Ls[i]===maxL).map(p=>p.id);
-    if(top.length===1)g.longestRoad=top[0];
-    else if(!(g.longestRoad!=null&&Ls[g.longestRoad]>=LONGEST_ROAD_MIN))g.longestRoad=top[0]}
-  // 放租王：放租最多次（≥門檻），嚴格超越現任先易手
+  else if(g.longestRoad!=null&&!g.players[g.longestRoad].retired&&Ls[g.longestRoad]===maxL){/* 現任平手，保留 */}
+  else{const top=g.players.filter((p,i)=>!p.retired&&Ls[i]===maxL).map(p=>p.id);
+    if(g.longestRoad!=null&&!g.players[g.longestRoad].retired&&Ls[g.longestRoad]>=LONGEST_ROAD_MIN){/* 現任仍達標，保留 */}
+    else g.longestRoad=top.length?top[0]:null}
+  // 放租王：放租最多次（≥門檻），要「唯一最多」先持有；平手則懸空（可爭奪，唔會先到先得鎖死）
   const Lmin=(g.rally&&g.rally.lessorMin)||3;
-  let bl=g.topLessor,blc=(bl!=null&&!g.players[bl].retired)?(g.players[bl].leasedOut||0):Lmin-1;
-  for(const p of g.players)if(!p.retired&&(p.leasedOut||0)>=Lmin&&(p.leasedOut||0)>blc){bl=p.id;blc=p.leasedOut||0}
-  if(bl!=null&&(g.players[bl].retired||(g.players[bl].leasedOut||0)<Lmin))bl=null;
-  g.topLessor=bl;
+  let mx=0,who=[];for(const p of g.players)if(!p.retired){const c=p.leasedOut||0;if(c>mx){mx=c;who=[p.id]}else if(c===mx&&c>0)who.push(p.id)}
+  g.topLessor=(mx>=Lmin&&who.length===1)?who[0]:null;
 }
 export function bonusPoints(g,id){return (g.largestArmy===id?2:0)+(g.longestRoad===id?2:0)+(g.topLessor===id?2:0)}
+// 負面技能保護：每玩家每輪最多被一項負面技能命中；拆卸唔可以連續兩輪
+export function canTarget(g,id,kind){const p=g.players[id];if(!p||p.retired)return false;
+  if(!g.rally)return true;                                    // 只喺拉力賽先有呢啲保護
+  if(p.hitRound===g.round)return false;                       // 本輪已被負面技能命中
+  if(kind==='demolish'&&p.demoRound===g.round-1)return false; // 連續兩輪唔可以被拆
+  return true}
+function markHit(g,id,kind){const p=g.players[id];p.hitRound=g.round;if(kind==='demolish')p.demoRound=g.round}
 // 拆卸包：拆對手一座村莊 / 一條航線
 export function demolishSettlement(g,vid){const v=g.vertices[vid];if(v.owner===null||v.level!==1)return false;const o=v.owner;
+  if(!canTarget(g,o,'demolish'))return false;
   if(g.vertices.filter(x=>x.owner===o).length<=1)return false;   // 保留至少一座建築，確保仲有收成
-  g.players[o].score=Math.max(0,g.players[o].score-1);v.owner=null;v.level=0;updateBonuses(g);return o}
-export function demolishRoad(g,eid){const e=g.edges[eid];if(!e||e.owner===null)return false;const o=e.owner;g.players[o].roads=Math.max(0,g.players[o].roads-1);e.owner=null;updateBonuses(g);return o}
+  g.players[o].score=Math.max(0,g.players[o].score-1);v.owner=null;v.level=0;markHit(g,o,'demolish');updateBonuses(g);return o}
+export function demolishRoad(g,eid){const e=g.edges[eid];if(!e||e.owner===null)return false;const o=e.owner;if(!canTarget(g,o,'demolish'))return false;g.players[o].roads=Math.max(0,g.players[o].roads-1);e.owner=null;markHit(g,o,'demolish');updateBonuses(g);return o}
 // 填海：喺指定村莊（島邊港口）相鄰嘅海上，加一塊自選資源、自選骰點嘅地塊。回傳新地塊 id，或 false。
 function spliceHex(g,q,r,type,num){
   const vmap=new Map();g.vertices.forEach(v=>vmap.set(key(v.x,v.y),v.id));
@@ -291,13 +298,21 @@ export function reclaimCandidates(g,vid){const V=g.vertices[vid];if(!V)return[];
     for(let kk=0;kk<6;kk++){const a=Math.PI/180*(60*kk-30);if(key(cx+Math.cos(a),cy+Math.sin(a))===key(V.x,V.y)){corner=true;break}}
     if(corner){seen.add(k);out.push({q:nq,r:nr})}}
   return out;}
-export function reclaimTile(g,vid,resource,num){const c=reclaimCandidates(g,vid);if(!c.length)return false;const owner=g.vertices[vid]&&g.vertices[vid].owner;const t=spliceHex(g,c[0].q,c[0].r,resource,num);
-  if(t!==false&&owner!=null){const p=g.players[owner];p.extraSettle=(p.extraSettle||0)+1;p.extraRoad=(p.extraRoad||0)+3}  // 填海：多 1 村 3 路建設額度
-  return t}
+// 填海成本（拉力賽）：遞增 —— base + step × 已填次數
+export function reclaimCost(g,ownerId){const base=(g.rally&&g.rally.reclaimBase)||3,step=(g.rally&&g.rally.reclaimStep)||3;return base+step*((g.players[ownerId]&&g.players[ownerId].reclaimCount)||0)}
+export function reclaimTile(g,vid,resource,num,rng=Math.random){const c=reclaimCandidates(g,vid);if(!c.length)return false;const owner=g.vertices[vid]&&g.vertices[vid].owner;if(owner==null)return false;const p=g.players[owner],rally=!!g.rally;
+  const cost=rally?reclaimCost(g,owner):0;if(rally&&countResources(p)<cost)return false;
+  const n=rally?[5,6,8,9][Math.floor((rng()||0)*4)%4]:(num||8);                         // 拉力賽：點數隨機 5/6/8/9
+  const t=spliceHex(g,c[0].q,c[0].r,resource,n);if(t===false)return false;
+  if(rally){let need=cost;const ord=[...RESOURCES].sort((a,b)=>p.resources[b]-p.resources[a]);for(const r of ord){while(need>0&&p.resources[r]>0){p.resources[r]--;need--}}
+    p.reclaimCount=(p.reclaimCount||0)+1;p.extraSettle=(p.extraSettle||0)+1}                // 拉力賽：遞增成本、只 +1 村額度
+  else{p.extraSettle=(p.extraSettle||0)+1;p.extraRoad=(p.extraRoad||0)+3}                    // 聯賽：舊行為
+  return{tile:t,num:n,cost}}
 // 拆卸包「攻城」：拆一座港城（對手 −2 分）
 export function demolishCity(g,vid){const v=g.vertices[vid];if(!v||v.owner===null||v.level!==2)return false;const o=v.owner;
+  if(!canTarget(g,o,'demolish'))return false;
   if(g.vertices.filter(x=>x.owner===o).length<=1)return false;
-  g.players[o].score=Math.max(0,g.players[o].score-2);v.owner=null;v.level=0;updateBonuses(g);return o}
+  g.players[o].score=Math.max(0,g.players[o].score-2);v.owner=null;v.level=0;markHit(g,o,'demolish');updateBonuses(g);return o}
 // Turbo 包：額外擲一鋪，只派資源畀自己（擲到 7 當落空；跟天氣/海盜規則）
 export function turboRoll(g,id,rng=Math.random){
   const a=1+Math.floor(rng()*6),b=1+Math.floor(rng()*6),n=a+b,got=[];
@@ -347,7 +362,7 @@ export function leaseAcceptsOffer(g,ownerId,mul){const r=leaseReservation(g,owne
 export function doLease(g,id,vid,mul){if(!canLease(g,id,vid,mul))return false;const v=g.vertices[vid],owner=v.owner,p=g.players[id],o=g.players[owner];
   let rent=rentFor(g,vid,mul);const ord=[...RESOURCES].sort((a,b)=>p.resources[b]-p.resources[a]);
   for(const r of ord){while(rent>0&&p.resources[r]>0){p.resources[r]--;o.resources[r]++;rent--}}   // 租金過數畀擁有者
-  g.leases=g.leases||[];g.leases.push({vid,owner,renter:id,until:g.round+((g.rally.leaseTurns)||3)});
+  g.leases=g.leases||[];g.leases.push({vid,owner,renter:id,until:g.round+((g.rally.leaseTurns)||4)-1});  // 包括本輪，共 N 輪
   o.leasedOut=(o.leasedOut||0)+1;                                   // 放租王:擁有者放租次數
   p.leaseLeft=(p.leaseLeft!=null?p.leaseLeft:0)-1;checkWinner(g);
   const paid=Math.max(3,Math.round(rentBase(g,vid)*(mul!=null?mul:(g.rally.leaseDefMul||0.6))));
@@ -358,7 +373,7 @@ export function raidCandidates(g,id){if(!g.rally||g.winner!==null)return [];
   const my=totalScore(g,id),base=g.rally.raidCost||{};
   const ranked=g.players.filter(p=>!p.retired).sort((a,b)=>totalScore(g,b.id)-totalScore(g,a.id)||a.id-b.id);
   const out=[];
-  [0,1].forEach(r=>{const p=ranked[r];if(!p||p.id===id)return;if(totalScore(g,p.id)-my>=4)out.push({victim:p.id,rank:r+1,cost:scaleCost(base,r===0?1:2)})});
+  [0,1].forEach(r=>{const p=ranked[r];if(!p||p.id===id)return;if(!canTarget(g,p.id,'raid'))return;if(totalScore(g,p.id)-my>=4)out.push({victim:p.id,rank:r+1,cost:scaleCost(base,r===0?1:2)})});
   return out}
 export function raidTargets(g,id){return raidCandidates(g,id).map(c=>c.victim)}  // 兼容舊呼叫
 export function canRaid(g,id){return !!g.rally&&g.phase==='action'&&g.winner===null&&!!(g.raidLeft&&g.raidLeft[id]>0)&&raidCandidates(g,id).some(c=>canAfford(g.players[id],c.cost))}
@@ -366,30 +381,42 @@ export function doRaid(g,id,victim,rng=Math.random){if(!g.rally||g.phase!=='acti
   const cands=raidCandidates(g,id).filter(c=>canAfford(g.players[id],c.cost));if(!cands.length)return false;
   let pick;if(victim!=null)pick=cands.find(c=>c.victim===victim);if(!pick)pick=cands[0];   // 預設劫第一名
   pay(g.players[id],pick.cost);g.raidLeft[id]--;
-  g.players[pick.victim].score=Math.max(0,g.players[pick.victim].score-1);g.players[id].score++;
+  g.players[pick.victim].score=Math.max(0,g.players[pick.victim].score-1);g.players[id].score++;markHit(g,pick.victim,'raid');
   g.log=`${g.players[id].name} 向第 ${pick.rank} 名 ${g.players[pick.victim].name} 發動劫分突襲，搶走 1 分！`;checkWinner(g);return {victim:pick.victim,rank:pick.rank}}
 // 名次：由高分到低分（勝者總分必最高），平手用回合物資做次序
 export function finishOrder(g){return g.players.map(p=>p.id).sort((a,b)=>((g.players[a].retired?1:0)-(g.players[b].retired?1:0))||totalScore(g,b)-totalScore(g,a)||countResources(g.players[b])-countResources(g.players[a])||a-b)}
-export function checkWinner(g){updateBonuses(g);const t=g.target||10,w=g.players.find(p=>!p.retired&&totalScore(g,p.id)>=t);if(w){g.winner=w.id;g.phase='end'}return w||null}
+export function checkWinner(g){updateBonuses(g);const t=g.target||10;
+  const cand=g.players.filter(p=>!p.retired&&totalScore(g,p.id)>=t);
+  if(cand.length){cand.sort((a,b)=>totalScore(g,b.id)-totalScore(g,a.id)||(b.id===g.turn?1:0)-(a.id===g.turn?1:0)||countResources(b)-countResources(a)||a.id-b.id);g.winner=cand[0].id;g.phase='end';return cand[0]}
+  return null}
 // 淘汰：當前最後一名退賽，佢嘅村/城/路轉讓畀頭兩名（第一名先選較高價值嗰半，其餘歸第二名）
+function recomputePlayerAssets(g,id){const p=g.players[id];
+  p.roads=g.edges.filter(e=>e.owner===id).length;                                   // 道路數同步
+  p.ports=[...new Set(g.ports.filter(port=>{const a=g.vertices[port.a],b=g.vertices[port.b];return (a&&a.owner===id)||(b&&b.owner===id)}).map(port=>port.kind))];  // 港口權重算
+}
 export function eliminateLast(g){
   const alive=g.players.filter(p=>!p.retired);
   if(alive.length<3)return null;
-  const byScore=alive.slice().sort((a,b)=>totalScore(g,b.id)-totalScore(g,a.id)||countResources(b)-countResources(a));
-  const top1=byScore[0].id,top2=byScore[1].id,elim=byScore[byScore.length-1].id;
-  if(elim===top1||elim===top2)return null;
+  const byScore=alive.slice().sort((a,b)=>totalScore(g,b.id)-totalScore(g,a.id)||countResources(b)-countResources(a)||a.id-b.id);
+  const elim=byScore[byScore.length-1].id;
+  const recips=byScore.filter(p=>p.id!==elim);
+  // 制衡：資產畀第 5、6 名瓜分（前 4 名係得分區，唔益佢哋以免雪球）；人少就用最低兩名
+  const r1=(recips[4]||recips[recips.length-1]).id;
+  const r2=(recips[5]||recips[recips.length-2]||recips[recips.length-1]).id;
+  if(r1===elim||r2===elim||r1===r2)return null;
   const builds=g.vertices.filter(v=>v.owner===elim).map(v=>({vid:v.id,vp:v.level})).sort((a,b)=>b.vp-a.vp);
   const roads=g.edges.filter(e=>e.owner===elim).map(e=>e.id);
   const totalVP=builds.reduce((s,b)=>s+b.vp,0),half=Math.ceil(totalVP/2);
   let taken1=0;const to1=[],to2=[];
-  for(const b of builds){if(taken1<half){to1.push(b);taken1+=b.vp}else to2.push(b)}
-  for(const b of to1){const v=g.vertices[b.vid];v.owner=top1;g.players[top1].score+=v.level}
-  for(const b of to2){const v=g.vertices[b.vid];v.owner=top2;g.players[top2].score+=v.level}
-  roads.forEach((eid,i)=>{g.edges[eid].owner=(i%2===0?top1:top2)});
+  for(const b of builds){if(taken1<half){to1.push(b);taken1+=b.vp}else to2.push(b)}   // 第 5 名先選一半（較高價值）
+  for(const b of to1){const v=g.vertices[b.vid];v.owner=r1;g.players[r1].score+=v.level}
+  for(const b of to2){const v=g.vertices[b.vid];v.owner=r2;g.players[r2].score+=v.level}
+  roads.forEach((eid,i)=>{g.edges[eid].owner=(i%2===0?r1:r2)});
   const el=g.players[elim];el.retired=true;el.score=0;
   if(g.leases)g.leases=g.leases.filter(L=>L.owner!==elim&&L.renter!==elim);
+  recomputePlayerAssets(g,elim);recomputePlayerAssets(g,r1);recomputePlayerAssets(g,r2);   // 道路數/港口同步
   updateBonuses(g);checkWinner(g);
-  return{elim,top1,top2,vp1:to1.reduce((s,b)=>s+b.vp,0),vp2:to2.reduce((s,b)=>s+b.vp,0),nBuild:builds.length};
+  return{elim,r1,r2,vp1:to1.reduce((s,b)=>s+b.vp,0),vp2:to2.reduce((s,b)=>s+b.vp,0),nBuild:builds.length};
 }
 // 輪次上限到：依總分（同分睇資源）定勝負
 export function capWinner(g){updateBonuses(g);const o=finishOrder(g);g.winner=o[0];g.phase='end';g.cappedOut=true;return o[0]}

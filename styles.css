@@ -294,6 +294,7 @@
 .lease-offers .offer small{font-size:9px;font-weight:600;color:#2e9e5b}
 .lease-offers .offer.no{opacity:.5}.lease-offers .offer.no small{color:#b24}
 .lease-offers .offer.yes{border-color:#2e9e5b;box-shadow:0 0 0 2px #2e9e5b22}
+.rc-note{display:block;font-size:11px;color:#6b5a1f;background:#fff3cf;border:1px solid #ead89c;border-radius:9px;padding:7px 9px;line-height:1.5}
 .liverank{position:absolute;top:8px;right:8px;z-index:3;background:#062e42d9;border:1px solid #ffffff2b;border-radius:10px;padding:5px 7px;max-width:40%;pointer-events:none;backdrop-filter:blur(2px)}
 .liverank>b{display:block;font-size:8px;letter-spacing:1px;color:#8fd3df;margin-bottom:3px;text-align:center}
 .lr-row{display:flex;align-items:center;gap:4px;font-size:9px;color:#eaf6fa;line-height:1.5}
