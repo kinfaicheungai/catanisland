@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,canTarget,turboRoll,reclaimTile,reclaimCost,reclaimCandidates,deckCounts,capWinner,rallyBundle,rallySurcharge,canExchange,doExchange,raidTargets,raidCandidates,canRaid,doRaid,canLease,doLease,rentFor,rentBase,leaseRenter,leaseWouldAccept,leaseReservation,leaseAcceptsOffer,eliminateLast}from'./engine.js?v=5.35';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,canTarget,turboRoll,reclaimTile,reclaimCost,reclaimCandidates,deckCounts,capWinner,rallyBundle,rallySurcharge,canExchange,doExchange,raidTargets,raidCandidates,canRaid,doRaid,canLease,doLease,rentFor,rentBase,leaseRenter,leaseWouldAccept,leaseReservation,leaseAcceptsOffer,eliminateLast}from'./engine.js?v=5.36';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 let VX=260,VY=245,VS=49;const sx=x=>VX+x*VS,sy=y=>VY+y*VS,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -797,7 +797,14 @@ async function schedule(){
     if(game.round>32&&!game.elim32){game.elim32=true;await doEliminate(32);if(game.winner!==null){busy=false;render();sfx.win();return}}
     if(game.round>64&&!game.elim64){game.elim64=true;await doEliminate(64);if(game.winner!==null){busy=false;render();sfx.win();return}}
   }
-  if(game.round>(game.roundCap||30)&&game.winner===null){capWinner(game);busy=false;render();sfx.win();return}
+  if(game.round>(game.roundCap||30)&&game.winner===null){
+    if(rallyActive){ // 延長賽（暫定）：128 輪未分勝負 → 每 6 輪目標 −1（封底 22），逼出勝負；256 輪硬封頂
+      if(game.round>256){capWinner(game);busy=false;render();sfx.win();return}
+      const over=game.round-(game.roundCap||128);
+      if(over===1){toast('⏱ 128 輪未有人到 30！進入延長賽');logSkill('⏱ 延長賽開始：之後每 6 輪目標 −1')}
+      if((over-1)%6===0&&game.target>22){game.target--;toast('⏱ 延長賽：目標降到 '+game.target+' 分！');logSkill('⏱ 延長賽：目標降到 '+game.target+' 分');checkWinner(game);if(game.winner!==null){busy=false;render();sfx.win();return}}
+    }else{capWinner(game);busy=false;render();sfx.win();return}
+  }
   if(game.resAff&&game.round<=6&&game.winner===null){applyResPacks(game);if(game.resAff[0])toast('📦 資源包：+1 '+LABELS[game.resAff[0]])} // 資源包派資源（前 6 輪）
   // 天氣：跟本站預先計好嘅計劃變化（每站有氣候偏向、頻率有高有低）
   if(game.wplan&&game.winner===null){let changed=null;while(game.wpi<game.wplan.length&&game.wplan[game.wpi].round<=game.round){changed=game.wplan[game.wpi].w;game.wpi++}if(changed&&changed!==game.weather){game.weather=changed;const wm=WEATHER_META[game.weather]||{};toast(wm.icon+' 天氣轉'+wm.name+'！');commentary('weatherChange',{w:wm.name})}}
@@ -1389,7 +1396,7 @@ function startRally(){
   forceDesert=false;humanPack=null;aiKitDriver=null;raceDrivers=null;raceSprint=false;raceMelee=false;prevLeader=null;nearSaid=false;closeSaid=false;humanKitEntry=null;reclaimVid=null;
   const opt=raceOpts(rallyDrivers,false);deClash(opt);              // 用聯賽車隊屬性，無墊底補償/熱度扣分（盃賽獨立）
   raceWeather='clear';raceCity='超級拉力盃';raceStation=`季中盃 · ${rallyDrivers.length} 隊 · 目標 30`;
-  game=makeGame(undefined,{axial:SHAPES.superisle,...opt,target:30,roundCap:400,pieces:{...RALLY_PIECES},deckMul:RALLY_DECK,rally:{...RALLY_CFG}});
+  game=makeGame(undefined,{axial:SHAPES.superisle,...opt,target:30,roundCap:128,pieces:{...RALLY_PIECES},deckMul:RALLY_DECK,rally:{...RALLY_CFG}});
   game.players.forEach((p,k)=>{p.affinity=league.drivers[rallyDrivers[k]].affinity;p.leaseLeft=RALLY_CFG.leaseUses});
   game.leases=[];
   {const hub=game.tiles.find(t=>t.q===0&&t.r===0&&t.type!=='desert')||game.tiles.filter(t=>t.type!=='desert').sort((a,b)=>(a.q*a.q+a.r*a.r)-(b.q*b.q+b.r*b.r))[0];if(hub){hub.type='gold';hub.hub=true;hub.num=8}}  // 中央萬能金地（8 字旺地）
@@ -1409,7 +1416,7 @@ function renderRallyHall(){const d=loadRally(),el=$('#rallyList');if(!el)return;
   el.innerHTML=fast+d.champs.map((c,i)=>`<div class="rec-row"><span class="dot" style="background:${c.color}"></span><b>${c.name}</b><small>${c.rounds!=null?c.rounds+' 輪':'逼和'}</small></div>`).join('')}
 
 /* ============ 事件綁定 ============ */
-const VERSION='5.35';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
+const VERSION='5.36';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
 $('#exhibitBtn').onclick=startExhibition;
 {const c=$('#commentaryChk');if(c){c.checked=commentaryOn;c.addEventListener('change',()=>{commentaryOn=c.checked;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');if(!commentaryOn&&window.speechSynthesis)window.speechSynthesis.cancel()})}}
 $('#commentary')?.addEventListener('click',()=>setCommentary(!commentaryOn));
