@@ -122,14 +122,15 @@ export function roll(g,rng=Math.random){
     g.robberPending=true;g.robberFromCard=false;
     g.log='海盜嚟襲！物資多過 7 份嘅隊伍要棄一半，擲骰者移動海盜封鎖島嶼。'
   }else{
-    for(const tile of g.tiles.filter(t=>t.num===n&&t.id!==g.robber))
+    for(const tile of g.tiles.filter(t=>t.num===n&&t.id!==g.robber)){
+      const w=(g.wzones&&tile.zone!=null)?g.wzones[tile.zone]:g.weather;              // 區域天氣：按地塊所屬區
       for(const vid of tile.vertices){const v=g.vertices[vid];if(v.owner===null)continue;
-        if(g.weather==='rain'&&rng()<0.2)continue;                                   // 雨：濕滑，資源流失
-        if(g.weather==='drought'&&(tile.type==='grain'||tile.type==='wool')&&rng()<0.5)continue; // 旱：農牧減產
+        if(w==='rain'&&rng()<0.2)continue;                                           // 雨：濕滑，資源流失
+        if(w==='drought'&&(tile.type==='grain'||tile.type==='wool')&&rng()<0.5)continue; // 旱：農牧減產
         const rc2=leaseRenter(g,vid),dest=rc2!=null?rc2:v.owner;                     // 租借中：產出歸租客
         let type=tile.type;if(type==='gold')type=RESOURCES[Math.floor(rng()*RESOURCES.length)]; // 黃金：隨機資源
         if(tile.hub)type=RESOURCES.slice().sort((x,y)=>g.players[dest].resources[x]-g.players[dest].resources[y])[0]; // 萬能金地：自動畀最缺嗰種
-        g.players[dest].resources[type]+=v.level;g.production.push({id:dest,tile:tile.id,type,amount:v.level,leased:rc2!=null})}
+        g.players[dest].resources[type]+=v.level;g.production.push({id:dest,tile:tile.id,type,amount:v.level,leased:rc2!=null})}}
     // 車隊實力：收到資源時有機率額外 +1（強隊明顯跑得快啲、資源優勢更大）
     for(const p of g.players){const mine=g.production.filter(x=>x.id===p.id);if(mine.length){const ch=((p.strength||3)-1)*0.05;if(rng()<ch){const pk=mine[Math.floor(rng()*mine.length)];p.resources[pk.type]++;g.production.push({id:p.id,tile:pk.tile,type:pk.type,amount:1,bonus:true})}}}
     // 保底：連續冇收成太耐（避免永無翻身），派 1 份最缺嘅資源 —— 但「分數領跑者」唔派，直到被反超先恢復
@@ -331,7 +332,7 @@ export function rallyBundle(g,id){const cfg=g.rally;if(!cfg)return null;if(cfg.b
 // 越換越貴：買得越多，額外要畀嘅附加資源越多（任何資源，棄最多嗰種）
 // 越換越貴（指數式，唔封頂）：附加資源 = escA × 已買分數 ^ escP
 export function rallySurcharge(g,id){const cfg=g.rally;if(!cfg||!cfg.escA)return 0;return Math.round(cfg.escA*Math.pow(g.players[id].vpBought||0,cfg.escP||2))}
-export function canExchange(g,id){const b=rallyBundle(g,id);if(!g.rally||g.phase!=='action'||g.winner!==null||!b||!canAfford(g.players[id],b))return false;
+export function canExchange(g,id){const b=rallyBundle(g,id);if(!g.rally||g.round<=10||g.phase!=='action'||g.winner!==null||!b||!canAfford(g.players[id],b))return false;
   const sum=RESOURCES.reduce((s,r)=>s+b[r],0);return countResources(g.players[id])>=sum+rallySurcharge(g,id)}
 export function doExchange(g,id){if(!canExchange(g,id))return false;const p=g.players[id];pay(p,rallyBundle(g,id));
   let sur=rallySurcharge(g,id);const ord=[...RESOURCES].sort((a,b)=>p.resources[b]-p.resources[a]);for(const r of ord){while(sur>0&&p.resources[r]>0){p.resources[r]--;sur--}}
@@ -344,7 +345,7 @@ function pipW(n){return n&&n!==7?6-Math.abs(7-n):0}
 export function rentBase(g,vid){const v=g.vertices[vid];if(!v)return Infinity;let s=0;for(const t of g.tiles)if(t.type!=='desert'&&t.vertices.includes(vid))s+=pipW(t.num);return s*(v.level||1)}
 // 實際租金 = 基準 × 出價倍率（談判範圍 leaseMinMul~leaseMaxMul，預設 leaseDefMul）
 export function rentFor(g,vid,mul){const cfg=g.rally||{};const m=(mul!=null?mul:(cfg.leaseDefMul||0.6));return Math.max(3,Math.round(rentBase(g,vid)*m))}
-export function canLease(g,id,vid,mul){if(!g.rally||g.phase!=='action'||g.winner!==null)return false;const v=g.vertices[vid];
+export function canLease(g,id,vid,mul){if(!g.rally||g.round<=10||g.phase!=='action'||g.winner!==null)return false;const v=g.vertices[vid];
   if(!v||v.owner==null||v.owner===id||v.level<1)return false;                       // 只准租對手已有嘅村/城
   if(leaseRenter(g,vid)!=null)return false;                                          // 已被租緊
   if((g.players[id].leaseLeft!=null?g.players[id].leaseLeft:0)<=0)return false;      // 自己仲有租借次數
@@ -376,7 +377,7 @@ export function raidCandidates(g,id){if(!g.rally||g.winner!==null)return [];
   [0,1].forEach(r=>{const p=ranked[r];if(!p||p.id===id)return;if(!canTarget(g,p.id,'raid'))return;if(totalScore(g,p.id)-my>=4)out.push({victim:p.id,rank:r+1,cost:scaleCost(base,r===0?1:2)})});
   return out}
 export function raidTargets(g,id){return raidCandidates(g,id).map(c=>c.victim)}  // 兼容舊呼叫
-export function canRaid(g,id){return !!g.rally&&g.phase==='action'&&g.winner===null&&!!(g.raidLeft&&g.raidLeft[id]>0)&&raidCandidates(g,id).some(c=>canAfford(g.players[id],c.cost))}
+export function canRaid(g,id){return !!g.rally&&g.round>10&&g.phase==='action'&&g.winner===null&&!!(g.raidLeft&&g.raidLeft[id]>0)&&raidCandidates(g,id).some(c=>canAfford(g.players[id],c.cost))}
 export function doRaid(g,id,victim,rng=Math.random){if(!g.rally||g.phase!=='action'||g.winner!==null||!(g.raidLeft&&g.raidLeft[id]>0))return false;
   const cands=raidCandidates(g,id).filter(c=>canAfford(g.players[id],c.cost));if(!cands.length)return false;
   let pick;if(victim!=null)pick=cands.find(c=>c.victim===victim);if(!pick)pick=cands[0];   // 預設劫第一名
@@ -386,13 +387,13 @@ export function doRaid(g,id,victim,rng=Math.random){if(!g.rally||g.phase!=='acti
 /* ===== 商船收購：每隔幾輪有一張訂單，交指定資源（2 種、合共 ≥6）換 1 分；只限有 2 個港口物業嘅車隊 ===== */
 export function merchantActive(g){return !!(g.merchant&&g.round<=g.merchant.until)}
 export function portBuildings(g,id){const s=new Set();for(const port of g.ports){if(g.vertices[port.a].owner===id)s.add(port.a);if(g.vertices[port.b].owner===id)s.add(port.b)}return s.size}
-export function canMerchant(g,id){return !!g.rally&&g.phase==='action'&&g.winner===null&&merchantActive(g)&&!g.merchant.claimed.includes(id)&&portBuildings(g,id)>=2&&canAfford(g.players[id],g.merchant.need)}
+export function canMerchant(g,id){return !!g.rally&&g.round>10&&g.phase==='action'&&g.winner===null&&merchantActive(g)&&!g.merchant.claimed.includes(id)&&portBuildings(g,id)>=2&&canAfford(g.players[id],g.merchant.need)}
 export function doMerchant(g,id){if(!canMerchant(g,id))return false;pay(g.players[id],g.merchant.need);g.merchant.claimed.push(id);g.players[id].score++;checkWinner(g);return true}
 export function spawnMerchant(g,rng=Math.random){const two=[...RESOURCES].sort(()=>rng()-0.5).slice(0,2),total=6+Math.floor(rng()*3),a=2+Math.floor(rng()*(total-3)),need={};need[two[0]]=a;need[two[1]]=total-a;g.merchant={res:two,need,until:g.round+3,claimed:[]};return g.merchant}
 /* ===== 發電：內陸（非沿海）同一地塊有 2 座城 → 每回合用 5 種資源各 1 張充能；儲 3 次 +1 分（黃金地段 +2）===== */
 export function powerKind(g,id){const nb=new Set(g.tiles.map(x=>x.q+','+x.r)),inland=t=>[[1,0],[-1,0],[0,1],[0,-1],[1,-1],[-1,1]].every(([dq,dr])=>nb.has((t.q+dq)+','+(t.r+dr)));
   let reg=false;for(const t of g.tiles){if(t.type==='desert'||!inland(t))continue;if(t.vertices.filter(vi=>g.vertices[vi].owner===id&&g.vertices[vi].level===2).length>=2){if(t.hub)return 'gold';reg=true}}return reg?'reg':null}
-export function canPower(g,id){return !!g.rally&&g.phase==='action'&&g.winner===null&&!!powerKind(g,id)&&RESOURCES.every(r=>g.players[id].resources[r]>=1)}
+export function canPower(g,id){return !!g.rally&&g.round>10&&g.phase==='action'&&g.winner===null&&!!powerKind(g,id)&&RESOURCES.every(r=>g.players[id].resources[r]>=1)}
 export function doPower(g,id){if(!canPower(g,id))return false;const p=g.players[id];for(const r of RESOURCES)p.resources[r]--;const k=powerKind(g,id);let scored=0;
   if(k==='gold'){p.powerG=(p.powerG||0)+1;if(p.powerG>=3){p.powerG-=3;p.score+=2;scored=2}}else{p.powerR=(p.powerR||0)+1;if(p.powerR>=3){p.powerR-=3;p.score+=1;scored=1}}
   checkWinner(g);return {kind:k,scored,g:p.powerG||0,r:p.powerR||0}}
