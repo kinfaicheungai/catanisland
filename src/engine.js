@@ -213,6 +213,9 @@ export function trade(g,id,from,to){const p=g.players[id];let ratio=tradeRatio(p
 export const CARD_TYPES=['騎士','豐收','築路','勝利點'];
 export const DECK_COMPOSITION={騎士:12,勝利點:8,築路:4,豐收:4}; // 每局牌庫（固定稀缺）
 function buildDeck(rng,mul){const d=[];for(const c in DECK_COMPOSITION){const n=Math.round(DECK_COMPOSITION[c]*(mul||1));for(let i=0;i<n;i++)d.push(c)}return shuffle(d,rng)} // mul：大混戰加量
+// 按標準比例整一副 n 張牌（拉力賽用）
+export function buildDeckN(n,rng=Math.random){const tot=Object.values(DECK_COMPOSITION).reduce((s,v)=>s+v,0),d=[];for(const c in DECK_COMPOSITION){const cnt=Math.round(DECK_COMPOSITION[c]/tot*n);for(let i=0;i<cnt;i++)d.push(c)}while(d.length<n)d.push('騎士');while(d.length>n)d.pop();return shuffle(d,rng)}
+export function shuffleDeck(d,rng=Math.random){return shuffle(d,rng)}
 export function deckCounts(g){const c={騎士:0,豐收:0,築路:0,勝利點:0};for(const x of (g.deck||[]))c[x]=(c[x]||0)+1;return c}
 export function drawCard(g,id,rng=Math.random){
   const p=g.players[id];if(blocked(g)||g.phase!=='action'||!canAfford(p,COSTS.card))return null;

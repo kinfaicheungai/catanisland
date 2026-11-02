@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,canTarget,turboRoll,reclaimTile,reclaimCost,reclaimCandidates,deckCounts,capWinner,rallyBundle,rallySurcharge,canExchange,doExchange,raidTargets,raidCandidates,canRaid,doRaid,canLease,doLease,rentFor,rentBase,leaseRenter,leaseWouldAccept,leaseReservation,leaseAcceptsOffer,eliminateLast,merchantActive,portBuildings,canMerchant,doMerchant,spawnMerchant,powerKind,canPower,doPower}from'./engine.js?v=5.43';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,canTarget,turboRoll,reclaimTile,reclaimCost,reclaimCandidates,deckCounts,buildDeckN,shuffleDeck,capWinner,rallyBundle,rallySurcharge,canExchange,doExchange,raidTargets,raidCandidates,canRaid,doRaid,canLease,doLease,rentFor,rentBase,leaseRenter,leaseWouldAccept,leaseReservation,leaseAcceptsOffer,eliminateLast,merchantActive,portBuildings,canMerchant,doMerchant,spawnMerchant,powerKind,canPower,doPower}from'./engine.js?v=5.44';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 let VX=260,VY=245,VS=49;const sx=x=>VX+x*VS,sy=y=>VY+y*VS,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -564,7 +564,7 @@ function render(){
   {const pb=$('#powerBtn');if(pb){const k=rallyActive?powerKind(game,0):null;pb.hidden=!k||demo;if(k){$('#powerProg').textContent=(k==='gold'?(me.powerG||0):(me.powerR||0))+'/3'+(k==='gold'?'·金':'');pb.disabled=busy||!action||blk||!canPower(game,0)}}}
   {const rb=$('#retireBtn');if(rb)rb.hidden=!((leagueActive||rallyActive)&&game.winner===null&&!setup)}  // 放棄本場（聯賽/季後賽/拉力賽進行中先顯示）
   $$('[data-build]').forEach(b=>{const type=b.dataset.build,legal=type==='road'?legalRoads(game,0):type==='settlement'?legalSettlements(game,0):legalCities(game,0);const afford=(type==='road'&&roadFree)||canAfford(me,COSTS[type]);b.disabled=busy||!action||blk||!afford||!legal.length;b.classList.toggle('selected',mode===type)});
-  const deckLeft=game.deck?game.deck.length:0;$('#cardBtn').disabled=busy||!action||blk||!canAfford(me,COSTS.card)||deckLeft===0;{const cb=$('#cardBtn small');if(cb)cb.textContent=deckLeft>0?('牌庫 '+deckLeft):'牌庫已空'}
+  const deckLeft=game.deck?game.deck.length:0,resv=(rallyActive&&game.deckReserve)?game.deckReserve.length:0;$('#cardBtn').disabled=busy||!action||blk||!canAfford(me,COSTS.card)||deckLeft===0;{const cb=$('#cardBtn small');if(cb)cb.textContent=(deckLeft>0?('牌庫 '+deckLeft):'牌庫已空')+(resv?('（+'+resv+'待釋放）'):'')}
   $('#tradeBtn').disabled=busy||!action||blk||!RESOURCES.some(r=>me.resources[r]>=tradeRatio(me,r));
   if(blk&&!$('#buildPanel').hidden){$('#buildPanel').hidden=true;$('#buildToggle').classList.remove('open')}
   renderBoard();showEnd();
@@ -852,6 +852,8 @@ async function schedule(){
     if(game.round>10){ // 商船變奏：解鎖後間隔 5-10 輪一張（唔固定）
       if(game.merchantNext==null)game.merchantNext=game.round+1+Math.floor(Math.random()*3);
       if(game.round>=game.merchantNext){spawnMerchant(game);const nd=game.merchant.need,txt=RESOURCES.filter(r=>nd[r]).map(r=>nd[r]+LABELS[r]).join('＋');toast('🚢 商船到埗！交 '+txt+' 換 1 分（需 2 港物業，限 3 輪）');logSkill('🚢 商船訂單：'+txt+'（換 1 分）');game.merchantNext=game.round+5+Math.floor(Math.random()*6)}}
+    // 牌庫釋放：50 輪後將剩餘 35 張混入牌庫
+    if(game.deckReserve&&game.round>50){game.deck=shuffleDeck(game.deck.concat(game.deckReserve));game.deckReserve=null;toast('🃏 牌庫釋放！剩餘 35 張混入');logSkill('🃏 50 輪到，牌庫釋放剩餘 35 張')}
     // 區域天氣：稀疏變化（每 14-22 輪隨機一區轉天氣）
     if(game.wzones&&game.round>=(game.weatherNext||99)){const z=Math.floor(Math.random()*game.wzones.length),old=game.wzones[z];let nw=pickZoneWeather(),tr=0;while(nw===old&&tr++<6)nw=pickZoneWeather();game.wzones[z]=nw;const WM=WEATHER_META[nw]||{};toast((WM.icon||'')+' '+WZ_NAMES[z]+'天氣轉'+(WM.name||nw)+'！');logSkill((WM.icon||'')+' '+WZ_NAMES[z]+' 天氣轉'+(WM.name||nw));game.weatherNext=game.round+14+Math.floor(Math.random()*8)}
   }
@@ -1463,6 +1465,7 @@ function startRally(){
    const h1=pool[0];let h2=null,bd=-1;for(const t of pool){if(t===h1)continue;const d=(t.q-h1.q)**2+(t.r-h1.r)**2;if(d>bd){bd=d;h2=t}}
    [h1,h2].forEach(h=>{if(h){h.type='gold';h.hub=true;h.num=8}});}
   game.tiles.forEach(t=>{t.zone=zoneOf(t)});game.wzones=WZ_NAMES.map(()=>pickZoneWeather());game.weatherNext=14+Math.floor(Math.random()*8);  // 區域天氣（稀疏變化）
+  {const full=buildDeckN(90);game.deck=full.slice(0,55);game.deckReserve=full.slice(55)}  // 90 張牌庫：55 張開局、35 張 50 輪後釋放
   game.turboLeft=game.players.map(()=>RALLY_CFG.turbo);
   game.rallyKit=game.players.map(()=>RALLY_CFG.kit);
   game.rallyLand=game.players.map(()=>RALLY_CFG.land);
@@ -1479,7 +1482,7 @@ function renderRallyHall(){const d=loadRally(),el=$('#rallyList');if(!el)return;
   el.innerHTML=fast+d.champs.map((c,i)=>`<div class="rec-row"><span class="dot" style="background:${c.color}"></span><b>${c.name}</b><small>${c.rounds!=null?c.rounds+' 輪':'逼和'}</small></div>`).join('')}
 
 /* ============ 事件綁定 ============ */
-const VERSION='5.43';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
+const VERSION='5.44';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
 $('#exhibitBtn').onclick=startExhibition;
 {const c=$('#commentaryChk');if(c){c.checked=commentaryOn;c.addEventListener('change',()=>{commentaryOn=c.checked;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');if(!commentaryOn&&window.speechSynthesis)window.speechSynthesis.cancel()})}}
 $('#commentary')?.addEventListener('click',()=>setCommentary(!commentaryOn));
