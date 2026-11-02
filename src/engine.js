@@ -400,8 +400,9 @@ export function doPower(g,id){if(!canPower(g,id))return false;const p=g.players[
 export function finishOrder(g){return g.players.map(p=>p.id).sort((a,b)=>((g.players[a].retired?1:0)-(g.players[b].retired?1:0))||totalScore(g,b)-totalScore(g,a)||countResources(g.players[b])-countResources(g.players[a])||a-b)}
 export function checkWinner(g){updateBonuses(g);const t=g.target||10;
   let cand=g.players.filter(p=>!p.retired&&totalScore(g,p.id)>=t);
-  if(g.rally&&cand.length){ // 拉力賽：到 t 分要領先第二名 >=4 先封王，否則要到 t+2
-    cand=cand.filter(p=>{const s=totalScore(g,p.id),others=g.players.filter(q=>!q.retired&&q.id!==p.id).map(q=>totalScore(g,q.id)),second=others.length?Math.max(...others):0;return s>=t+2||(s-second)>=4});
+  if(g.rally&&cand.length){ // 拉力賽：到 t 分要領先第二名 >=4 先封王，否則要到 t+hardBonus
+    const hb=(g.rally.hardBonus!=null?g.rally.hardBonus:2);
+    cand=cand.filter(p=>{const s=totalScore(g,p.id),others=g.players.filter(q=>!q.retired&&q.id!==p.id).map(q=>totalScore(g,q.id)),second=others.length?Math.max(...others):0;return s>=t+hb||(s-second)>=4});
   }
   if(cand.length){cand.sort((a,b)=>totalScore(g,b.id)-totalScore(g,a.id)||(b.id===g.turn?1:0)-(a.id===g.turn?1:0)||countResources(b)-countResources(a)||a.id-b.id);g.winner=cand[0].id;g.phase='end';return cand[0]}
   return null}
