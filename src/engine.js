@@ -383,6 +383,19 @@ export function doRaid(g,id,victim,rng=Math.random){if(!g.rally||g.phase!=='acti
   pay(g.players[id],pick.cost);g.raidLeft[id]--;
   g.players[pick.victim].score=Math.max(0,g.players[pick.victim].score-1);g.players[id].score++;markHit(g,pick.victim,'raid');
   g.log=`${g.players[id].name} 向第 ${pick.rank} 名 ${g.players[pick.victim].name} 發動劫分突襲，搶走 1 分！`;checkWinner(g);return {victim:pick.victim,rank:pick.rank}}
+/* ===== 商船收購：每隔幾輪有一張訂單，交指定資源（2 種、合共 ≥6）換 1 分；只限有 2 個港口物業嘅車隊 ===== */
+export function merchantActive(g){return !!(g.merchant&&g.round<=g.merchant.until)}
+export function portBuildings(g,id){const s=new Set();for(const port of g.ports){if(g.vertices[port.a].owner===id)s.add(port.a);if(g.vertices[port.b].owner===id)s.add(port.b)}return s.size}
+export function canMerchant(g,id){return !!g.rally&&g.phase==='action'&&g.winner===null&&merchantActive(g)&&!g.merchant.claimed.includes(id)&&portBuildings(g,id)>=2&&canAfford(g.players[id],g.merchant.need)}
+export function doMerchant(g,id){if(!canMerchant(g,id))return false;pay(g.players[id],g.merchant.need);g.merchant.claimed.push(id);g.players[id].score++;checkWinner(g);return true}
+export function spawnMerchant(g,rng=Math.random){const two=[...RESOURCES].sort(()=>rng()-0.5).slice(0,2),total=6+Math.floor(rng()*3),a=2+Math.floor(rng()*(total-3)),need={};need[two[0]]=a;need[two[1]]=total-a;g.merchant={res:two,need,until:g.round+3,claimed:[]};return g.merchant}
+/* ===== 發電：內陸（非沿海）同一地塊有 2 座城 → 每回合用 5 種資源各 1 張充能；儲 3 次 +1 分（黃金地段 +2）===== */
+export function powerKind(g,id){const nb=new Set(g.tiles.map(x=>x.q+','+x.r)),inland=t=>[[1,0],[-1,0],[0,1],[0,-1],[1,-1],[-1,1]].every(([dq,dr])=>nb.has((t.q+dq)+','+(t.r+dr)));
+  let reg=false;for(const t of g.tiles){if(t.type==='desert'||!inland(t))continue;if(t.vertices.filter(vi=>g.vertices[vi].owner===id&&g.vertices[vi].level===2).length>=2){if(t.hub)return 'gold';reg=true}}return reg?'reg':null}
+export function canPower(g,id){return !!g.rally&&g.phase==='action'&&g.winner===null&&!!powerKind(g,id)&&RESOURCES.every(r=>g.players[id].resources[r]>=1)}
+export function doPower(g,id){if(!canPower(g,id))return false;const p=g.players[id];for(const r of RESOURCES)p.resources[r]--;const k=powerKind(g,id);let scored=0;
+  if(k==='gold'){p.powerG=(p.powerG||0)+1;if(p.powerG>=3){p.powerG-=3;p.score+=2;scored=2}}else{p.powerR=(p.powerR||0)+1;if(p.powerR>=3){p.powerR-=3;p.score+=1;scored=1}}
+  checkWinner(g);return {kind:k,scored,g:p.powerG||0,r:p.powerR||0}}
 // 名次：由高分到低分（勝者總分必最高），平手用回合物資做次序
 export function finishOrder(g){return g.players.map(p=>p.id).sort((a,b)=>((g.players[a].retired?1:0)-(g.players[b].retired?1:0))||totalScore(g,b)-totalScore(g,a)||countResources(g.players[b])-countResources(g.players[a])||a-b)}
 export function checkWinner(g){updateBonuses(g);const t=g.target||10;
