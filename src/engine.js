@@ -257,10 +257,12 @@ export function updateBonuses(g){
   // 最長道路：最長連續航線（≥門檻），排除已淘汰
   const Ls=g.players.map(p=>p.retired?0:longestRoadLength(g,p.id)),maxL=Math.max(...Ls);
   if(maxL<LONGEST_ROAD_MIN)g.longestRoad=null;
-  else if(g.longestRoad!=null&&!g.players[g.longestRoad].retired&&Ls[g.longestRoad]===maxL){/* 現任平手，保留 */}
-  else{const top=g.players.filter((p,i)=>!p.retired&&Ls[i]===maxL).map(p=>p.id);
-    if(g.longestRoad!=null&&!g.players[g.longestRoad].retired&&Ls[g.longestRoad]>=LONGEST_ROAD_MIN){/* 現任仍達標，保留 */}
-    else g.longestRoad=top.length?top[0]:null}
+  else{const cur=g.longestRoad,curOk=cur!=null&&!g.players[cur].retired;
+    if(curOk&&Ls[cur]===maxL){/* 現任仍係最長（含平手）→ 保留 */}
+    else{const top=g.players.filter((p,i)=>!p.retired&&Ls[i]===maxL).map(p=>p.id);
+      if(top.length===1)g.longestRoad=top[0];                                         // 有唯一更長 → 易手（修正：之前會錯誤保留現任）
+      else if(!curOk||Ls[cur]<LONGEST_ROAD_MIN)g.longestRoad=top.length?top[0]:null;   // 現任斷咗／冇咗 → 另立；多人平手則保留現任
+    }}
   // 放租王：放租最多次（≥門檻），要「唯一最多」先持有；平手則懸空（可爭奪，唔會先到先得鎖死）
   const Lmin=(g.rally&&g.rally.lessorMin)||3;
   let mx=0,who=[];for(const p of g.players)if(!p.retired){const c=p.leasedOut||0;if(c>mx){mx=c;who=[p.id]}else if(c===mx&&c>0)who.push(p.id)}
