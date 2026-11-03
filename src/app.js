@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,canTarget,turboRoll,reclaimTile,reclaimCost,reclaimCandidates,deckCounts,buildDeckN,shuffleDeck,capWinner,rallyBundle,rallySurcharge,canExchange,doExchange,raidTargets,raidCandidates,canRaid,doRaid,canLease,doLease,rentFor,rentBase,leaseRenter,leaseWouldAccept,leaseReservation,leaseAcceptsOffer,eliminateLast,merchantActive,portBuildings,canMerchant,doMerchant,spawnMerchant,powerKind,canPower,doPower}from'./engine.js?v=5.47';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,canTarget,turboRoll,reclaimTile,reclaimCost,reclaimCandidates,deckCounts,buildDeckN,shuffleDeck,capWinner,rallyBundle,rallySurcharge,canExchange,doExchange,raidTargets,raidCandidates,canRaid,doRaid,canLease,doLease,rentFor,rentBase,leaseRenter,leaseWouldAccept,leaseReservation,leaseAcceptsOffer,eliminateLast,merchantActive,portBuildings,canMerchant,doMerchant,spawnMerchant,powerKind,canPower,doPower}from'./engine.js?v=5.48';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 let VX=260,VY=245,VS=49;const sx=x=>VX+x*VS,sy=y=>VY+y*VS,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -1374,6 +1374,14 @@ function renderStats(){
       return `<details class="histyear"${idx===0?' open':''}><summary class="hy-sum"><span class="hy-yr">${yr}</span><span class="hy-champ">🏆 ${se.champ}</span>${podLine}</summary><div class="hy-body">${rdLine}${finalLine}<table class="sttab histtab"><tr><th>#</th><th>車隊</th><th>分</th><th>勝</th></tr>${rows}</table></div></details>`;
     }).join('');
   }
+  // 超級拉力盃 · 歷屆冠軍（摺疊；季中盃賽，獨立於聯賽積分）
+  const rally=loadRally();
+  if(rally.champs&&rally.champs.length){
+    const fast=rally.fastest?`<div class="hy-rd">🏁 最速封盃：${rally.fastest.name} · ${rally.fastest.rounds} 輪</div>`:'';
+    const rows=rally.champs.map(c=>`<div class="rh-row"><span class="dot" style="background:${c.color||'#888'}"></span>${c.season?`<span class="rh-yr">${c.season}</span>`:''}<b class="rh-nm">${c.name}</b><small class="rh-rd">${c.rounds!=null?c.rounds+' 輪':'逼和'}</small></div>`).join('');
+    h+=`<h3 class="tbl-title" style="margin-top:14px">🏆 超級拉力盃 · 歷屆冠軍</h3>`;
+    h+=`<details class="histyear"><summary class="hy-sum"><span class="hy-yr">季中盃</span><span class="hy-champ">🏆 ${rally.champs[0].name}</span><span class="hy-podium">共 ${rally.champs.length} 屆</span></summary><div class="hy-body">${fast}<div class="rallyhist">${rows}</div></div></details>`;
+  }
   $('#statsBody').innerHTML=h;
 }
 function renderRecords(){
@@ -1488,14 +1496,14 @@ function startRally(){
 }
 /* ---- 拉力冠軍殿堂（獨立 localStorage，唔影響聯賽）---- */
 function loadRally(){try{return JSON.parse(localStorage.getItem(RALLYKEY))||{champs:[],fastest:null}}catch{return{champs:[],fastest:null}}}
-function recordRally(champ,rounds){const d=loadRally();d.champs=d.champs||[];d.champs.unshift({name:champ.name,color:champ.color,rounds,t:Date.now()});if(d.champs.length>30)d.champs.length=30;if(rounds!=null&&(!d.fastest||rounds<d.fastest.rounds))d.fastest={name:champ.name,color:champ.color,rounds};try{localStorage.setItem(RALLYKEY,JSON.stringify(d))}catch{}}
+function recordRally(champ,rounds){const d=loadRally();d.champs=d.champs||[];const season=2020+(loadHistory().length+1);d.champs.unshift({name:champ.name,color:champ.color,rounds,season,t:Date.now()});if(d.champs.length>30)d.champs.length=30;if(rounds!=null&&(!d.fastest||rounds<d.fastest.rounds))d.fastest={name:champ.name,color:champ.color,rounds};try{localStorage.setItem(RALLYKEY,JSON.stringify(d))}catch{}}
 function renderRallyHall(){const d=loadRally(),el=$('#rallyList');if(!el)return;
   if(!d.champs||!d.champs.length){el.innerHTML='<p style="text-align:center;color:#8aa">仲未有紀錄，去打一屆拉力賽先！</p>';return}
   const fast=d.fastest?`<div class="rec-fast">🏁 最速封王：<b>${d.fastest.name}</b> · ${d.fastest.rounds} 輪</div>`:'';
   el.innerHTML=fast+d.champs.map((c,i)=>`<div class="rec-row"><span class="dot" style="background:${c.color}"></span><b>${c.name}</b><small>${c.rounds!=null?c.rounds+' 輪':'逼和'}</small></div>`).join('')}
 
 /* ============ 事件綁定 ============ */
-const VERSION='5.47';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
+const VERSION='5.48';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
 $('#exhibitBtn').onclick=startExhibition;
 {const c=$('#commentaryChk');if(c){c.checked=commentaryOn;c.addEventListener('change',()=>{commentaryOn=c.checked;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');if(!commentaryOn&&window.speechSynthesis)window.speechSynthesis.cancel()})}}
 $('#commentary')?.addEventListener('click',()=>setCommentary(!commentaryOn));
