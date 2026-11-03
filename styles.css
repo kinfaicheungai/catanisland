@@ -192,6 +192,21 @@
 .stlist .stcell{display:inline-flex;align-items:center;gap:3px}
 .stlist .dot{width:9px;height:9px;border-radius:50%}
 
+/* v5.47：往季歷史手風琴摺疊 */
+.hy-hint{font-size:10px;color:#a7a294;margin:0 0 6px 2px}
+.histyear{border:1px solid #e3d9bd;border-radius:10px;margin-bottom:6px;overflow:hidden;background:#fff}
+.hy-sum{list-style:none;cursor:pointer;display:flex;align-items:center;gap:7px;padding:8px 11px;background:#f3ead0;font-size:12px;-webkit-tap-highlight-color:transparent}
+.hy-sum::-webkit-details-marker{display:none}
+.hy-sum::after{content:'›';margin-left:auto;color:#a98f55;font-size:15px;font-weight:800;line-height:1;transition:transform .15s;flex:none}
+.histyear[open] .hy-sum::after{transform:rotate(90deg)}
+.histyear[open] .hy-sum{border-bottom:1px solid #e3d9bd}
+.hy-yr{color:#8a7647;font-weight:700;flex:none}
+.hy-champ{color:#b5462f;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;min-width:0}
+.hy-podium{color:#9a9384;font-weight:600;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;min-width:0}
+.hy-body{padding:8px 10px}
+.hy-rd{font-size:10px;color:#8a7647;margin-bottom:4px}
+.fin4{font-size:10px;color:#5a6c6a;margin:2px 0 6px}
+
 /* v3.4：對陣矩陣表 */
 .sttab-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .matchtab{min-width:100%}

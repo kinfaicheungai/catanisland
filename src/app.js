@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,canTarget,turboRoll,reclaimTile,reclaimCost,reclaimCandidates,deckCounts,buildDeckN,shuffleDeck,capWinner,rallyBundle,rallySurcharge,canExchange,doExchange,raidTargets,raidCandidates,canRaid,doRaid,canLease,doLease,rentFor,rentBase,leaseRenter,leaseWouldAccept,leaseReservation,leaseAcceptsOffer,eliminateLast,merchantActive,portBuildings,canMerchant,doMerchant,spawnMerchant,powerKind,canPower,doPower}from'./engine.js?v=5.46';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,canTarget,turboRoll,reclaimTile,reclaimCost,reclaimCandidates,deckCounts,buildDeckN,shuffleDeck,capWinner,rallyBundle,rallySurcharge,canExchange,doExchange,raidTargets,raidCandidates,canRaid,doRaid,canLease,doLease,rentFor,rentBase,leaseRenter,leaseWouldAccept,leaseReservation,leaseAcceptsOffer,eliminateLast,merchantActive,portBuildings,canMerchant,doMerchant,spawnMerchant,powerKind,canPower,doPower}from'./engine.js?v=5.47';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 let VX=260,VY=245,VS=49;const sx=x=>VX+x*VS,sy=y=>VY+y*VS,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -1359,13 +1359,21 @@ function renderStats(){
   const hist=loadHistory();
   h+='<h3 class="tbl-title" style="margin-top:14px">往季 · 完整成績</h3>';
   if(!hist.length)h+='<div class="recrow"><span class="rc-hold none">尚未完成過賽季</span></div>';
-  else h+=hist.slice().reverse().map(se=>{
-    const st=se.standings||se.top||[];
-    const rows=st.map((d,i)=>`<tr><td class="rn">${i+1}</td><td>${d.name}</td><td class="pn">${d.pts}</td><td class="pn">${d.wins!=null?d.wins+'勝':''}</td></tr>`).join('');
-    const yr=se.year?se.year+' 賽季':'第 '+se.n+' 季';
-    const champLine=`🏆 ${se.champ}${se.champRounds?`（${se.champRounds} 輪封王）`:''}`;
-    const finalLine=(se.finalTop4&&se.finalTop4.length)?`<div class="fin4">總決賽：${se.finalTop4.map((nm,i)=>`${['🥇','🥈','🥉','４'][i]}${nm}`).join(' · ')}</div>`:'';
-    return `<div class="ststation"><div class="ststation-h">${yr} · ${champLine}</div>${finalLine}<table class="sttab histtab"><tr><th>#</th><th>車隊</th><th>分</th><th>勝</th></tr>${rows}</table></div>`}).join('');
+  else{
+    const hr=hist.slice().reverse();
+    h+=`<div class="hy-hint">撳每年展開詳細（最新一季已展開）</div>`;
+    h+=hr.map((se,idx)=>{
+      const st=se.standings||se.top||[];
+      const rows=st.map((d,i)=>`<tr><td class="rn">${i+1}</td><td>${d.name}</td><td class="pn">${d.pts}</td><td class="pn">${d.wins!=null?d.wins+'勝':''}</td></tr>`).join('');
+      const yr=se.year?se.year+' 賽季':'第 '+se.n+' 季';
+      // 收起時：年份 · 🏆冠軍 · 🥈🥉季殿軍（細字）；取總決賽前三，否則總榜前三
+      const pod=(se.finalTop4&&se.finalTop4.length>1)?se.finalTop4.slice(1,3):st.slice(1,3).map(d=>d.name);
+      const podLine=pod.filter(Boolean).length?`<span class="hy-podium">${['🥈','🥉'].map((m,i)=>pod[i]?m+pod[i]:'').filter(Boolean).join(' ')}</span>`:'';
+      const rdLine=se.champRounds?`<div class="hy-rd">🏁 ${se.champRounds} 輪封王</div>`:'';
+      const finalLine=(se.finalTop4&&se.finalTop4.length)?`<div class="fin4">總決賽：${se.finalTop4.map((nm,i)=>`${['🥇','🥈','🥉','４'][i]}${nm}`).join(' · ')}</div>`:'';
+      return `<details class="histyear"${idx===0?' open':''}><summary class="hy-sum"><span class="hy-yr">${yr}</span><span class="hy-champ">🏆 ${se.champ}</span>${podLine}</summary><div class="hy-body">${rdLine}${finalLine}<table class="sttab histtab"><tr><th>#</th><th>車隊</th><th>分</th><th>勝</th></tr>${rows}</table></div></details>`;
+    }).join('');
+  }
   $('#statsBody').innerHTML=h;
 }
 function renderRecords(){
@@ -1487,7 +1495,7 @@ function renderRallyHall(){const d=loadRally(),el=$('#rallyList');if(!el)return;
   el.innerHTML=fast+d.champs.map((c,i)=>`<div class="rec-row"><span class="dot" style="background:${c.color}"></span><b>${c.name}</b><small>${c.rounds!=null?c.rounds+' 輪':'逼和'}</small></div>`).join('')}
 
 /* ============ 事件綁定 ============ */
-const VERSION='5.46';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
+const VERSION='5.47';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
 $('#exhibitBtn').onclick=startExhibition;
 {const c=$('#commentaryChk');if(c){c.checked=commentaryOn;c.addEventListener('change',()=>{commentaryOn=c.checked;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');if(!commentaryOn&&window.speechSynthesis)window.speechSynthesis.cancel()})}}
 $('#commentary')?.addEventListener('click',()=>setCommentary(!commentaryOn));
