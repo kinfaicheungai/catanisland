@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,canTarget,turboRoll,reclaimTile,reclaimCost,reclaimCandidates,deckCounts,buildDeckN,shuffleDeck,capWinner,rallyBundle,rallySurcharge,canExchange,doExchange,raidTargets,raidCandidates,canRaid,doRaid,canLease,doLease,rentFor,rentBase,leaseRenter,leaseWouldAccept,leaseReservation,leaseAcceptsOffer,eliminateLast,merchantActive,portBuildings,canMerchant,doMerchant,spawnMerchant,powerKind,canPower,doPower}from'./engine.js?v=5.45';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,canTarget,turboRoll,reclaimTile,reclaimCost,reclaimCandidates,deckCounts,buildDeckN,shuffleDeck,capWinner,rallyBundle,rallySurcharge,canExchange,doExchange,raidTargets,raidCandidates,canRaid,doRaid,canLease,doLease,rentFor,rentBase,leaseRenter,leaseWouldAccept,leaseReservation,leaseAcceptsOffer,eliminateLast,merchantActive,portBuildings,canMerchant,doMerchant,spawnMerchant,powerKind,canPower,doPower}from'./engine.js?v=5.46';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 let VX=260,VY=245,VS=49;const sx=x=>VX+x*VS,sy=y=>VY+y*VS,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -10,7 +10,7 @@ const HUMAN_COLORS=['#16a3b6','#e5484d','#e9aa24','#7759bb','#2e9e5b','#3a7bd5',
 const AI_NAMES=['Toyota','Mercedes','BMW','Volkswagen','Ford','Honda','Nissan','Hyundai','Audi','Porsche','Ferrari','Mazda','Subaru','Kia','Volvo','Peugeot','Renault','Chevrolet','Tesla'];
 const AI_COLORS=['#e53935','#00bcd4','#1976d2','#3949ab','#0288d1','#d81b60','#455a64','#00897b','#616161','#fb8c00','#c8102e','#7b1fa2','#388e3c','#e91e63','#546e7a','#00695c','#ffb300','#795548','#b71c1c'];
 // 各廠實力（1–5★），似 F1 車隊強弱梯度
-const AI_STR=[5,5,4,4,3,4,3,3,4,5,5,2,2,2,3,2,3,3,4];
+const AI_STR=[5,5,4,4,3,4,4,3,4,5,5,3,3,3,4,3,4,3,5];  // 整體提升：冇 2 星弱隊，多咗 4-5 星強敵
 // 資源型車隊：頂級隊開局多幾張對應資源（4★+1、5★+2）
 const AI_AFFINITY=['grain','ore','wool','wood','brick','wood','grain','wool','ore','brick','ore','grain','wood','wool','brick','grain','wood','ore','ore'];
 // 每隊固定策略性格：builder 建設／expander 開拓／trader 交易／raider 侵略／balanced 均衡
@@ -964,13 +964,14 @@ function showEnd(){
     const ord=finishOrder(game),orderDrivers=ord.map(bid=>raceDrivers[bid]),myPos=orderDrivers.indexOf(0);
     const scoreByDriver={};ord.forEach(bid=>{scoreByDriver[raceDrivers[bid]]=totalScore(game,bid)});
     if(st==='semi'){P.semiResult=orderDrivers;P.semiScore=scoreByDriver}
-    else{P.finalResult=orderDrivers;P.finalScore=scoreByDriver;P.finalRounds=game.cappedOut?null:game.round}
-    playoffStage=null;leagueActive=false;saveLeague();
+    else{P.finalResult=orderDrivers;P.finalScore=scoreByDriver;P.finalCapped=!!game.cappedOut;P.finalWinner=game.cappedOut?null:raceDrivers[game.winner];P.finalRounds=game.cappedOut?null:game.round}
+    playoffStage=null;leagueActive=false;
     $('#endTitle').textContent=`${stageName(st)} · 第 ${myPos+1} 名`;
-    if(st==='semi'){const adv=myPos<4;$('#endText').textContent=adv?`8 強超級大混戰排第 ${myPos+1}，晉級總決賽 🏁！你今場得 ${scoreByDriver[0]||0} 分，會以 40% 計入總冠軍。`:`8 強混戰排第 ${myPos+1}，季後賽止步，睇埋總決賽結果。`}
-    else{let champ=P.finalists[0],bv=-Infinity;for(const di of P.finalists){const c=(P.finalScore[di]||0)*0.6+(P.semiScore[di]||0)*0.4;if(c>bv){bv=c;champ=di}}
-      const mc=((P.finalScore[0]||0)*0.6+(P.semiScore[0]||0)*0.4);
-      $('#endText').textContent=champ===0?`加權總分 ${mc.toFixed(1)}（決賽 ${P.finalScore[0]||0}×0.6 ＋ 半決賽 ${P.semiScore[0]||0}×0.4）最高，你係總冠軍 🏆！`:`總決賽第 ${myPos+1} 名。加權總冠軍：${league.drivers[champ].name}。`}
+    if(st==='semi'){const adv=myPos<4;$('#endText').textContent=adv?`8 強超級大混戰排第 ${myPos+1}，晉級總決賽 🏁！`:`8 強混戰排第 ${myPos+1}，季後賽止步，睇埋總決賽結果。`;saveLeague()}
+    else{const out=resolveFinal(P);  // 裁決總決賽
+      if(out==='replay')$('#endText').textContent=`總決賽 38 輪內冇人攞到 12 分滿分 —— 需要重賽！返去再打多場總決賽。`;
+      else if(out==='semichamp')$('#endText').textContent=`重賽都仲係冇人到 12 分，改由準決賽冠軍 ${league.drivers[P.semiResult[0]].name} 做總冠軍 🏆！`;
+      else $('#endText').textContent=(P.champion===0)?`你攞到 12 分滿分，你係總冠軍 🏆！`:`總決賽由 ${league.drivers[P.champion].name} 攞到 12 分封王。你第 ${myPos+1} 名。`;}
     $('#playAgain').textContent='返回季後賽 →';
     $('#playAgain').onclick=()=>{$('#endDialog').close();renderHub();$('#leagueDialog').showModal()};
     presentEnd();return;
@@ -1011,7 +1012,7 @@ function retireRace(){
 function enterPlayoff(){
   league.drivers.forEach(d=>d.wonLast=false);            // 季後賽唔帶常規賽扣分
   const seed=standingsSorted().slice(0,8).map(d=>d.i);   // 前 8 車手（種子序＝常規賽名次）
-  league.playoff={seeds:seed,semiResult:null,semiScore:null,finalists:null,finalResult:null,finalScore:null,finalRounds:null,champion:null};
+  league.playoff={seeds:seed,semiResult:null,semiScore:null,finalists:null,finalResult:null,finalScore:null,finalRounds:null,finalCapped:false,finalWinner:null,finalReplayed:false,champion:null};
 }
 const stageName=st=>st==='final'?'總決賽':'半決賽（8 強超級大混戰）';
 // 季後賽種子優勢：常規前 4 半決賽帶 1 勝利點；前 2 頭兩輪各多一次擲骰
@@ -1028,7 +1029,14 @@ function simRacePlayoff(parts,shape,withSeedAdv){
   for(const id of gridOrder(g)){const vid=pickAiInitialSettlement(g,id);if(vid==null)continue;placeInitialSettlement(g,id,vid);const r=legalInitialRoads(g,id,vid);if(r.length)placeInitialRoad(g,id,r[Math.floor(Math.random()*r.length)])}
   g.phase='action';g.turn=0;let n=0;
   while(g.winner===null&&n<3000){for(let id=0;id<g.players.length&&g.winner===null;id++){aiTurn(g,id);if(g.earlyLeft&&g.earlyLeft[id]>0&&g.round<=2){turboRoll(g,id,Math.random);g.earlyLeft[id]--}}if(g.winner===null){g.round++;if(g.round>(g.roundCap||40)){capWinner(g);break}}n++}
-  const ord=finishOrder(g);return{order:ord.map(k=>parts[k]),scores:ord.map(k=>totalScore(g,k))};
+  const ord=finishOrder(g);return{order:ord.map(k=>parts[k]),scores:ord.map(k=>totalScore(g,k)),capped:!!g.cappedOut,rounds:g.round,winner:(!g.cappedOut&&g.winner!=null)?parts[g.winner]:null};
+}
+function finalizeChampion(){league.done=true;driftRatings();archiveSeason();saveLeague()}
+// 總決賽裁決：有人到 12 分 → 佢做冠軍；38 輪逼和 → 重賽；重賽都逼和 → 準決賽冠軍做總冠軍
+function resolveFinal(P){
+  if(!P.finalCapped){P.champion=(P.finalWinner!=null?P.finalWinner:P.finalResult[0]);finalizeChampion();return 'champ'}
+  if(!P.finalReplayed){P.finalReplayed=true;P.finalResult=null;P.finalScore=null;P.finalCapped=false;P.finalWinner=null;P.finalRounds=null;saveLeague();return 'replay'}
+  P.champion=P.semiResult[0];finalizeChampion();return 'semichamp';
 }
 // 推進季後賽：AI-only 嘅場即刻模擬；遇到人類嗰場就停低等出賽；全部完成就用加權定冠軍。
 function playoffStagePending(){
@@ -1041,12 +1049,9 @@ function playoffStagePending(){
   if(!P.finalists)P.finalists=P.semiResult.slice(0,4);   // 半決賽前 4 入總決賽
   if(!P.finalResult){                                   // 總決賽：4 人，各從 0 分開始
     if(P.finalists.includes(0))return{stage:'final',participants:P.finalists.slice()};
-    const r=simRacePlayoff(P.finalists,'big',false);P.finalResult=r.order;P.finalScore={};r.order.forEach((di,i)=>P.finalScore[di]=r.scores[i]);P.finalRounds=null;
+    const r=simRacePlayoff(P.finalists,'big',false);P.finalResult=r.order;P.finalScore={};r.order.forEach((di,i)=>P.finalScore[di]=r.scores[i]);P.finalCapped=r.capped;P.finalWinner=r.winner;P.finalRounds=r.capped?null:r.rounds;
   }
-  if(P.champion==null){                                 // 冠軍 = 總決賽*0.6 + 半決賽*0.4 最高
-    let best=P.finalists[0],bv=-Infinity;for(const di of P.finalists){const c=(P.finalScore[di]||0)*0.6+(P.semiScore[di]||0)*0.4;if(c>bv){bv=c;best=di}}
-    P.champion=best;league.done=true;driftRatings();archiveSeason();saveLeague();
-  }
+  if(P.champion==null){const out=resolveFinal(P);if(out==='replay')return playoffStagePending();}  // 逼和 → 重賽
   return null;
 }
 function playPlayoffRace(pending){
@@ -1318,7 +1323,7 @@ function renderPlayoffHub(){
   const nm=i=>league.drivers[i].name;
   const chip=(i,cls)=>`<span class="dchip${i===0?' you':''}${cls||''}" style="--dc:${league.drivers[i].color}">${nm(i)}</span>`;
   let html=`<div class="brk"><span class="brk-l">半決賽 · 8 強超級大混戰</span><div class="brk-c">${P.seeds.map((i,k)=>chip(i,(P.semiResult?(P.semiResult.indexOf(i)<4?' adv':''):(k<4?' seed':'')))).join('')}</div></div>`;
-  if(P.finalists)html+=`<div class="brk"><span class="brk-l">總決賽 · 4 強（冠軍＝決賽×0.6＋半決賽×0.4）</span><div class="brk-c">${P.finalists.map(i=>chip(i,P.champion===i?' adv':'')).join('')}</div></div>`;
+  if(P.finalists)html+=`<div class="brk"><span class="brk-l">總決賽 · 4 強（要攞 12 分封王；逼和重賽；重賽都逼和→準決賽冠軍）${P.finalReplayed&&P.champion==null?' · 🔁 重賽中':''}</span><div class="brk-c">${P.finalists.map(i=>chip(i,P.champion===i?' adv':'')).join('')}</div></div>`;
   $('#nextRace').innerHTML=`<div class="nr-city">🏆 季末大獎盃（前 8 強）</div>${html}`;
   if(P.champion!=null){$('#leagueTitle').textContent='大獎盃冠軍 🏆';$('#leagueSub').textContent=`${nm(P.champion)} 封王！`;$('#raceBtn').textContent='開新賽季';}
   else{$('#leagueTitle').textContent='季末大獎盃';$('#leagueSub').textContent=pend?`${stageName(pend.stage)}：輪到你出賽`:'季後賽進行中';$('#raceBtn').textContent=pend?`出賽（${stageName(pend.stage)}）→`:'繼續';}
@@ -1482,7 +1487,7 @@ function renderRallyHall(){const d=loadRally(),el=$('#rallyList');if(!el)return;
   el.innerHTML=fast+d.champs.map((c,i)=>`<div class="rec-row"><span class="dot" style="background:${c.color}"></span><b>${c.name}</b><small>${c.rounds!=null?c.rounds+' 輪':'逼和'}</small></div>`).join('')}
 
 /* ============ 事件綁定 ============ */
-const VERSION='5.45';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
+const VERSION='5.46';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
 $('#exhibitBtn').onclick=startExhibition;
 {const c=$('#commentaryChk');if(c){c.checked=commentaryOn;c.addEventListener('change',()=>{commentaryOn=c.checked;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');if(!commentaryOn&&window.speechSynthesis)window.speechSynthesis.cancel()})}}
 $('#commentary')?.addEventListener('click',()=>setCommentary(!commentaryOn));

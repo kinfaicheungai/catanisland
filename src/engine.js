@@ -132,7 +132,7 @@ export function roll(g,rng=Math.random){
         if(tile.hub)type=RESOURCES.slice().sort((x,y)=>g.players[dest].resources[x]-g.players[dest].resources[y])[0]; // 萬能金地：自動畀最缺嗰種
         g.players[dest].resources[type]+=v.level;g.production.push({id:dest,tile:tile.id,type,amount:v.level,leased:rc2!=null})}}
     // 車隊實力：收到資源時有機率額外 +1（強隊明顯跑得快啲、資源優勢更大）
-    for(const p of g.players){const mine=g.production.filter(x=>x.id===p.id);if(mine.length){const ch=((p.strength||3)-1)*0.05;if(rng()<ch){const pk=mine[Math.floor(rng()*mine.length)];p.resources[pk.type]++;g.production.push({id:p.id,tile:pk.tile,type:pk.type,amount:1,bonus:true})}}}
+    for(const p of g.players){const mine=g.production.filter(x=>x.id===p.id);if(mine.length){const ch=((p.strength||3)-1)*0.065;if(rng()<ch){const pk=mine[Math.floor(rng()*mine.length)];p.resources[pk.type]++;g.production.push({id:p.id,tile:pk.tile,type:pk.type,amount:1,bonus:true})}}}
     // 保底：連續冇收成太耐（避免永無翻身），派 1 份最缺嘅資源 —— 但「分數領跑者」唔派，直到被反超先恢復
     const DRY_LIMIT=8,lead=Math.max(...g.players.map(q=>totalScore(g,q.id)));
     for(const p of g.players){
@@ -490,6 +490,10 @@ export function aiPlan(g,id){
   if(held.includes('築路')&&roads.length)return{type:'roadcard',idx:held.indexOf('築路')};
   // 臨門封王：爭差 1 分，任何 +1 建設即刻做；genius 仲會為封王而交易湊料
   if(sc>=target-1){const win=cityMove()||settMove();if(win)return win;if(genius){const t=smartTrade();if(t)return t}}
+  // genius 近封王又建唔到嘢：買航海卡博勝利點（隱藏 +1 可封王）
+  if(genius&&sc>=target-2&&!cities.length&&!setts.length){const c=cardMove();if(c)return c}
+  // genius 搶最大軍閥（+2）：打咗夠 3 張又能超越現任，就打騎士
+  if(genius&&knightMove()){const myK=p.knights+1,curK=(g.largestArmy!=null&&g.largestArmy!==id)?g.players[g.largestArmy].knights:LARGEST_ARMY_MIN-1;if(myK>=LARGEST_ARMY_MIN&&g.largestArmy!==id&&myK>curK)return knightMove()}
   // 判斷形勢：genius 落後兩分以上時，打騎士移海盜去針對領跑者（讀對手）
   if(genius&&knightMove()){let lead=-1;for(let q=0;q<g.players.length;q++)if(q!==id)lead=Math.max(lead,totalScore(g,q));if(lead>=sc+2)return knightMove()}
   // 各性格嘅行動優先次序（🏗建設 / 🧭開拓 / 💱交易 / ⚔侵略 / 均衡）
