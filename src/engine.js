@@ -103,9 +103,11 @@ export function placeInitialRoad(g,id,eid){
 }
 // 電腦開局揀分數最高嘅交點（相鄰地塊生產機率愈高愈好）。
 export function pickAiInitialSettlement(g,id,rng=Math.random){
-  const legal=legalInitialSettlements(g),noise=Math.max(.15,3.4-(g.players[id].strength||3)*0.78);
+  const legal=legalInitialSettlements(g),str=g.players[id].strength||3,noise=Math.max(.15,3.4-str*0.78),genius=str>=4;
   let best=legal[0],bs=-1;
-  for(const v of legal){const s=vVal(g,v)+rng()*noise;if(s>bs){bs=s;best=v}}   // 用統一估值（含港口＋資源多樣性），強隊雜訊更低
+  for(const v of legal){let s=vVal(g,v)+rng()*noise;   // 用統一估值（含港口＋資源多樣性），強隊雜訊更低
+    if(genius){let nb=0;for(const o of (g.adjacency[v]||[]))nb=Math.max(nb,vVal(g,o));s+=nb*0.3}  // 頂級隊：預視相鄰擴張潛力，揀到有靚鄰位可以生長嘅點
+    if(s>bs){bs=s;best=v}}
   return best
 }
 
@@ -132,7 +134,7 @@ export function roll(g,rng=Math.random){
         if(tile.hub)type=RESOURCES.slice().sort((x,y)=>g.players[dest].resources[x]-g.players[dest].resources[y])[0]; // 萬能金地：自動畀最缺嗰種
         g.players[dest].resources[type]+=v.level;g.production.push({id:dest,tile:tile.id,type,amount:v.level,leased:rc2!=null})}}
     // 車隊實力：收到資源時有機率額外 +1（強隊明顯跑得快啲、資源優勢更大）
-    for(const p of g.players){const mine=g.production.filter(x=>x.id===p.id);if(mine.length){const ch=((p.strength||3)-1)*0.065;if(rng()<ch){const pk=mine[Math.floor(rng()*mine.length)];p.resources[pk.type]++;g.production.push({id:p.id,tile:pk.tile,type:pk.type,amount:1,bonus:true})}}}
+    for(const p of g.players){const mine=g.production.filter(x=>x.id===p.id);if(mine.length){const ch=((p.strength||3)-1)*0.08;if(rng()<ch){const pk=mine[Math.floor(rng()*mine.length)];p.resources[pk.type]++;g.production.push({id:p.id,tile:pk.tile,type:pk.type,amount:1,bonus:true})}}}
     // 保底：連續冇收成太耐（避免永無翻身），派 1 份最缺嘅資源 —— 但「分數領跑者」唔派，直到被反超先恢復
     const DRY_LIMIT=8,lead=Math.max(...g.players.map(q=>totalScore(g,q.id)));
     for(const p of g.players){
@@ -496,6 +498,11 @@ export function aiPlan(g,id){
   if(genius&&knightMove()){const myK=p.knights+1,curK=(g.largestArmy!=null&&g.largestArmy!==id)?g.players[g.largestArmy].knights:LARGEST_ARMY_MIN-1;if(myK>=LARGEST_ARMY_MIN&&g.largestArmy!==id&&myK>curK)return knightMove()}
   // 判斷形勢：genius 落後兩分以上時，打騎士移海盜去針對領跑者（讀對手）
   if(genius&&knightMove()){let lead=-1;for(let q=0;q<g.players.length;q++)if(q!==id)lead=Math.max(lead,totalScore(g,q));if(lead>=sc+2)return knightMove()}
+  // genius 收尾：近封王（差 3 分內）又未攞最長道路，手頭夠料就持續起路搶 +2 獎盃，快刀斬亂麻封王
+  if(genius&&sc>=target-3&&g.longestRoad!==id&&roads.length&&canAfford(p,COSTS.road)){
+    const myNow=longestRoadLength(g,id),curL=(g.longestRoad!=null)?longestRoadLength(g,g.longestRoad):LONGEST_ROAD_MIN-1;
+    if(myNow>=Math.min(curL,LONGEST_ROAD_MIN-1)){const mv=roadMove();if(mv)return mv}  // 追平或迫近紀錄時全力搶
+  }
   // 各性格嘅行動優先次序（🏗建設 / 🧭開拓 / 💱交易 / ⚔侵略 / 均衡）
   const P={
     builder :[cityMove,plentyMove,settMove,tradeX,cardMove,()=>setts.length?null:roadMove()],
