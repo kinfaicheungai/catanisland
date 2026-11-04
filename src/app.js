@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,canTarget,turboRoll,reclaimTile,reclaimCost,reclaimCandidates,deckCounts,buildDeckN,shuffleDeck,capWinner,rallyBundle,rallySurcharge,canExchange,doExchange,raidTargets,raidCandidates,canRaid,doRaid,canLease,doLease,rentFor,rentBase,leaseRenter,leaseWouldAccept,leaseReservation,leaseAcceptsOffer,eliminateLast,merchantActive,portBuildings,canMerchant,doMerchant,spawnMerchant,powerKind,canPower,doPower}from'./engine.js?v=5.54';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,canTarget,turboRoll,reclaimTile,reclaimCost,reclaimCandidates,deckCounts,buildDeckN,shuffleDeck,capWinner,rallyBundle,rallySurcharge,canExchange,doExchange,raidTargets,raidCandidates,canRaid,doRaid,canLease,doLease,rentFor,rentBase,leaseRenter,leaseWouldAccept,leaseReservation,leaseAcceptsOffer,eliminateLast,merchantActive,portBuildings,canMerchant,doMerchant,spawnMerchant,powerKind,canPower,doPower}from'./engine.js?v=5.55';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 let VX=260,VY=245,VS=49;const sx=x=>VX+x*VS,sy=y=>VY+y*VS,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -1509,6 +1509,14 @@ function startRally(){
   saveLeague();clearLive();$('#playerLabel').textContent=league.drivers[0].name;$('#leagueDialog').close();beginSetup()
 }
 /* ---- 拉力冠軍殿堂（獨立 localStorage，唔影響聯賽）---- */
+// 改色揀色盤：列出全部可揀識別（你現用 + 各隊現有款 + 備用純色），揀邊個就同擁有者對調，確保唯一
+function renderColorPicker(){const host=$('#colorPick2');if(!host||!league)return;const me=league.drivers[0];
+  const key=d=>`${d.color}|${d.style||'solid'}|${d.alt||''}`,meKey=key(me),seen=new Set(),items=[];
+  items.push({color:me.color,style:me.style||'solid',alt:me.alt||null,owner:'你（現用）'});seen.add(meKey);
+  league.drivers.forEach((d,idx)=>{if(idx===0)return;const k=key(d);if(seen.has(k))return;seen.add(k);items.push({color:d.color,style:d.style||'solid',alt:d.alt||null,owner:d.name})});
+  for(const c of [...HUMAN_COLORS,...SPARE]){const k=`${c}|solid|`;if(seen.has(k))continue;if(items.some(it=>colDist(it.color,c)<45))continue;seen.add(k);items.push({color:c,style:'solid',alt:null,owner:null})}
+  host.innerHTML=items.map(it=>{const cur=key(it)===meKey;return `<button type="button" class="sw2${cur?' on':''}" data-color="${it.color}" data-style="${it.style}" data-alt="${it.alt||''}"><span class="sw2p" style="background:${cssPaint(it)}"></span><small>${cur?'你':(it.owner||'備用')}</small></button>`}).join('');
+}
 function loadRally(){try{return JSON.parse(localStorage.getItem(RALLYKEY))||{champs:[],fastest:null}}catch{return{champs:[],fastest:null}}}
 function recordRally(champ,rounds){const d=loadRally();d.champs=d.champs||[];const season=2015+(loadHistory().length+1);d.champs.unshift({name:champ.name,color:champ.color,rounds,season,t:Date.now()});if(d.champs.length>30)d.champs.length=30;if(rounds!=null&&(!d.fastest||rounds<d.fastest.rounds))d.fastest={name:champ.name,color:champ.color,rounds};try{localStorage.setItem(RALLYKEY,JSON.stringify(d))}catch{}}
 function renderRallyHall(){const d=loadRally(),el=$('#rallyList');if(!el)return;
@@ -1517,7 +1525,7 @@ function renderRallyHall(){const d=loadRally(),el=$('#rallyList');if(!el)return;
   el.innerHTML=fast+d.champs.map((c,i)=>`<div class="rec-row"><span class="dot" style="background:${c.color}"></span><b>${c.name}</b><small>${c.rounds!=null?c.rounds+' 輪':'逼和'}</small></div>`).join('')}
 
 /* ============ 事件綁定 ============ */
-const VERSION='5.54';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
+const VERSION='5.55';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
 $('#exhibitBtn').onclick=startExhibition;
 {const c=$('#commentaryChk');if(c){c.checked=commentaryOn;c.addEventListener('change',()=>{commentaryOn=c.checked;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');if(!commentaryOn&&window.speechSynthesis)window.speechSynthesis.cancel()})}}
 $('#commentary')?.addEventListener('click',()=>setCommentary(!commentaryOn));
@@ -1543,8 +1551,16 @@ $('#backupBtn')?.addEventListener('click',openBackup);
 $('#statsBtn')?.addEventListener('click',()=>{renderStats();$('#statsDialog').showModal()});
 $('#closeStats')?.addEventListener('click',()=>$('#statsDialog').close());
 $('#renameBtn')?.addEventListener('click',renameTeam);
-$('#colorBtn')?.addEventListener('click',()=>{if(league)$('#colorDialog').showModal()});
-$('#colorPick2')?.addEventListener('click',e=>{const b=e.target.closest('[data-color]');if(!b||!league)return;league.drivers[0].color=b.dataset.color;league.drivers[0].style='solid';league.drivers[0].alt=null;saveLeague();$('#colorDialog').close();renderHub();toast('已換車隊顏色')});
+$('#colorBtn')?.addEventListener('click',()=>{if(league){renderColorPicker();$('#colorDialog').showModal()}});
+$('#colorPick2')?.addEventListener('click',e=>{const b=e.target.closest('[data-color]');if(!b||!league)return;
+  const color=b.dataset.color,style=b.dataset.style||'solid',alt=b.dataset.alt||null,me=league.drivers[0];
+  if(me.color===color&&(me.style||'solid')===style&&(me.alt||null)===alt){$('#colorDialog').close();return}
+  const old={color:me.color,style:me.style||'solid',alt:me.alt||null};
+  // 唯一識別：若有車隊已揸住呢個識別，同佢對調（佢接收你原本嗰個）
+  const owner=league.drivers.find((d,idx)=>idx!==0&&d.color===color&&(d.style||'solid')===style&&(d.alt||null)===alt);
+  if(owner){owner.color=old.color;owner.style=old.style;owner.alt=old.alt}
+  me.color=color;me.style=style;me.alt=alt;
+  saveLeague();$('#colorDialog').close();renderHub();toast(owner?`已同 ${owner.name} 對調識別`:'已換車隊識別')});
 $('#closeColor')?.addEventListener('click',()=>$('#colorDialog').close());
 $('#fileBackup')?.addEventListener('click',()=>$('#backupFile').click());
 $('#backupFile')?.addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{$('#backupText').value=r.result;importBackup()};r.readAsText(f);e.target.value=''});
