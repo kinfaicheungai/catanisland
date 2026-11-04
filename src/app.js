@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,canTarget,turboRoll,reclaimTile,reclaimCost,reclaimCandidates,deckCounts,buildDeckN,shuffleDeck,capWinner,rallyBundle,rallySurcharge,canExchange,doExchange,raidTargets,raidCandidates,canRaid,doRaid,canLease,doLease,rentFor,rentBase,leaseRenter,leaseWouldAccept,leaseReservation,leaseAcceptsOffer,eliminateLast,merchantActive,portBuildings,canMerchant,doMerchant,spawnMerchant,powerKind,canPower,doPower}from'./engine.js?v=5.53';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,canTarget,turboRoll,reclaimTile,reclaimCost,reclaimCandidates,deckCounts,buildDeckN,shuffleDeck,capWinner,rallyBundle,rallySurcharge,canExchange,doExchange,raidTargets,raidCandidates,canRaid,doRaid,canLease,doLease,rentFor,rentBase,leaseRenter,leaseWouldAccept,leaseReservation,leaseAcceptsOffer,eliminateLast,merchantActive,portBuildings,canMerchant,doMerchant,spawnMerchant,powerKind,canPower,doPower}from'./engine.js?v=5.54';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 let VX=260,VY=245,VS=49;const sx=x=>VX+x*VS,sy=y=>VY+y*VS,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -8,7 +8,7 @@ const trophy=id=>{const m=(game.players[id]&&game.players[id].ms)||{};return `${
 /* ============ 聯賽（F1 式賽季）============ */
 const HUMAN_COLORS=['#16a3b6','#e5484d','#e9aa24','#7759bb','#2e9e5b','#3a7bd5','#e0559b','#ef7d29'];
 const AI_NAMES=['Toyota','Mercedes','BMW','Volkswagen','Ford','Honda','Nissan','Hyundai','Audi','Porsche','Ferrari','Mazda','Subaru','Kia','Volvo','Peugeot','Renault','Chevrolet','Tesla'];
-const AI_COLORS=['#e53935','#00bcd4','#1976d2','#3949ab','#0288d1','#d81b60','#455a64','#00897b','#616161','#fb8c00','#c8102e','#7b1fa2','#388e3c','#e91e63','#546e7a','#00695c','#ffb300','#795548','#b71c1c'];
+const AI_COLORS=['#e53935','#00bcd4','#1565c0','#3f51b5','#0d47a1','#ef5350','#37474f','#00796b','#9e9e9e','#fb8c00','#c62828','#7b1fa2','#2e7d32','#c2185b','#546e7a','#7cb342','#ffd600','#795548','#b71c1c'];
 // 各廠實力（1–5★），似 F1 車隊強弱梯度
 const AI_STR=[5,5,4,4,3,4,4,3,4,5,5,3,3,3,4,3,4,3,5];  // 整體提升：冇 2 星弱隊，多咗 4-5 星強敵
 // 資源型車隊：頂級隊開局多幾張對應資源（4★+1、5★+2）
@@ -18,18 +18,19 @@ const AI_PERSONA=['raider','builder','expander','trader','balanced','builder','e
 const PERSONA_NAME={builder:'🏗建設型',expander:'🧭開拓型',trader:'💱交易型',raider:'⚔侵略型',balanced:'⚖均衡型'};
 function kitTiming(pr){return pr==='raider'?{round:2,chance:.6}:(pr==='builder'||pr==='trader')?{round:6,chance:.3}:{round:3,chance:.42}}
 // 車隊外觀樣式（純色/間條/漸變），令 20 隊就算色近都分得清
-const AI_STYLE=['solid','solid','stripe','solid','grad','solid','stripe','solid','grad','solid','stripe','solid','stripe','grad','solid','stripe','grad','solid','grad'];
+const AI_STYLE=['solid','solid','solid','stripe','checker','stripe','solid','solid','stripe','solid','stripe','solid','solid','checker','solid','stripe','solid','solid','checker'];
 function lum(hex){let h=hex.replace('#','');if(h.length===3)h=h.split('').map(c=>c+c).join('');return(.299*parseInt(h.slice(0,2),16)+.587*parseInt(h.slice(2,4),16)+.114*parseInt(h.slice(4,6),16))/255}
 function hexShade(hex,pct){let h=hex.replace('#','');if(h.length===3)h=h.split('').map(c=>c+c).join('');let r=parseInt(h.slice(0,2),16),g=parseInt(h.slice(2,4),16),b=parseInt(h.slice(4,6),16);const t=pct<0?0:255,p=Math.abs(pct);r=Math.round((t-r)*p+r);g=Math.round((t-g)*p+g);b=Math.round((t-b)*p+b);return'#'+[r,g,b].map(x=>x.toString(16).padStart(2,'0')).join('')}
 // 每隊配色（間條/漸變唔再淨係配白，各具辨識度）
-const AI_ALT=[null,null,'#ffffff',null,'#80d8ff',null,'#cfd8dc',null,'#bdbdbd',null,'#ffd200',null,'#a5d6a7','#ff80ab',null,'#b2dfdb','#fff176',null,'#ef9a9a'];
+const AI_ALT=[null,null,null,'#ffffff','#e3f2fd','#ffffff',null,null,'#424242',null,'#141414',null,null,'#ffffff',null,'#ffffff',null,null,'#1a1a1a'];
 function colDist(a,b){const p=h=>{h=(h||'#000').replace('#','');return[parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)]};const[r1,g1,b1]=p(a),[r2,g2,b2]=p(b);return Math.hypot(r1-r2,g1-g2,b1-b2)}
 const SPARE=['#e53935','#1e88e5','#43a047','#fdd835','#8e24aa','#fb8c00','#00acc1','#d81b60','#546e7a','#6d4c41','#c2185b','#5d4037'];
 // 一場 4 隊避免撞色：太近就將該對手換成最唔撞嘅備用色（等於同人類對調，唔會撞）
 function deClash(opt){const{colors,styles,alts}=opt;const used=[colors[0]];
-  for(let k=1;k<colors.length;k++){if(used.some(u=>colDist(u,colors[k])<95)){let best=colors[k],bd=-1;for(const s of SPARE){const d=Math.min(...used.map(u=>colDist(u,s)),...colors.slice(k+1).map(c=>colDist(c,s)));if(d>bd){bd=d;best=s}}colors[k]=best;if(styles)styles[k]='solid';if(alts)alts[k]=null}used.push(colors[k])}
+  for(let k=1;k<colors.length;k++){const patterned=styles&&styles[k]&&styles[k]!=='solid';   // 有間條/格仔/漸變嘅隊本身已夠辨識，唔使逼走
+    if(!patterned&&used.some(u=>colDist(u,colors[k])<95)){let best=colors[k],bd=-1;for(const s of SPARE){const d=Math.min(...used.map(u=>colDist(u,s)),...colors.slice(k+1).map(c=>colDist(c,s)));if(d>bd){bd=d;best=s}}colors[k]=best;if(styles)styles[k]='solid';if(alts)alts[k]=null}used.push(colors[k])}
   return opt}
-function cssPaint(d){const a=d.alt||hexShade(d.color,.42);return d.style==='grad'?`linear-gradient(135deg,${d.color},${a})`:d.style==='stripe'?`repeating-linear-gradient(45deg,${d.color} 0 4px,${a} 4px 8px)`:d.color}
+function cssPaint(d){const a=d.alt||hexShade(d.color,.42);return d.style==='grad'?`linear-gradient(135deg,${d.color},${a})`:d.style==='stripe'?`repeating-linear-gradient(45deg,${d.color} 0 4px,${a} 4px 8px)`:d.style==='checker'?`repeating-conic-gradient(${d.color} 0% 25%,${a} 0% 50%) 50%/7px 7px`:d.color}
 const RESICON={wood:'🌲',brick:'🧱',grain:'🌾',wool:'🐑',ore:'⛏️'};
 const stars=n=>'★'.repeat(n)+'☆'.repeat(5-n);
 const RATKEY='frontier-ratings-v1',HISTKEY='frontier-history-v1';
@@ -379,10 +380,11 @@ function buildPaints(){
   game.players.forEach((p,id)=>{
     if(p.style==='grad'){const lg=S('linearGradient',{id:'paint'+id,x1:'0',y1:'0',x2:'1',y2:'1'});lg.append(S('stop',{offset:'0%','stop-color':p.color}));lg.append(S('stop',{offset:'100%','stop-color':p.alt||hexShade(p.color,.42)}));defs.append(lg)}
     else if(p.style==='stripe'){const pat=S('pattern',{id:'paint'+id,width:5,height:5,patternUnits:'userSpaceOnUse',patternTransform:'rotate(45)'});pat.append(S('rect',{width:5,height:5,fill:p.color}));pat.append(S('rect',{width:2.5,height:5,fill:p.alt||'#fff'}));defs.append(pat)}
+    else if(p.style==='checker'){const pat=S('pattern',{id:'paint'+id,width:6,height:6,patternUnits:'userSpaceOnUse'});pat.append(S('rect',{width:6,height:6,fill:p.color}));pat.append(S('rect',{width:3,height:3,fill:p.alt||'#fff'}));pat.append(S('rect',{x:3,y:3,width:3,height:3,fill:p.alt||'#fff'}));defs.append(pat)}
   });
   return defs;
 }
-const paintFor=id=>{const p=game.players[id];return p.style==='grad'||p.style==='stripe'?`url(#paint${id})`:p.color};
+const paintFor=id=>{const p=game.players[id];return p.style==='grad'||p.style==='stripe'||p.style==='checker'?`url(#paint${id})`:p.color};
 function roadArt(x1,y1,x2,y2,owner,f){
   const g=S('g',{class:'road','pointer-events':'none'}),w=9.5*f,cw=6.4*f;
   g.append(S('line',{x1,y1:y1+2.2*f,x2,y2:y2+2.2*f,stroke:'rgba(6,20,28,.32)','stroke-width':w,'stroke-linecap':'round'}));
@@ -1293,10 +1295,10 @@ let hubRound=-1;
 function renderHub(){
   if(league.playoff){renderPlayoffHub();return;}
   if(hubRound!==league.round){hubRound=league.round;humanPack=null;humanKitCity=false}  // 新一站：重設技能包選擇
-  const [city,ly]=league.cities[league.round],quad=humanQuad(),opp=quad.filter(i=>i!==0).map(i=>`<span class="dchip" style="--dc:${league.drivers[i].color}">${league.drivers[i].name} <i class="st">${'★'.repeat(league.drivers[i].strength)}${league.drivers[i].strength>=4?RESICON[league.drivers[i].affinity]:''}</i>${heatOf(league.drivers[i])>0?`<i class="heat">🔥${heatOf(league.drivers[i])}</i>`:''}<span class="kitflag">${league.drivers[i].planLand>=0?'🏝填海派':'💣拆卸派'}${league.drivers[i].kit?'':'·已用'}</span><span class="persona">${PERSONA_NAME[league.drivers[i].persona]||''}</span></span>`).join('');
+  const [city,ly]=league.cities[league.round],quad=humanQuad(),opp=quad.filter(i=>i!==0).map(i=>`<span class="dchip" style="--dc:${league.drivers[i].color}"><span class="csw" style="background:${cssPaint(league.drivers[i])}"></span>${league.drivers[i].name} <i class="st">${'★'.repeat(league.drivers[i].strength)}${league.drivers[i].strength>=4?RESICON[league.drivers[i].affinity]:''}</i>${heatOf(league.drivers[i])>0?`<i class="heat">🔥${heatOf(league.drivers[i])}</i>`:''}<span class="kitflag">${league.drivers[i].planLand>=0?'🏝填海派':'💣拆卸派'}${league.drivers[i].kit?'':'·已用'}</span><span class="persona">${PERSONA_NAME[league.drivers[i].persona]||''}</span></span>`).join('');
   $('#leagueTitle').textContent=`第 ${league.round+1} / ${league.cities.length} 站`;
   $('#leagueSub').textContent=`${city}分站 · ${isMelee(league.round)?'⚔ 大混戰（6-7 隊・超大島・42 輪・前四 5/3/2/1）':SHAPE_NAME[ly]}`;
-  $('#nextRace').innerHTML=`<div class="nr-city">🏁 ${city}</div><div class="nr-you"><span class="dchip you" style="--dc:${league.drivers[0].color}">你：${league.drivers[0].name} <i class="st">${'★'.repeat(league.drivers[0].strength)}${league.drivers[0].strength>=4?RESICON[league.drivers[0].affinity]:''}</i></span></div><div class="nr-vs">對陣</div><div class="nr-opp">${opp}</div>`;
+  $('#nextRace').innerHTML=`<div class="nr-city">🏁 ${city}</div><div class="nr-you"><span class="dchip you" style="--dc:${league.drivers[0].color}"><span class="csw" style="background:${cssPaint(league.drivers[0])}"></span>你：${league.drivers[0].name} <i class="st">${'★'.repeat(league.drivers[0].strength)}${league.drivers[0].strength>=4?RESICON[league.drivers[0].affinity]:''}</i></span></div><div class="nr-vs">對陣</div><div class="nr-opp">${opp}</div>`;
   {const meHeat=heatOf(league.drivers[0]),hotOpp=quad.filter(i=>i!==0&&heatOf(league.drivers[i])>0);
    if(meHeat>0)$('#nextRace').innerHTML+=`<div class="heat-note me">🔥 你已連勝 ${league.drivers[0].winStreak} 場！本站全場會特別針對你：起始資源 -${1+meHeat}、海盜同拆卸包更常搵你。再攞頭名針對會再升級，失落頭名即歸零。</div>`;
    if(hotOpp.length)$('#nextRace').innerHTML+=`<div class="heat-note">🔥 ${hotOpp.map(i=>league.drivers[i].name+'（連勝'+league.drivers[i].winStreak+'）').join('、')} 正值連勝，本站會被重點針對。</div>`;}
@@ -1331,7 +1333,7 @@ function renderPlayoffHub(){
   const P=league.playoff;if(P&&!P.seeds)enterPlayoff();
   const pend=playoffStagePending();saveLeague();
   const nm=i=>league.drivers[i].name;
-  const chip=(i,cls)=>`<span class="dchip${i===0?' you':''}${cls||''}" style="--dc:${league.drivers[i].color}">${nm(i)}</span>`;
+  const chip=(i,cls)=>`<span class="dchip${i===0?' you':''}${cls||''}" style="--dc:${league.drivers[i].color}"><span class="csw" style="background:${cssPaint(league.drivers[i])}"></span>${nm(i)}</span>`;
   let html=`<div class="brk"><span class="brk-l">半決賽 · 8 強超級大混戰</span><div class="brk-c">${P.seeds.map((i,k)=>chip(i,(P.semiResult?(P.semiResult.indexOf(i)<4?' adv':''):(k<4?' seed':'')))).join('')}</div></div>`;
   if(P.finalists)html+=`<div class="brk"><span class="brk-l">總決賽 · 4 強（要攞 12 分封王；逼和重賽；重賽都逼和→準決賽冠軍）${P.finalReplayed&&P.champion==null?' · 🔁 重賽中':''}</span><div class="brk-c">${P.finalists.map(i=>chip(i,P.champion===i?' adv':'')).join('')}</div></div>`;
   $('#nextRace').innerHTML=`<div class="nr-city">🏆 季末大獎盃（前 8 強）</div>${html}`;
@@ -1515,7 +1517,7 @@ function renderRallyHall(){const d=loadRally(),el=$('#rallyList');if(!el)return;
   el.innerHTML=fast+d.champs.map((c,i)=>`<div class="rec-row"><span class="dot" style="background:${c.color}"></span><b>${c.name}</b><small>${c.rounds!=null?c.rounds+' 輪':'逼和'}</small></div>`).join('')}
 
 /* ============ 事件綁定 ============ */
-const VERSION='5.53';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
+const VERSION='5.54';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
 $('#exhibitBtn').onclick=startExhibition;
 {const c=$('#commentaryChk');if(c){c.checked=commentaryOn;c.addEventListener('change',()=>{commentaryOn=c.checked;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');if(!commentaryOn&&window.speechSynthesis)window.speechSynthesis.cancel()})}}
 $('#commentary')?.addEventListener('click',()=>setCommentary(!commentaryOn));

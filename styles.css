@@ -93,6 +93,8 @@
 .nr-vs{font-size:9px;color:#8fd0dc;margin:6px 0 4px;letter-spacing:1px}
 .nr-opp{display:flex;gap:5px;flex-wrap:wrap}
 .dchip{display:inline-block;font-size:10px;font-weight:750;background:#ffffff1a;border-left:4px solid var(--dc);border-radius:5px;padding:3px 7px}
+.dchip .csw{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin-right:5px;border:1px solid rgba(0,0,0,.35);box-shadow:inset 0 0 0 .5px rgba(255,255,255,.4)}
+.brk .dchip .csw{width:10px;height:10px;margin-right:3px;vertical-align:-1px}
 .dchip.you{background:#ffffff26;font-size:11px}
 .tbl-title{font-size:12px;margin:6px 0 6px;color:#5a6c6a}
 .standings{max-height:230px;overflow:auto;border:1px solid #e3d9bd;border-radius:10px}
