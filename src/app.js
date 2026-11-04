@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,canTarget,turboRoll,reclaimTile,reclaimCost,reclaimCandidates,deckCounts,buildDeckN,shuffleDeck,capWinner,rallyBundle,rallySurcharge,canExchange,doExchange,raidTargets,raidCandidates,canRaid,doRaid,canLease,doLease,rentFor,rentBase,leaseRenter,leaseWouldAccept,leaseReservation,leaseAcceptsOffer,eliminateLast,merchantActive,portBuildings,canMerchant,doMerchant,spawnMerchant,powerKind,canPower,doPower}from'./engine.js?v=5.50';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,canTarget,turboRoll,reclaimTile,reclaimCost,reclaimCandidates,deckCounts,buildDeckN,shuffleDeck,capWinner,rallyBundle,rallySurcharge,canExchange,doExchange,raidTargets,raidCandidates,canRaid,doRaid,canLease,doLease,rentFor,rentBase,leaseRenter,leaseWouldAccept,leaseReservation,leaseAcceptsOffer,eliminateLast,merchantActive,portBuildings,canMerchant,doMerchant,spawnMerchant,powerKind,canPower,doPower}from'./engine.js?v=5.51';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 let VX=260,VY=245,VS=49;const sx=x=>VX+x*VS,sy=y=>VY+y*VS,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -100,7 +100,7 @@ const SHAPE_NAME={hex:'標準六島',big:'大島',cross:'十字島',diamond:'鑽
 const SPECIAL_CITIES=[['Volcano Isle','volcano'],['El Dorado','gold'],['Gemini','twin'],['The Strait','strait']];
 // [城市, 島形]；形狀部分帶地方神髓
 const CITY_POOL=[['Monaco','diamond'],['Singapore','wide'],['Suzuka','cross'],['Monza','hex'],['Silverstone','big'],['Shanghai','delta'],['Melbourne','hex'],['Interlagos','big'],['Abu Dhabi','atoll'],['Montreal','tall'],['Las Vegas','big'],['Miami','atoll'],['Austin','hex'],['Bahrain','wide'],['Jeddah','delta'],['Imola','cross'],['Spa','tall'],['Budapest','delta'],['Zandvoort','tall'],['Mexico City','big']];
-const SEASON_LEN=15;   // 每賽季站數（11 城市 + 4 特殊）
+const SEASON_LEN=18;   // 每賽季站數（14 城市 + 4 特殊；實際以 league.cities.length 為準）
 const WEATHER_META={clear:{name:'晴天',icon:'☀️'},rain:{name:'雨戰',icon:'🌧️'},drought:{name:'乾旱',icon:'🏜️'},wind:{name:'順風',icon:'💨'}};
 // 區域天氣（拉力賽大陸分區）
 const WZ_NAMES=['中部','外環一','外環二','外環三'],WZ_TAG=['中','①','②','③'],WZ_WEIGHTS=[['clear',5],['rain',3],['drought',2],['wind',2]];
@@ -181,7 +181,7 @@ function newLeague(name,color){
   const hs=rat.__you??humanTier;
   const drivers=[{name,color,style:'solid',alt:null,strength:hs,persona:'balanced',affinity:'grain',wonLast:false,kit:true,resPack:hs>=4,turboPack:true,desertNext:false,lightNext:0,loseStreak:0,pts:0,wins:0,races:0,margin:0,fastest:null}];
   for(let i=0;i<19;i++){const s=rat[AI_NAMES[i]]??AI_STR[i];drivers.push({name:AI_NAMES[i],color:AI_COLORS[i],style:AI_STYLE[i],alt:AI_ALT[i],strength:s,persona:AI_PERSONA[i],affinity:AI_AFFINITY[i],wonLast:false,kit:true,resPack:s>=4,turboPack:true,desertNext:false,lightNext:0,loseStreak:0,pts:0,wins:0,races:0,margin:0,fastest:null})}
-  const cities=shuffleArr(shuffleArr(CITY_POOL.map(c=>c)).slice(0,12).concat(SPECIAL_CITIES.map(c=>c)));   // 12 城市 + 4 特殊 = 16 站
+  const cities=shuffleArr(shuffleArr(CITY_POOL.map(c=>c)).slice(0,14).concat(SPECIAL_CITIES.map(c=>c)));   // 14 城市 + 4 特殊 = 18 站
   const idxPool=shuffleArr(cities.map((_,i)=>i));
   const melees=idxPool.slice(0,2).sort((a,b)=>a-b);                               // 每季 2 站大混戰（6-7 隊同場）
   const nSprint=3+Math.floor(Math.random()*2);
@@ -1515,7 +1515,7 @@ function renderRallyHall(){const d=loadRally(),el=$('#rallyList');if(!el)return;
   el.innerHTML=fast+d.champs.map((c,i)=>`<div class="rec-row"><span class="dot" style="background:${c.color}"></span><b>${c.name}</b><small>${c.rounds!=null?c.rounds+' 輪':'逼和'}</small></div>`).join('')}
 
 /* ============ 事件綁定 ============ */
-const VERSION='5.50';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
+const VERSION='5.51';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
 $('#exhibitBtn').onclick=startExhibition;
 {const c=$('#commentaryChk');if(c){c.checked=commentaryOn;c.addEventListener('change',()=>{commentaryOn=c.checked;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');if(!commentaryOn&&window.speechSynthesis)window.speechSynthesis.cancel()})}}
 $('#commentary')?.addEventListener('click',()=>setCommentary(!commentaryOn));
