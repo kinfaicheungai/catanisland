@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,canTarget,turboRoll,reclaimTile,reclaimCost,reclaimCandidates,deckCounts,buildDeckN,shuffleDeck,capWinner,rallyBundle,rallySurcharge,canExchange,doExchange,raidTargets,raidCandidates,canRaid,doRaid,canLease,doLease,rentFor,rentBase,leaseRenter,leaseWouldAccept,leaseReservation,leaseAcceptsOffer,eliminateLast,merchantActive,portBuildings,canMerchant,doMerchant,spawnMerchant,powerKind,canPower,doPower}from'./engine.js?v=5.56';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,canTarget,turboRoll,reclaimTile,reclaimCost,reclaimCandidates,deckCounts,buildDeckN,shuffleDeck,capWinner,rallyBundle,rallySurcharge,canExchange,doExchange,raidTargets,raidCandidates,canRaid,doRaid,canLease,doLease,rentFor,rentBase,leaseRenter,leaseWouldAccept,leaseReservation,leaseAcceptsOffer,eliminateLast,merchantActive,portBuildings,canMerchant,doMerchant,spawnMerchant,powerKind,canPower,doPower}from'./engine.js?v=5.57';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 let VX=260,VY=245,VS=49;const sx=x=>VX+x*VS,sy=y=>VY+y*VS,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -8,7 +8,7 @@ const trophy=id=>{const m=(game.players[id]&&game.players[id].ms)||{};return `${
 /* ============ 聯賽（F1 式賽季）============ */
 const HUMAN_COLORS=['#16a3b6','#e5484d','#e9aa24','#7759bb','#2e9e5b','#3a7bd5','#e0559b','#ef7d29'];
 const AI_NAMES=['Toyota','Mercedes','BMW','Volkswagen','Ford','Honda','Nissan','Hyundai','Audi','Porsche','Ferrari','Mazda','Subaru','Kia','Volvo','Peugeot','Renault','Chevrolet','Tesla'];
-const AI_COLORS=['#e53935','#00bcd4','#1565c0','#3f51b5','#0d47a1','#ef5350','#37474f','#00796b','#9e9e9e','#fb8c00','#c62828','#7b1fa2','#2e7d32','#c2185b','#546e7a','#7cb342','#ffd600','#795548','#111111'];
+const AI_COLORS=['#e53935','#00bcd4','#1565c0','#3949ab','#0d47a1','#e53935','#263238','#00897b','#bdbdbd','#fb8c00','#c62828','#7b1fa2','#2e7d32','#c2185b','#78909c','#7cb342','#ffd600','#795548','#111111'];
 // 各廠實力（1–5★），似 F1 車隊強弱梯度
 const AI_STR=[5,5,4,4,3,4,4,3,4,5,5,3,3,3,4,3,4,3,5];  // 整體提升：冇 2 星弱隊，多咗 4-5 星強敵
 // 資源型車隊：頂級隊開局多幾張對應資源（4★+1、5★+2）
@@ -18,11 +18,12 @@ const AI_PERSONA=['raider','builder','expander','trader','balanced','builder','e
 const PERSONA_NAME={builder:'🏗建設型',expander:'🧭開拓型',trader:'💱交易型',raider:'⚔侵略型',balanced:'⚖均衡型'};
 function kitTiming(pr){return pr==='raider'?{round:2,chance:.6}:(pr==='builder'||pr==='trader')?{round:6,chance:.3}:{round:3,chance:.42}}
 // 車隊外觀樣式（純色/間條/漸變），令 20 隊就算色近都分得清
-const AI_STYLE=['solid','solid','solid','stripe','checker','checker','solid','solid','stripe','solid','checker','solid','solid','checker','solid','stripe','solid','solid','checker'];
+const AI_STYLE=['stripe','solid','solid','stripe','checker','checker','solid','solid','stripe','solid','checker','solid','solid','stripe','solid','stripe','solid','solid','checker'];
 function lum(hex){let h=hex.replace('#','');if(h.length===3)h=h.split('').map(c=>c+c).join('');return(.299*parseInt(h.slice(0,2),16)+.587*parseInt(h.slice(2,4),16)+.114*parseInt(h.slice(4,6),16))/255}
 function hexShade(hex,pct){let h=hex.replace('#','');if(h.length===3)h=h.split('').map(c=>c+c).join('');let r=parseInt(h.slice(0,2),16),g=parseInt(h.slice(2,4),16),b=parseInt(h.slice(4,6),16);const t=pct<0?0:255,p=Math.abs(pct);r=Math.round((t-r)*p+r);g=Math.round((t-g)*p+g);b=Math.round((t-b)*p+b);return'#'+[r,g,b].map(x=>x.toString(16).padStart(2,'0')).join('')}
 // 每隊配色（間條/漸變唔再淨係配白，各具辨識度）
-const AI_ALT=[null,null,null,'#ffffff','#e3f2fd','#ffffff',null,null,'#424242',null,'#141414',null,null,'#ffffff',null,'#ffffff',null,null,'#ffffff'];
+const AI_ALT=['#ffd600',null,null,'#ffffff','#e3f2fd','#ffffff',null,null,'#424242',null,'#141414',null,null,'#ffffff',null,'#ffffff',null,null,'#ffffff'];
+const COLOR_VER=3;   // 配色方案版本：改動呢個就會令現有聯賽自動重新套用新配色
 function colDist(a,b){const p=h=>{h=(h||'#000').replace('#','');return[parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)]};const[r1,g1,b1]=p(a),[r2,g2,b2]=p(b);return Math.hypot(r1-r2,g1-g2,b1-b2)}
 const SPARE=['#e53935','#1e88e5','#43a047','#fdd835','#8e24aa','#fb8c00','#00acc1','#d81b60','#546e7a','#6d4c41','#c2185b','#5d4037'];
 // 一場 4 隊避免撞色：太近就將該對手換成最唔撞嘅備用色（等於同人類對調，唔會撞）
@@ -259,8 +260,8 @@ function migrateLeague(L){
     d.resPack=d.resPack??((d.strength??3)>=4);d.turboPack=d.turboPack??true;d.lightNext=d.lightNext??0;d.loseStreak=d.loseStreak??0;d.skipNext=d.skipNext??false;d.halfNext=d.halfNext??false});
   if(L.drivers.some(d=>d.planRes===undefined||d.planLand===undefined))planAiPacks(L.drivers,L.cities.length);  // 舊存檔補電腦技能包安排（含填海傾向）
   L.landLog=L.landLog??[];
-  if(!L.colorV2){const ni={};AI_NAMES.forEach((n,i)=>ni[n]=i);   // 一次性：將現有聯賽嘅電腦車隊換成新配色／格仔（唔使重開賽季）
-    L.drivers.forEach((d,i)=>{if(i===0)return;const ai=ni[d.name];if(ai!=null){d.color=AI_COLORS[ai];d.style=AI_STYLE[ai];d.alt=AI_ALT[ai]}});L.colorV2=true}
+  if(L.colorVer!==COLOR_VER){const ni={};AI_NAMES.forEach((n,i)=>ni[n]=i);   // 配色方案更新：將現有聯賽嘅電腦車隊重新套用新配色／格仔（唔使重開賽季；人類自選色不變）
+    L.drivers.forEach((d,i)=>{if(i===0)return;const ai=ni[d.name];if(ai!=null){d.color=AI_COLORS[ai];d.style=AI_STYLE[ai];d.alt=AI_ALT[ai]}});L.colorVer=COLOR_VER}
   return L;
 }
 function humanQuad(){return league.schedule[league.round].find(q=>q.includes(0))}
@@ -1527,7 +1528,7 @@ function renderRallyHall(){const d=loadRally(),el=$('#rallyList');if(!el)return;
   el.innerHTML=fast+d.champs.map((c,i)=>`<div class="rec-row"><span class="dot" style="background:${c.color}"></span><b>${c.name}</b><small>${c.rounds!=null?c.rounds+' 輪':'逼和'}</small></div>`).join('')}
 
 /* ============ 事件綁定 ============ */
-const VERSION='5.56';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
+const VERSION='5.57';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
 $('#exhibitBtn').onclick=startExhibition;
 {const c=$('#commentaryChk');if(c){c.checked=commentaryOn;c.addEventListener('change',()=>{commentaryOn=c.checked;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');if(!commentaryOn&&window.speechSynthesis)window.speechSynthesis.cancel()})}}
 $('#commentary')?.addEventListener('click',()=>setCommentary(!commentaryOn));
