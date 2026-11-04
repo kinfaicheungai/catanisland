@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,canTarget,turboRoll,reclaimTile,reclaimCost,reclaimCandidates,deckCounts,buildDeckN,shuffleDeck,capWinner,rallyBundle,rallySurcharge,canExchange,doExchange,raidTargets,raidCandidates,canRaid,doRaid,canLease,doLease,rentFor,rentBase,leaseRenter,leaseWouldAccept,leaseReservation,leaseAcceptsOffer,eliminateLast,merchantActive,portBuildings,canMerchant,doMerchant,spawnMerchant,powerKind,canPower,doPower}from'./engine.js?v=5.49';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,canTarget,turboRoll,reclaimTile,reclaimCost,reclaimCandidates,deckCounts,buildDeckN,shuffleDeck,capWinner,rallyBundle,rallySurcharge,canExchange,doExchange,raidTargets,raidCandidates,canRaid,doRaid,canLease,doLease,rentFor,rentBase,leaseRenter,leaseWouldAccept,leaseReservation,leaseAcceptsOffer,eliminateLast,merchantActive,portBuildings,canMerchant,doMerchant,spawnMerchant,powerKind,canPower,doPower}from'./engine.js?v=5.50';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 let VX=260,VY=245,VS=49;const sx=x=>VX+x*VS,sy=y=>VY+y*VS,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -34,9 +34,14 @@ const RESICON={wood:'🌲',brick:'🧱',grain:'🌾',wool:'🐑',ore:'⛏️'};
 const stars=n=>'★'.repeat(n)+'☆'.repeat(5-n);
 const RATKEY='frontier-ratings-v1',HISTKEY='frontier-history-v1';
 function loadHistory(){try{return JSON.parse(localStorage.getItem(HISTKEY))||[]}catch{return[]}}
-function archiveSeason(){try{const h=loadHistory(),rk=standingsSorted(),P=league.playoff,n=h.length+1;
-  const fin=(P&&P.finalResult||[]).slice(0,4).map(di=>league.drivers[di]?league.drivers[di].name:'?');
-  h.push({n,year:2020+n,champ:P&&P.champion!=null?league.drivers[P.champion].name:rk[0].name,champRounds:P?P.finalRounds:null,finalTop4:fin,standings:rk.map(d=>({name:d.name,pts:d.pts,wins:d.wins})),at:Date.now()});
+function archiveSeason(){try{const h=loadHistory(),rk=standingsSorted(),P=league.playoff,n=h.length+1,dn=i=>league.drivers[i]?league.drivers[i].name:'?';
+  const fin=(P&&P.finalResult||[]).slice(0,4).map(di=>dn(di));
+  // 每站每隊得分留底（唔喺版面顯示，但有記錄可日後翻查）：驅動 id 轉名，令存檔自足
+  const stations=(league.roundLog||[]).map(e=>({round:e.round,city:e.city,races:(e.races||[]).map(r=>({teams:(r.o||[]).map((di,idx)=>({name:dn(di),score:r.s?r.s[idx]:null})),rounds:r.rounds??null,capped:!!r.capped,fast:!!r.fast}))}));
+  const champD=P&&P.champion!=null?league.drivers[P.champion]:null;
+  h.push({n,year:2015+n,champ:champD?champD.name:rk[0].name,champColor:champD?champD.color:(rk[0]&&rk[0].color),champRounds:P?P.finalRounds:null,
+    finalTop4:fin,stations,at:Date.now(),
+    standings:rk.map(d=>({name:d.name,color:d.color,pts:d.pts,wins:d.wins,races:d.races,margin:d.margin}))});
   localStorage.setItem(HISTKEY,JSON.stringify(h.slice(-20)))}catch{}}
 function loadRatings(){try{return JSON.parse(localStorage.getItem(RATKEY))||{}}catch{return{}}}
 function saveRatings(r){try{localStorage.setItem(RATKEY,JSON.stringify(r))}catch{}}
@@ -265,6 +270,11 @@ function awardQuad(res,ptab){const{order,rounds,scores,capped}=res;const tab=pta
   const w=order[0],dw=league.drivers[w];dw.wins++;if(!capped)dw.fastest=dw.fastest==null?rounds:Math.min(dw.fastest,rounds)} // 只有真正達標封王先計入最速紀錄
 /* 場地紀錄（跨賽季保存）：每個城市「最少輪次獲勝」嘅保持者 */
 const RKEY='frontier-records-v1';
+// 一次性新紀元重置（2016）：抹走舊賽制嘅聯賽歷史／拉力盃歷史／實力評級／場地紀錄／當前賽季，由 2016 年從頭開始
+(function epoch2016(){try{if(localStorage.getItem('frontier-epoch')!=='2016'){
+  [HISTKEY,RALLYKEY,RATKEY,RKEY,LKEY,LIVEKEY].forEach(k=>{try{localStorage.removeItem(k)}catch{}});
+  localStorage.setItem('frontier-epoch','2016');
+}}catch{}})();
 function loadRecords(){try{return JSON.parse(localStorage.getItem(RKEY))||{}}catch{return{}}}
 function saveRecords(){try{localStorage.setItem(RKEY,JSON.stringify(records))}catch{}}
 let records=loadRecords();
@@ -310,7 +320,7 @@ function resolveStation(){
   league.drivers.forEach((d,i)=>{d.winStreak=stationWinners.has(i)?((d.winStreak||0)+1):0});
   const stationLast=new Set(results.map(r=>r.order[r.order.length-1])); // 墊底補償：本站包尾 +1，一唔包尾歸零
   league.drivers.forEach((d,i)=>{d.loseStreak=stationLast.has(i)?((d.loseStreak||0)+1):0});
-  const roundEntry={round:ri+1,city,races:results.map(r=>({o:r.order.slice(),fast:!r.capped&&minR!=null&&r.rounds===minR}))};
+  const roundEntry={round:ri+1,city,races:results.map(r=>({o:r.order.slice(),s:r.scores?r.scores.slice():null,rounds:r.rounds,capped:!!r.capped,fast:!r.capped&&minR!=null&&r.rounds===minR}))};
   (league.roundLog=league.roundLog||[]).push(roundEntry);
   const my=results[0],myFast=!my.capped&&minR!=null&&my.rounds===minR&&my.order[0]===0;
   return{city,minR,myFast,broke,recName:(records[city]&&records[city].name)||null}
@@ -1364,14 +1374,16 @@ function renderStats(){
     h+=`<div class="hy-hint">撳每年展開詳細（最新一季已展開）</div>`;
     h+=hr.map((se,idx)=>{
       const st=se.standings||se.top||[];
-      const rows=st.map((d,i)=>`<tr><td class="rn">${i+1}</td><td>${d.name}</td><td class="pn">${d.pts}</td><td class="pn">${d.wins!=null?d.wins+'勝':''}</td></tr>`).join('');
+      const rows=st.map((d,i)=>`<tr class="${i===0?'champ':''}"><td class="rn">${i===0?'👑':i+1}</td><td><span class="dot" style="background:${d.color||'#888'}"></span>${d.name}</td><td class="pn">${d.pts}</td><td class="pn">${d.wins!=null?d.wins:''}</td><td class="pn mg">${d.margin!=null?(d.margin>0?'+':'')+d.margin:''}</td></tr>`).join('');
       const yr=se.year?se.year+' 賽季':'第 '+se.n+' 季';
       // 收起時：年份 · 🏆冠軍 · 🥈🥉季殿軍（細字）；取總決賽前三，否則總榜前三
       const pod=(se.finalTop4&&se.finalTop4.length>1)?se.finalTop4.slice(1,3):st.slice(1,3).map(d=>d.name);
       const podLine=pod.filter(Boolean).length?`<span class="hy-podium">${['🥈','🥉'].map((m,i)=>pod[i]?m+pod[i]:'').filter(Boolean).join(' ')}</span>`:'';
-      const rdLine=se.champRounds?`<div class="hy-rd">🏁 ${se.champRounds} 輪封王</div>`:'';
-      const finalLine=(se.finalTop4&&se.finalTop4.length)?`<div class="fin4">總決賽：${se.finalTop4.map((nm,i)=>`${['🥇','🥈','🥉','４'][i]}${nm}`).join(' · ')}</div>`:'';
-      return `<details class="histyear"${idx===0?' open':''}><summary class="hy-sum"><span class="hy-yr">${yr}</span><span class="hy-champ">🏆 ${se.champ}</span>${podLine}</summary><div class="hy-body">${rdLine}${finalLine}<table class="sttab histtab"><tr><th>#</th><th>車隊</th><th>分</th><th>勝</th></tr>${rows}</table></div></details>`;
+      const stN=se.stations?se.stations.length:null;
+      const meta=[se.champRounds?`🏁 ${se.champRounds} 輪封王`:'',stN?`📋 ${stN} 站`:'',st.length?`🚗 ${st.length} 隊`:''].filter(Boolean).join('　');
+      const metaLine=meta?`<div class="hy-rd">${meta}</div>`:'';
+      const finalLine=(se.finalTop4&&se.finalTop4.length)?`<div class="fin4">總決賽 4 強：${se.finalTop4.map((nm,i)=>`${['🥇','🥈','🥉','④'][i]}${nm}`).join('　')}</div>`:'';
+      return `<details class="histyear"${idx===0?' open':''}><summary class="hy-sum"><span class="hy-yr">${yr}</span><span class="hy-champ">🏆 ${se.champ}</span>${podLine}</summary><div class="hy-body">${metaLine}${finalLine}<table class="sttab histtab"><tr><th>#</th><th>車隊</th><th>分</th><th>勝</th><th>淨</th></tr>${rows}</table></div></details>`;
     }).join('');
   }
   // 超級拉力盃 · 歷屆冠軍（摺疊；季中盃賽，獨立於聯賽積分）
@@ -1496,14 +1508,14 @@ function startRally(){
 }
 /* ---- 拉力冠軍殿堂（獨立 localStorage，唔影響聯賽）---- */
 function loadRally(){try{return JSON.parse(localStorage.getItem(RALLYKEY))||{champs:[],fastest:null}}catch{return{champs:[],fastest:null}}}
-function recordRally(champ,rounds){const d=loadRally();d.champs=d.champs||[];const season=2020+(loadHistory().length+1);d.champs.unshift({name:champ.name,color:champ.color,rounds,season,t:Date.now()});if(d.champs.length>30)d.champs.length=30;if(rounds!=null&&(!d.fastest||rounds<d.fastest.rounds))d.fastest={name:champ.name,color:champ.color,rounds};try{localStorage.setItem(RALLYKEY,JSON.stringify(d))}catch{}}
+function recordRally(champ,rounds){const d=loadRally();d.champs=d.champs||[];const season=2015+(loadHistory().length+1);d.champs.unshift({name:champ.name,color:champ.color,rounds,season,t:Date.now()});if(d.champs.length>30)d.champs.length=30;if(rounds!=null&&(!d.fastest||rounds<d.fastest.rounds))d.fastest={name:champ.name,color:champ.color,rounds};try{localStorage.setItem(RALLYKEY,JSON.stringify(d))}catch{}}
 function renderRallyHall(){const d=loadRally(),el=$('#rallyList');if(!el)return;
   if(!d.champs||!d.champs.length){el.innerHTML='<p style="text-align:center;color:#8aa">仲未有紀錄，去打一屆拉力賽先！</p>';return}
   const fast=d.fastest?`<div class="rec-fast">🏁 最速封王：<b>${d.fastest.name}</b> · ${d.fastest.rounds} 輪</div>`:'';
   el.innerHTML=fast+d.champs.map((c,i)=>`<div class="rec-row"><span class="dot" style="background:${c.color}"></span><b>${c.name}</b><small>${c.rounds!=null?c.rounds+' 輪':'逼和'}</small></div>`).join('')}
 
 /* ============ 事件綁定 ============ */
-const VERSION='5.49';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
+const VERSION='5.50';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
 $('#exhibitBtn').onclick=startExhibition;
 {const c=$('#commentaryChk');if(c){c.checked=commentaryOn;c.addEventListener('change',()=>{commentaryOn=c.checked;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');if(!commentaryOn&&window.speechSynthesis)window.speechSynthesis.cancel()})}}
 $('#commentary')?.addEventListener('click',()=>setCommentary(!commentaryOn));

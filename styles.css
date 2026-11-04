@@ -213,6 +213,12 @@
 .rh-yr{color:#8a7647;font-weight:700;font-size:10px;flex:none}
 .rh-nm{color:#5a4a24;flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rh-rd{color:#9a9384;font-size:10px;margin-left:auto;flex:none}
+.histtab td:nth-child(2){display:flex;align-items:center;gap:5px}
+.histtab td:nth-child(2) .dot{width:9px;height:9px;border-radius:50%;flex:none}
+.histtab tr.champ{background:linear-gradient(90deg,#fff5d6,#fffaf0)}
+.histtab tr.champ td{font-weight:800;color:#8a6a12}
+.histtab td.mg{color:#9a9384;font-weight:600;font-size:10px;width:30px}
+.histtab th:last-child{width:30px}
 
 /* v3.4：對陣矩陣表 */
 .sttab-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
