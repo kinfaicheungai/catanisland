@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,canTarget,turboRoll,reclaimTile,reclaimCost,reclaimCandidates,deckCounts,buildDeckN,shuffleDeck,capWinner,rallyBundle,rallySurcharge,canExchange,doExchange,raidTargets,raidCandidates,canRaid,doRaid,canLease,doLease,rentFor,rentBase,leaseRenter,leaseWouldAccept,leaseReservation,leaseAcceptsOffer,eliminateLast,merchantActive,portBuildings,canMerchant,doMerchant,spawnMerchant,powerKind,canPower,doPower}from'./engine.js?v=5.51';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,canTarget,turboRoll,reclaimTile,reclaimCost,reclaimCandidates,deckCounts,buildDeckN,shuffleDeck,capWinner,rallyBundle,rallySurcharge,canExchange,doExchange,raidTargets,raidCandidates,canRaid,doRaid,canLease,doLease,rentFor,rentBase,leaseRenter,leaseWouldAccept,leaseReservation,leaseAcceptsOffer,eliminateLast,merchantActive,portBuildings,canMerchant,doMerchant,spawnMerchant,powerKind,canPower,doPower}from'./engine.js?v=5.52';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 let VX=260,VY=245,VS=49;const sx=x=>VX+x*VS,sy=y=>VY+y*VS,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -183,9 +183,9 @@ function newLeague(name,color){
   for(let i=0;i<19;i++){const s=rat[AI_NAMES[i]]??AI_STR[i];drivers.push({name:AI_NAMES[i],color:AI_COLORS[i],style:AI_STYLE[i],alt:AI_ALT[i],strength:s,persona:AI_PERSONA[i],affinity:AI_AFFINITY[i],wonLast:false,kit:true,resPack:s>=4,turboPack:true,desertNext:false,lightNext:0,loseStreak:0,pts:0,wins:0,races:0,margin:0,fastest:null})}
   const cities=shuffleArr(shuffleArr(CITY_POOL.map(c=>c)).slice(0,14).concat(SPECIAL_CITIES.map(c=>c)));   // 14 城市 + 4 特殊 = 18 站
   const idxPool=shuffleArr(cities.map((_,i)=>i));
-  const melees=idxPool.slice(0,2).sort((a,b)=>a-b);                               // 每季 2 站大混戰（6-7 隊同場）
+  const melees=idxPool.slice(0,3).sort((a,b)=>a-b);                               // 每季 3 站大混戰（6-7 隊同場）
   const nSprint=3+Math.floor(Math.random()*2);
-  const sprints=idxPool.slice(2,2+nSprint).sort((a,b)=>a-b);                      // sprint 唔會同大混戰重疊
+  const sprints=idxPool.slice(3,3+nSprint).sort((a,b)=>a-b);                      // sprint 唔會同大混戰重疊
   const schedule=cities.map((_,ri)=>{const order=shuffleArr(drivers.map((_,i)=>i)),size=melees.indexOf(ri)>=0?7:4,groups=[];for(let i=0;i<order.length;i+=size)groups.push(order.slice(i,i+size));return groups}); // 大混戰每組 7（20→7/7/6），其餘每組 4
   const caps=cities.map((c,ri)=>rollCap(melees.indexOf(ri)>=0?'mega':c[1],sprints.indexOf(ri)>=0,melees.indexOf(ri)>=0)); // 每站隨機輪次上限
   planAiPacks(drivers,cities.length);                                            // 電腦預先安排邊站用資源/turbo 包
@@ -1515,7 +1515,7 @@ function renderRallyHall(){const d=loadRally(),el=$('#rallyList');if(!el)return;
   el.innerHTML=fast+d.champs.map((c,i)=>`<div class="rec-row"><span class="dot" style="background:${c.color}"></span><b>${c.name}</b><small>${c.rounds!=null?c.rounds+' 輪':'逼和'}</small></div>`).join('')}
 
 /* ============ 事件綁定 ============ */
-const VERSION='5.51';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
+const VERSION='5.52';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
 $('#exhibitBtn').onclick=startExhibition;
 {const c=$('#commentaryChk');if(c){c.checked=commentaryOn;c.addEventListener('change',()=>{commentaryOn=c.checked;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');if(!commentaryOn&&window.speechSynthesis)window.speechSynthesis.cancel()})}}
 $('#commentary')?.addEventListener('click',()=>setCommentary(!commentaryOn));
