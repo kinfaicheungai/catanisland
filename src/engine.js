@@ -251,6 +251,8 @@ export function longestRoadLength(g,id){
   return best
 }
 export function updateBonuses(g){
+  // 港口權限：由現時建築重算，確保拆卸咗港口村／城之後即時失去 2:1／3:1 換率
+  for(const p of g.players)p.ports=[...new Set(g.ports.filter(port=>{const a=g.vertices[port.a],b=g.vertices[port.b];return (a&&a.owner===p.id)||(b&&b.owner===p.id)}).map(port=>port.kind))];
   // 最大軍閥：出過最多騎士（≥3），嚴格超越現任先易手；排除已淘汰
   let ba=(g.largestArmy!=null&&!g.players[g.largestArmy].retired)?g.largestArmy:null;
   let bn=ba!=null?g.players[ba].knights:LARGEST_ARMY_MIN-1;
