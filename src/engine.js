@@ -402,10 +402,35 @@ export function spawnMerchant(g,rng=Math.random){const two=[...RESOURCES].sort((
 /* ===== 發電：內陸（非沿海）同一地塊有 2 座城 → 每回合用 5 種資源各 1 張充能；儲 3 次 +1 分（黃金地段 +2）===== */
 export function powerKind(g,id){const nb=new Set(g.tiles.map(x=>x.q+','+x.r)),inland=t=>[[1,0],[-1,0],[0,1],[0,-1],[1,-1],[-1,1]].every(([dq,dr])=>nb.has((t.q+dq)+','+(t.r+dr)));
   let reg=false;for(const t of g.tiles){if(t.type==='desert'||!inland(t))continue;if(t.vertices.filter(vi=>g.vertices[vi].owner===id&&g.vertices[vi].level===2).length>=2){if(t.hub)return 'gold';reg=true}}return reg?'reg':null}
-export function canPower(g,id){return !!g.rally&&g.round>10&&g.phase==='action'&&g.winner===null&&!!powerKind(g,id)&&RESOURCES.every(r=>g.players[id].resources[r]>=1)}
-export function doPower(g,id){if(!canPower(g,id))return false;const p=g.players[id];for(const r of RESOURCES)p.resources[r]--;const k=powerKind(g,id);let scored=0;
+export function powerCost(g,id){const step=(g.rally&&g.rally.powerStep!=null)?g.rally.powerStep:1;return 5+(g.players[id].powerUses||0)*step;}  // 基本 5（每樣 1）＋ 每充能一次貴 step 份
+export function canPower(g,id){return !!g.rally&&g.round>10&&g.phase==='action'&&g.winner===null&&!!powerKind(g,id)&&RESOURCES.every(r=>g.players[id].resources[r]>=1)&&countResources(g.players[id])>=powerCost(g,id)}
+export function doPower(g,id){if(!canPower(g,id))return false;const p=g.players[id];const cost=powerCost(g,id);
+  for(const r of RESOURCES)p.resources[r]--;                                                   // 基本：每樣資源 1
+  let extra=cost-5;while(extra>0){const r=RESOURCES.slice().sort((x,y)=>p.resources[y]-p.resources[x])[0];if(p.resources[r]<=0)break;p.resources[r]--;extra--}  // 遞增附加：由最多嗰種資源扣
+  p.powerUses=(p.powerUses||0)+1;
+  const k=powerKind(g,id);let scored=0;
   if(k==='gold'){p.powerG=(p.powerG||0)+1;if(p.powerG>=3){p.powerG-=3;p.score+=2;scored=2}}else{p.powerR=(p.powerR||0)+1;if(p.powerR>=3){p.powerR-=3;p.score+=1;scored=1}}
-  checkWinner(g);return {kind:k,scored,g:p.powerG||0,r:p.powerR||0}}
+  checkWinner(g);return {kind:k,scored,g:p.powerG||0,r:p.powerR||0,cost}}
+// 每 20 輪強制繳稅（拉力賽）：按建築所在數字島繳資源；唔夠就上繳棋子抵銷（道路 4・村 6・城 9）
+const TAX_HI=[5,6,8,9],TAX_MID=[4,10];
+export function taxForVertex(g,vid){const v=g.vertices[vid];if(!v||v.owner===null||v.level<1)return 0;const c=(g.rally&&g.rally.tax)||{},hiC=c.hiC??24,hiV=c.hiV??11,midC=c.midC??14,midV=c.midV??6,loC=c.loC??8,loV=c.loV??3;
+  let due=0;for(const t of g.tiles){if(t.num==null||!t.vertices.includes(vid))continue;let cc,ss;if(TAX_HI.includes(t.num)){cc=hiC;ss=hiV}else if(TAX_MID.includes(t.num)){cc=midC;ss=midV}else{cc=loC;ss=loV}due+=(v.level===2?cc:ss)}
+  return due;}
+export function taxForPlayer(g,id){let due=0;for(const v of g.vertices)if(v.owner===id)due+=taxForVertex(g,v.id);return due;}
+export function applyTax(g){const rep=[],c=(g.rally&&g.rally.tax)||{},cr={road:c.road??4,settle:c.settle??6,city:c.city??9};
+  for(const p of g.players){if(p.retired)continue;const id=p.id,due=taxForPlayer(g,id);if(due<=0){rep.push({id,due:0,paid:0,lost:[]});continue}
+    let paid=0;while(paid<due){const r=RESOURCES.slice().sort((x,y)=>p.resources[y]-p.resources[x])[0];if(p.resources[r]<=0)break;p.resources[r]--;paid++}
+    let short=due-paid,lost=[];
+    if(short>0){const roads=g.edges.filter(e=>e.owner===id);                                   // 先上繳道路（損失最細）
+      while(short>0&&roads.length){const e=roads.pop();e.owner=null;short-=cr.road;lost.push('road')}
+      const bldg=()=>g.vertices.filter(v=>v.owner===id).length;
+      if(short>0){const st=g.vertices.filter(v=>v.owner===id&&v.level===1).sort((a,b)=>taxForVertex(g,a.id)-taxForVertex(g,b.id));  // 再上繳最低產值嘅村
+        while(short>0&&bldg()>1&&st.length){const v=st.shift();v.owner=null;v.level=0;p.score=Math.max(0,p.score-1);short-=cr.settle;lost.push('settle')}}
+      if(short>0){const ct=g.vertices.filter(v=>v.owner===id&&v.level===2).sort((a,b)=>taxForVertex(g,a.id)-taxForVertex(g,b.id));  // 最後上繳最低產值嘅城
+        while(short>0&&bldg()>1&&ct.length){const v=ct.shift();v.owner=null;v.level=0;p.score=Math.max(0,p.score-2);short-=cr.city;lost.push('city')}}
+    }
+    rep.push({id,due,paid,lost});}
+  for(const p of g.players)recomputePlayerAssets(g,p.id);updateBonuses(g);return rep;}
 // 名次：由高分到低分（勝者總分必最高），平手用回合物資做次序
 export function finishOrder(g){return g.players.map(p=>p.id).sort((a,b)=>((g.players[a].retired?1:0)-(g.players[b].retired?1:0))||totalScore(g,b)-totalScore(g,a)||countResources(g.players[b])-countResources(g.players[a])||a-b)}
 export function checkWinner(g){updateBonuses(g);const t=g.target||10;

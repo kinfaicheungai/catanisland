@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,canTarget,turboRoll,reclaimTile,reclaimCost,reclaimCandidates,deckCounts,buildDeckN,shuffleDeck,capWinner,rallyBundle,rallySurcharge,canExchange,doExchange,raidTargets,raidCandidates,canRaid,doRaid,canLease,doLease,rentFor,rentBase,leaseRenter,leaseWouldAccept,leaseReservation,leaseAcceptsOffer,eliminateLast,merchantActive,portBuildings,canMerchant,doMerchant,spawnMerchant,powerKind,canPower,doPower}from'./engine.js?v=5.61';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,canTarget,turboRoll,reclaimTile,reclaimCost,reclaimCandidates,deckCounts,buildDeckN,shuffleDeck,capWinner,rallyBundle,rallySurcharge,canExchange,doExchange,raidTargets,raidCandidates,canRaid,doRaid,canLease,doLease,rentFor,rentBase,leaseRenter,leaseWouldAccept,leaseReservation,leaseAcceptsOffer,eliminateLast,merchantActive,portBuildings,canMerchant,doMerchant,spawnMerchant,powerKind,canPower,doPower,powerCost,taxForPlayer,applyTax}from'./engine.js?v=5.62';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 let VX=260,VY=245,VS=49;const sx=x=>VX+x*VS,sy=y=>VY+y*VS,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -223,7 +223,7 @@ const LIVEKEY='frontier-live';
 // 超級拉力盃（聯賽季中盃賽：用聯賽車隊、成績唔計聯賽積分、頭4名准決賽+1）
 let rallyActive=false,rallyDrivers=null;
 const RALLYKEY='frontier-rally';
-const RALLY_CFG={bundleEach:2,discGap:4,discMul:0.5,escA:0.3,escP:2,raidCost:{ore:2,grain:2,wool:1},raidUses:2,turbo:6,kit:2,land:3,leaseTurns:4,leaseUses:3,lessorMin:3,leaseMinMul:0.5,leaseDefMul:0.6,leaseMaxMul:0.83,reclaimBase:3,reclaimStep:3,hardBonus:4};
+const RALLY_CFG={bundleEach:2,discGap:4,discMul:0.5,escA:0.3,escP:2,raidCost:{ore:2,grain:2,wool:1},raidUses:2,turbo:6,kit:2,land:3,leaseTurns:4,leaseUses:3,lessorMin:3,leaseMinMul:0.5,leaseDefMul:0.6,leaseMaxMul:0.83,reclaimBase:3,reclaimStep:3,hardBonus:4,powerStep:1,tax:{hiC:24,hiV:11,midC:14,midV:6,loC:8,loV:3,road:4,settle:6,city:9}};
 const RALLY_PIECES={roads:26,settlements:8,cities:6};   // 村 8 城 6（建築極限 20 分，留空間畀卡/換分）
 const RALLY_DECK=2.5;                                     // 10 隊牌庫加量
 function saveLive(){try{localStorage.setItem(LIVEKEY,JSON.stringify({game,raceDrivers,rallyDrivers,leagueActive,rallyActive,playoffStage,kitArmed,kitH,kitHit,humanPack,raceSprint,raceMelee,landArmed,raceCity,raceStation,aiKitDriver,aiKitSettleLeft,aiKitRoadLeft}))}catch{}}
@@ -801,7 +801,7 @@ async function rallyAiActs(id){
   // 5) 商船收購：有訂單又交得起就交（抵）
   if(canMerchant(game,id)){doMerchant(game,id);render();logSkill('🚢 '+p.name+' 完成商船訂單 +1 分');await sleep(420);if(game.winner!==null)return}
   // 6) 發電：有內陸雙城 + 資源有餘就充能（唔好燒到自己冇得起嘢）
-  if(canPower(game,id)&&countResources(p)>=8){const r=doPower(game,id);if(r){render();sfx.build();if(r.scored)logSkill('🔋 '+p.name+' 發電'+(r.kind==='gold'?'（黃金）':'')+'儲夠，+'+r.scored+' 分！');await sleep(420);if(game.winner!==null)return}}
+  if(canPower(game,id)&&countResources(p)>=powerCost(game,id)+3){const r=doPower(game,id);if(r){render();sfx.build();if(r.scored)logSkill('🔋 '+p.name+' 發電'+(r.kind==='gold'?'（黃金）':'')+'儲夠，+'+r.scored+' 分！');await sleep(420);if(game.winner!==null)return}}
   // 7) 換分：手上夠資源就買（最多 2 次／回合，靜靜地做，睇即時排位反映）
   let t=0;while(t++<2&&game.winner===null&&canExchange(game,id))doExchange(game,id);
   render();
@@ -864,6 +864,18 @@ async function schedule(){
   if(rallyActive&&game.winner===null){
     if(game.round>32&&!game.elim32){game.elim32=true;await doEliminate(32);if(game.winner!==null){busy=false;render();sfx.win();return}}
     if(game.round>64&&!game.elim64){game.elim64=true;await doEliminate(64);if(game.winner!==null){busy=false;render();sfx.win();return}}
+    // 每 20 輪強制繳稅：按建築所在數字島繳資源，唔夠就上繳棋子抵銷
+    if(game.round%20===0&&game.taxedAt!==game.round){game.taxedAt=game.round;const rep=applyTax(game);const mine=rep.find(r=>r.id===0);
+      if(mine&&mine.due>0){const nr=mine.lost.filter(x=>x==='road').length,nv=mine.lost.filter(x=>x==='settle').length,nc=mine.lost.filter(x=>x==='city').length;
+        const lost=(nr||nv||nc)?('，資源唔夠 → 上繳 '+[nr?nr+' 路':'',nv?nv+' 村':'',nc?nc+' 城':''].filter(Boolean).join('／')+' 抵數'):'（資源找數）';
+        toast('🏛 第 '+game.round+' 輪繳稅：你共欠 '+mine.due+' 份'+lost);}
+      logSkill('🏛 第 '+game.round+' 輪全員繳稅（5/6/8/9 島：城 24・村 11；4/10 島：城 14・村 6；其餘：城 8・村 3）');
+      render();if(game.winner!==null){busy=false;sfx.win();return}}
+    // 每 30 輪復蘇劫分／拆卸次數（還原到原本）
+    if(game.round%30===0&&game.refreshAt!==game.round){game.refreshAt=game.round;
+      game.raidLeft=game.players.map(()=>RALLY_CFG.raidUses);game.rallyKit=game.players.map(()=>RALLY_CFG.kit);
+      game.kitLeftHuman=RALLY_CFG.kit;kitH.as=kitH.ar=kitH.ac=RALLY_CFG.kit;kitArmed=true;
+      toast('🔄 第 '+game.round+' 輪：劫分、拆卸次數復蘇！');logSkill('🔄 第 '+game.round+' 輪：全員劫分／拆卸次數復蘇到原本（各 '+RALLY_CFG.raidUses+'／'+RALLY_CFG.kit+'）');}
     // 商船收購：每 8 輪一張新訂單（需 2 港物業先接到）
     if(game.round>10){ // 商船變奏：解鎖後間隔 5-10 輪一張（唔固定）
       if(game.merchantNext==null)game.merchantNext=game.round+1+Math.floor(Math.random()*3);
@@ -1561,7 +1573,7 @@ function renderRallyHall(){const d=loadRally(),el=$('#rallyList');if(!el)return;
   el.innerHTML=fast+d.champs.map((c,i)=>`<div class="rec-row"><span class="dot" style="background:${c.color}"></span><b>${c.name}</b><small>${c.rounds!=null?c.rounds+' 輪':'逼和'}</small></div>`).join('')}
 
 /* ============ 事件綁定 ============ */
-const VERSION='5.61';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
+const VERSION='5.62';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
 $('#exhibitBtn').onclick=startExhibition;
 {const c=$('#commentaryChk');if(c){c.checked=commentaryOn;c.addEventListener('change',()=>{commentaryOn=c.checked;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');if(!commentaryOn)_cClear()})}}
 $('#commentary')?.addEventListener('click',()=>setCommentary(!commentaryOn));
