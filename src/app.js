@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,canTarget,turboRoll,reclaimTile,reclaimCost,reclaimCandidates,deckCounts,buildDeckN,shuffleDeck,capWinner,rallyBundle,rallySurcharge,canExchange,doExchange,raidTargets,raidCandidates,canRaid,doRaid,canLease,doLease,rentFor,rentBase,leaseRenter,leaseWouldAccept,leaseReservation,leaseAcceptsOffer,eliminateLast,merchantActive,portBuildings,canMerchant,doMerchant,spawnMerchant,powerKind,canPower,doPower,powerCost,taxForPlayer,applyTax}from'./engine.js?v=5.63';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,canTarget,turboRoll,reclaimTile,reclaimCost,reclaimCandidates,deckCounts,buildDeckN,shuffleDeck,capWinner,rallyBundle,rallySurcharge,canExchange,doExchange,raidTargets,raidCandidates,canRaid,doRaid,canLease,doLease,rentFor,rentBase,leaseRenter,leaseWouldAccept,leaseReservation,leaseAcceptsOffer,eliminateLast,merchantActive,portBuildings,canMerchant,doMerchant,spawnMerchant,powerKind,canPower,doPower,powerCost,taxForPlayer,applyTax}from'./engine.js?v=5.64';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 let VX=260,VY=245,VS=49;const sx=x=>VX+x*VS,sy=y=>VY+y*VS,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -358,7 +358,7 @@ function simRace(quad,axial,weather,gold,cap,opt,half,modes,ri){
 
 /* ============ 音效（用 Web Audio 即時合成，唔使外部檔案）============ */
 let AC=null;
-function initAudio(){try{if(!AC)AC=new(window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume()}catch{}}
+function initAudio(){try{if(!AC)AC=new(window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume()}catch{}unlockSpeech()}
 function tone(freq,dur,type='sine',vol=.2,delay=0){if(muted||!AC)return;const t=AC.currentTime+delay,o=AC.createOscillator(),g=AC.createGain();o.type=type;o.frequency.value=freq;o.connect(g);g.connect(AC.destination);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(vol,t+.012);g.gain.exponentialRampToValueAtTime(.0001,t+dur);o.start(t);o.stop(t+dur+.02)}
 function clack(vol=.28,delay=0){if(muted||!AC)return;const t=AC.currentTime+delay,len=.05,buf=AC.createBuffer(1,AC.sampleRate*len,AC.sampleRate),d=buf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*(1-i/d.length);const src=AC.createBufferSource();src.buffer=buf;const g=AC.createGain(),f=AC.createBiquadFilter();f.type='highpass';f.frequency.value=900;g.gain.value=vol;src.connect(f);f.connect(g);g.connect(AC.destination);src.start(t)}
 function engineRev(){if(muted||!AC)return;const t=AC.currentTime,dur=.95;
@@ -1127,8 +1127,10 @@ function openLog(){const el=$('#logList');if(el)el.innerHTML=feedLog.length?feed
 
 /* ============ 日文實況旁述（免費・瀏覽器語音）============ */
 let commentaryOn=(localStorage.getItem('frontier-commentary')??'1')==='1',jaVoice=null,raceCity='',raceStation='',raceWeather='clear',raceSprint=false,raceMelee=false,exitHomeAfterEnd=false,prevLeader=null,nearSaid=false,closeSaid=false;
+let _spkUnlocked=false;
 function pickJaVoice(){try{const vs=window.speechSynthesis.getVoices();jaVoice=vs.find(v=>/^ja/i.test(v.lang))||vs.find(v=>/japan|日本|Kyoko|Otoya|Hattori|O-ren/i.test(v.name))||null}catch{}}
 if(typeof window!=='undefined'&&window.speechSynthesis){pickJaVoice();window.speechSynthesis.onvoiceschanged=pickJaVoice}
+function unlockSpeech(){try{if(_spkUnlocked||typeof window==='undefined'||!window.speechSynthesis)return;_spkUnlocked=true;window.speechSynthesis.resume();const u=new SpeechSynthesisUtterance(' ');u.volume=0;window.speechSynthesis.speak(u)}catch{}}   // iOS：喺首次用戶互動暖身解鎖語音
 // 車廠名日文假名讀音（令語音旁述唔會逐個字母串讀）
 const NAME_KANA={Toyota:'トヨタ',Mercedes:'メルセデス',BMW:'ビーエムダブリュー',Volkswagen:'フォルクスワーゲン',Ford:'フォード',Honda:'ホンダ',Nissan:'ニッサン',Hyundai:'ヒュンダイ',Audi:'アウディ',Porsche:'ポルシェ',Ferrari:'フェラーリ',Mazda:'マツダ',Subaru:'スバル',Kia:'キア',Volvo:'ボルボ',Peugeot:'プジョー',Renault:'ルノー',Chevrolet:'シボレー',Tesla:'テスラ'};
 function kanaize(t){let s=t;for(const en in NAME_KANA)s=s.split(en).join(NAME_KANA[en]);return s}
@@ -1138,9 +1140,15 @@ function _cClear(){_cQ=[];_cBusy=false;try{if(typeof window!=='undefined'&&windo
 function _cPump(){
   if(_cBusy||!_cQ.length)return;
   const it=_cQ.shift();_cBusy=true;showComment(it.text);
-  const done=()=>{if(!_cBusy)return;_cBusy=false;setTimeout(_cPump,150)};
+  let fired=false;const done=()=>{if(fired)return;fired=true;if(!_cBusy)return;_cBusy=false;setTimeout(_cPump,150)};
   let voiced=false;
-  try{if(commentaryOn&&typeof window!=='undefined'&&window.speechSynthesis){const u=new SpeechSynthesisUtterance(kanaize(it.text));u.lang='ja-JP';if(jaVoice)u.voice=jaVoice;u.rate=it.rate||0.95;u.pitch=1.08;u.onend=done;u.onerror=done;window.speechSynthesis.speak(u);voiced=true}}catch{}
+  try{if(commentaryOn&&typeof window!=='undefined'&&window.speechSynthesis){
+    try{window.speechSynthesis.resume()}catch{}                                        // iOS：解除自動暫停（無聲主因）
+    if(!jaVoice)pickJaVoice();
+    const u=new SpeechSynthesisUtterance(kanaize(it.text));u.lang='ja-JP';if(jaVoice)u.voice=jaVoice;u.rate=it.rate||0.95;u.pitch=1.08;u.onend=done;u.onerror=done;
+    window.speechSynthesis.speak(u);voiced=true;
+    setTimeout(done,Math.min(10000,2000+it.text.length*150));                           // 看門狗：onend 唔 fire（iOS）都唔會卡死隊列
+  }}catch{}
   if(!voiced)setTimeout(done,Math.min(4200,1100+it.text.length*65));   // 冇語音：用估算時長讓字幕行完
 }
 function enqueueComment(text,opts={}){
@@ -1154,7 +1162,36 @@ function showComment(t){const el=$('#commentary');if(!el)return;el.textContent='
 const _lastCat={};
 function pick(cat,arr){if(!arr||!arr.length)return'';let i=Math.floor(Math.random()*arr.length);if(arr.length>1&&i===_lastCat[cat])i=(i+1)%arr.length;_lastCat[cat]=i;return arr[i]}
 function fillC(t,ctx){return t.replace(/\{(\w+)\}/g,(_,k)=>ctx[k]!=null?ctx[k]:'')}
-function commentary(cat,ctx={},chance=1,opts={}){if(!commentaryOn||!game||!LINES[cat])return;if(Math.random()>chance)return;const line=fillC(pick(cat,LINES[cat]),ctx);if(line)enqueueComment(line,opts)}
+// 超級拉力盃專屬旁述：更癲、生存淘汰賽氛圍（拉力賽時優先用，其餘類別 fallback 返一般 LINES）
+const LINES_RALLY={
+ start:[
+  '超級ラリーカップ、ここに開幕ッ！１０台のマシンが火花を散らす頂上決戦だァ！',
+  'サバイバルラリー、スタート！脱落・徴税・強奪…何でもありの死闘が始まる！',
+  '聖域なき超級ラリー！全チーム、アクセル全開ェ、ここはタフな消耗戦だ！',
+  'さあ運命の超級ラリー！勝ち抜くのは一台のみ、総力戦の火蓋が切られた！'],
+ rollBig:[
+  '{num}ッ！特別ステージで大量補給、一気にタイムを削るぞォ！',
+  'ビッグナンバー{num}！このラリーでこれは効く、ライバルを突き放せ！',
+  '{num}来たァ！怒涛の生産ラッシュ、{n}が牙を剥く！'],
+ rollMid:[
+  '{num}。長丁場のラリー、ここは燃料温存で手堅く刻む。',
+  '{num}か。消耗戦だけに、一つ一つの補給が命綱です。'],
+ rollSmall:[
+  '{num}…サバイバルラリーで補給ゼロは痛恨だ、耐えろ{n}！',
+  '渋い{num}。この過酷なラリー、ここが我慢のしどころ！'],
+ robber7:[
+  '魔の７ッ！このカオスなラリーで海賊とは、もう何が起きてもおかしくない！',
+  'セブン！ただでさえ過酷なラリーが、さらに荒れ狂うゥ！'],
+ steal:[
+  '強奪ァ！{n}が{v}から資源をもぎ取った、ラリーは弱肉強食だ！',
+  '容赦なし！{n}の一撃、{v}が泣きを見るゥ！'],
+ lead:[
+  '{n}がトップに立ったァ！だがこのラリー、徴税と脱落が待ち受ける、油断は禁物！',
+  '首位は{n}！しかし超級ラリーに安全圏なし、いつ引きずり降ろされるか！'],
+ nearwin:[
+  '{n}、優勝目前ッ！超級ラリー制覇まであと一歩、スタンド総立ちだァ！',
+  'あと一歩、{n}ッ！この死闘を制するのは誰だ、固唾を飲む展開ェ！']};
+function commentary(cat,ctx={},chance=1,opts={}){if(!commentaryOn||!game)return;const pool=(rallyActive&&LINES_RALLY[cat])?LINES_RALLY[cat]:LINES[cat];if(!pool)return;if(Math.random()>chance)return;const line=fillC(pick(cat,pool),ctx);if(line)enqueueComment(line,opts)}
 // 近況：由賽季數據砌一句
 function formPhrase(di){
   if(!league||!league.drivers[di])return'';
@@ -1582,11 +1619,11 @@ function renderRallyHall(){const d=loadRally(),el=$('#rallyList');if(!el)return;
   el.innerHTML=fast+d.champs.map((c,i)=>`<div class="rec-row"><span class="dot" style="background:${c.color}"></span><b>${c.name}</b><small>${c.rounds!=null?c.rounds+' 輪':'逼和'}</small></div>`).join('')}
 
 /* ============ 事件綁定 ============ */
-const VERSION='5.63';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
+const VERSION='5.64';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
 $('#exhibitBtn').onclick=startExhibition;
-{const c=$('#commentaryChk');if(c){c.checked=commentaryOn;c.addEventListener('change',()=>{commentaryOn=c.checked;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');if(!commentaryOn)_cClear()})}}
+{const c=$('#commentaryChk');if(c){c.checked=commentaryOn;c.addEventListener('change',()=>{commentaryOn=c.checked;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');if(!commentaryOn)_cClear();else{_spkUnlocked=false;unlockSpeech()}})}}
 $('#commentary')?.addEventListener('click',()=>setCommentary(!commentaryOn));
-function setCommentary(on){commentaryOn=on;localStorage.setItem('frontier-commentary',on?'1':'0');const c=$('#commentaryChk');if(c)c.checked=on;const b=$('#commentaryBtn');if(b){b.textContent=on?'🎙':'🔕';b.classList.toggle('off',!on)}if(!on)_cClear();toast(on?'🎙 旁述開':'🔕 旁述關')}
+function setCommentary(on){commentaryOn=on;localStorage.setItem('frontier-commentary',on?'1':'0');const c=$('#commentaryChk');if(c)c.checked=on;const b=$('#commentaryBtn');if(b){b.textContent=on?'🎙':'🔕';b.classList.toggle('off',!on)}if(!on)_cClear();else{_spkUnlocked=false;unlockSpeech()}toast(on?'🎙 旁述開':'🔕 旁述關')}
 $('#commentaryBtn')?.addEventListener('click',()=>setCommentary(!commentaryOn));
 {const b=$('#commentaryBtn');if(b){b.textContent=commentaryOn?'🎙':'🔕';b.classList.toggle('off',!commentaryOn)}}
 $('#leagueBtn').onclick=openLeague;
