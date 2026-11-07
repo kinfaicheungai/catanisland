@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,canTarget,turboRoll,reclaimTile,reclaimCost,reclaimCandidates,deckCounts,buildDeckN,shuffleDeck,capWinner,rallyBundle,rallySurcharge,canExchange,doExchange,raidTargets,raidCandidates,canRaid,doRaid,canLease,doLease,rentFor,rentBase,leaseRenter,leaseWouldAccept,leaseReservation,leaseAcceptsOffer,eliminateLast,merchantActive,portBuildings,canMerchant,doMerchant,spawnMerchant,powerKind,canPower,doPower,powerCost,taxForPlayer,applyTax}from'./engine.js?v=5.65';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,canTarget,turboRoll,reclaimTile,reclaimCost,reclaimCandidates,deckCounts,buildDeckN,shuffleDeck,capWinner,rallyBundle,rallySurcharge,canExchange,doExchange,raidTargets,raidCandidates,canRaid,doRaid,canLease,doLease,rentFor,rentBase,leaseRenter,leaseWouldAccept,leaseReservation,leaseAcceptsOffer,eliminateLast,merchantActive,portBuildings,canMerchant,doMerchant,spawnMerchant,powerKind,canPower,doPower,powerCost,taxForPlayer,applyTax}from'./engine.js?v=5.66';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 let VX=260,VY=245,VS=49;const sx=x=>VX+x*VS,sy=y=>VY+y*VS,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -576,7 +576,7 @@ function render(){
   $('#rollBtn').hidden=game.phase!=='roll'||demo;$('#endTurn').hidden=game.phase==='roll'||demo;
   $('#rollBtn').disabled=busy||game.phase!=='roll';
   $('#endTurn').disabled=busy||!action||blk;
-  $('#buildToggle').disabled=busy||!action||blk;
+  {const inplay=!!game&&!setup&&game.winner===null;$('#buildTab').hidden=!inplay;$('#skillTab').hidden=!inplay}
   $('#handBtn').disabled=busy||!me.cards.length;
   {const tb=$('#turboBtn'),tLeft=(game.turboLeft&&game.turboLeft[0])||0;if(tb){tb.hidden=demo||tLeft<=0;$('#turboCount').textContent=tLeft;tb.disabled=busy||!action||blk||game.round<=10}}
   {const db=$('#demoBtn'),aLeft=kitArmed?kitAnyLeft():0,lk=rallyActive&&game.round<=10;if(db){db.hidden=demo||aLeft<=0;$('#demoCount').textContent=aLeft;db.disabled=busy||!action||blk||lk}}
@@ -591,7 +591,7 @@ function render(){
   $$('[data-build]').forEach(b=>{const type=b.dataset.build,legal=type==='road'?legalRoads(game,0):type==='settlement'?legalSettlements(game,0):legalCities(game,0);const afford=(type==='road'&&roadFree)||canAfford(me,COSTS[type]);b.disabled=busy||!action||blk||!afford||!legal.length;b.classList.toggle('selected',mode===type)});
   const deckLeft=game.deck?game.deck.length:0,resv=(rallyActive&&game.deckReserve)?game.deckReserve.length:0;$('#cardBtn').disabled=busy||!action||blk||!canAfford(me,COSTS.card)||deckLeft===0;{const cb=$('#cardBtn small');if(cb)cb.textContent=(deckLeft>0?('牌庫 '+deckLeft):'牌庫已空')+(resv?('（+'+resv+'待釋放）'):'')}
   $('#tradeBtn').disabled=busy||!action||blk||!RESOURCES.some(r=>me.resources[r]>=tradeRatio(me,r));
-  if(blk&&!$('#buildPanel').hidden){$('#buildPanel').hidden=true;$('#buildToggle').classList.remove('open')}
+  if(blk)closeDrawers();
   renderBoard();showEnd();
   if(game.winner===null&&!busy&&!setup&&game.turn===0&&!mode&&(game.phase==='roll'||game.phase==='action'))saveLive();
 }
@@ -1632,7 +1632,7 @@ function renderRallyHall(){const d=loadRally(),el=$('#rallyList');if(!el)return;
   el.innerHTML=fast+d.champs.map((c,i)=>`<div class="rec-row"><span class="dot" style="background:${c.color}"></span><b>${c.name}</b><small>${c.rounds!=null?c.rounds+' 輪':'逼和'}</small></div>`).join('')}
 
 /* ============ 事件綁定 ============ */
-const VERSION='5.65';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
+const VERSION='5.66';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
 $('#exhibitBtn').onclick=startExhibition;
 $('#rallyExhibitBtn')?.addEventListener('click',()=>startRally(true));
 {const c=$('#commentaryChk');if(c){c.checked=commentaryOn;c.addEventListener('change',()=>{commentaryOn=c.checked;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');if(!commentaryOn)_cClear();else{_spkUnlocked=false;unlockSpeech()}})}}
@@ -1703,9 +1703,18 @@ $('#closeLease2')?.addEventListener('click',()=>$('#leaseDialog').close());
 $('#rallyHallBtn')?.addEventListener('click',()=>{renderRallyHall();$('#rallyDialog').showModal()});
 $('#closeRally')?.addEventListener('click',()=>$('#rallyDialog').close());
 $('#closeReclaim').onclick=()=>{$('#reclaimDialog').close()};
-function closePanel(){$('#buildPanel').hidden=true;$('#buildToggle').classList.remove('open')}
-$('#buildToggle').onclick=()=>{if(busy||game.phase!=='action'||blocked(game))return;const p=$('#buildPanel');p.hidden=!p.hidden;$('#buildToggle').classList.toggle('open',!p.hidden)};
-$('#handBtn').onclick=()=>{if(!game||busy)return;openHand()};
+function closeDrawers(){$('#buildPanel')?.classList.remove('open');$('#skillPanel')?.classList.remove('open');const bg=$('#drawerBg');if(bg)bg.hidden=true}
+function closePanel(){closeDrawers()}  // 向後兼容
+function toggleDrawer(which){if(busy||!game)return;const b=$('#buildPanel'),s=$('#skillPanel'),bg=$('#drawerBg');
+  const bo=which==='build'&&!b.classList.contains('open'),so=which==='skill'&&!s.classList.contains('open');
+  b.classList.toggle('open',bo);s.classList.toggle('open',so);if(bg)bg.hidden=!(bo||so)}
+$('#buildTab')?.addEventListener('click',()=>toggleDrawer('build'));
+$('#skillTab')?.addEventListener('click',()=>toggleDrawer('skill'));
+$('#buildX')?.addEventListener('click',closeDrawers);
+$('#skillX')?.addEventListener('click',closeDrawers);
+$('#drawerBg')?.addEventListener('click',closeDrawers);
+$('#skillPanel')?.addEventListener('click',e=>{const b=e.target.closest('button');if(b&&!b.classList.contains('drawer-x')&&!b.disabled)setTimeout(closeDrawers,0)});  // 㩒完技能收埋抽屜（露出棋盤瞄準）
+$('#handBtn').onclick=()=>{if(!game||busy)return;closeDrawers();openHand()};
 $$('[data-build]').forEach(b=>b.onclick=()=>{if(busy||game.phase!=='action'||blocked(game))return;mode=mode===b.dataset.build?null:b.dataset.build;closePanel();render()});
 $('#cardBtn').onclick=()=>{if(busy||game.phase!=='action'||blocked(game))return;const c=drawCard(game,0);closePanel();render();if(c){sfx.card();toast(`抽到「${c}」航海卡`)}};
 $('#tradeBtn').onclick=()=>{if(busy||game.phase!=='action'||blocked(game))return;closePanel();fillTrades();$('#tradeDialog').showModal()};
