@@ -99,6 +99,9 @@
 .sw2.on{border-color:#e0a500;box-shadow:0 0 0 2px #e0a50066}
 .sw2p{width:30px;height:30px;border-radius:7px;border:1px solid rgba(0,0,0,.3);box-shadow:inset 0 0 0 1px rgba(255,255,255,.35)}
 .sw2 small{font-size:9px;color:#6a5a34;max-width:54px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700}
+.taxrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 2px;border-bottom:1px solid #0000000f;font-size:13px;color:#5a4a24}
+.taxrow input{width:64px;padding:6px 8px;border:1px solid #0000002a;border-radius:8px;font-size:14px;text-align:center;background:#fff}
+.taxnote{font-size:11px;color:#8a7f63;margin:8px 2px 2px}
 .brk .dchip .csw{width:10px;height:10px;margin-right:3px;vertical-align:-1px}
 .dchip.you{background:#ffffff26;font-size:11px}
 .tbl-title{font-size:12px;margin:6px 0 6px;color:#5a6c6a}

@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,canTarget,turboRoll,reclaimTile,reclaimCost,reclaimCandidates,deckCounts,buildDeckN,shuffleDeck,capWinner,rallyBundle,rallySurcharge,canExchange,doExchange,raidTargets,raidCandidates,canRaid,doRaid,canLease,doLease,rentFor,rentBase,leaseRenter,leaseWouldAccept,leaseReservation,leaseAcceptsOffer,eliminateLast,merchantActive,portBuildings,canMerchant,doMerchant,spawnMerchant,powerKind,canPower,doPower,powerCost,taxForPlayer,applyTax}from'./engine.js?v=5.62';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,canTarget,turboRoll,reclaimTile,reclaimCost,reclaimCandidates,deckCounts,buildDeckN,shuffleDeck,capWinner,rallyBundle,rallySurcharge,canExchange,doExchange,raidTargets,raidCandidates,canRaid,doRaid,canLease,doLease,rentFor,rentBase,leaseRenter,leaseWouldAccept,leaseReservation,leaseAcceptsOffer,eliminateLast,merchantActive,portBuildings,canMerchant,doMerchant,spawnMerchant,powerKind,canPower,doPower,powerCost,taxForPlayer,applyTax}from'./engine.js?v=5.63';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 let VX=260,VY=245,VS=49;const sx=x=>VX+x*VS,sy=y=>VY+y*VS,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -223,7 +223,16 @@ const LIVEKEY='frontier-live';
 // 超級拉力盃（聯賽季中盃賽：用聯賽車隊、成績唔計聯賽積分、頭4名准決賽+1）
 let rallyActive=false,rallyDrivers=null;
 const RALLYKEY='frontier-rally';
-const RALLY_CFG={bundleEach:2,discGap:4,discMul:0.5,escA:0.3,escP:2,raidCost:{ore:2,grain:2,wool:1},raidUses:2,turbo:6,kit:2,land:3,leaseTurns:4,leaseUses:3,lessorMin:3,leaseMinMul:0.5,leaseDefMul:0.6,leaseMaxMul:0.83,reclaimBase:3,reclaimStep:3,hardBonus:4,powerStep:1,tax:{hiC:24,hiV:11,midC:14,midV:6,loC:8,loV:3,road:4,settle:6,city:9}};
+const RALLY_CFG={bundleEach:2,discGap:4,discMul:0.5,escA:0.3,escP:2,raidCost:{ore:2,grain:2,wool:1},raidUses:2,turbo:6,kit:2,land:3,leaseTurns:4,leaseUses:3,lessorMin:3,leaseMinMul:0.5,leaseDefMul:0.6,leaseMaxMul:0.83,reclaimBase:3,reclaimStep:3,hardBonus:4,powerStep:1,tax:{hiC:24,hiV:11,midC:14,midV:6,loC:0,loV:0,r1:6,r2:4,r3:2,road:4,settle:6,city:9}};
+// 稅制可由遊戲內「⚙️ 稅制」面板調整，存落 localStorage；startRally 會合併覆蓋 RALLY_CFG.tax
+const TAXKEY='frontier-taxcfg';
+function loadTaxCfg(){try{return JSON.parse(localStorage.getItem(TAXKEY))||{}}catch{return{}}}
+function saveTaxCfg(o){try{localStorage.setItem(TAXKEY,JSON.stringify(o))}catch{}}
+function effectiveTax(){return{...RALLY_CFG.tax,...loadTaxCfg()}}
+const TAX_FIELDS=[['hiC','5/6/8/9 島・每座城'],['hiV','5/6/8/9 島・每座村'],['midC','4/10 島・每座城'],['midV','4/10 島・每座村'],['r1','名次稅・第一名 +'],['r2','名次稅・第二名 +'],['r3','名次稅・第三名 +'],['road','抵銷・每條道路'],['settle','抵銷・每座村'],['city','抵銷・每座城']];
+function renderTaxPanel(){const host=$('#taxBody');if(!host)return;const cur=effectiveTax();
+  host.innerHTML=TAX_FIELDS.map(([k,lbl])=>`<label class="taxrow"><span>${lbl}</span><input type="number" min="0" max="99" data-k="${k}" value="${cur[k]}"></label>`).join('')+`<p class="taxnote">每 20 輪繳稅一次。其餘島（2/3/11/12）免稅。改完撳儲存，下次開拉力賽即生效。</p>`;}
+function saveTaxPanel(){const o={};$('#taxBody').querySelectorAll('input[data-k]').forEach(i=>{const v=parseInt(i.value,10);if(!isNaN(v)&&v>=0)o[i.dataset.k]=v});saveTaxCfg(o);toast('⚙️ 稅制已儲存，下次開拉力賽生效')}
 const RALLY_PIECES={roads:26,settlements:8,cities:6};   // 村 8 城 6（建築極限 20 分，留空間畀卡/換分）
 const RALLY_DECK=2.5;                                     // 10 隊牌庫加量
 function saveLive(){try{localStorage.setItem(LIVEKEY,JSON.stringify({game,raceDrivers,rallyDrivers,leagueActive,rallyActive,playoffStage,kitArmed,kitH,kitHit,humanPack,raceSprint,raceMelee,landArmed,raceCity,raceStation,aiKitDriver,aiKitSettleLeft,aiKitRoadLeft}))}catch{}}
@@ -868,8 +877,8 @@ async function schedule(){
     if(game.round%20===0&&game.taxedAt!==game.round){game.taxedAt=game.round;const rep=applyTax(game);const mine=rep.find(r=>r.id===0);
       if(mine&&mine.due>0){const nr=mine.lost.filter(x=>x==='road').length,nv=mine.lost.filter(x=>x==='settle').length,nc=mine.lost.filter(x=>x==='city').length;
         const lost=(nr||nv||nc)?('，資源唔夠 → 上繳 '+[nr?nr+' 路':'',nv?nv+' 村':'',nc?nc+' 城':''].filter(Boolean).join('／')+' 抵數'):'（資源找數）';
-        toast('🏛 第 '+game.round+' 輪繳稅：你共欠 '+mine.due+' 份'+lost);}
-      logSkill('🏛 第 '+game.round+' 輪全員繳稅（5/6/8/9 島：城 24・村 11；4/10 島：城 14・村 6；其餘：城 8・村 3）');
+        toast('🏛 第 '+game.round+' 輪繳稅：你共欠 '+mine.due+' 份'+(mine.rank?'（含名次稅 +'+mine.rank+'）':'')+lost);}
+      logSkill('🏛 第 '+game.round+' 輪全員繳稅（按建築所在數字島 + 名次稅：第一名 +'+effectiveTax().r1+'／二 +'+effectiveTax().r2+'／三 +'+effectiveTax().r3+'）');
       render();if(game.winner!==null){busy=false;sfx.win();return}}
     // 每 30 輪復蘇劫分／拆卸次數（還原到原本）
     if(game.round%30===0&&game.refreshAt!==game.round){game.refreshAt=game.round;
@@ -1539,7 +1548,7 @@ function startRally(){
   forceDesert=false;humanPack=null;aiKitDriver=null;raceDrivers=null;raceSprint=false;raceMelee=false;prevLeader=null;nearSaid=false;closeSaid=false;humanKitEntry=null;reclaimVid=null;
   const opt=raceOpts(rallyDrivers,false);deClash(opt);              // 用聯賽車隊屬性，無墊底補償/熱度扣分（盃賽獨立）
   raceWeather='clear';raceCity='超級拉力盃';raceStation=`季中盃 · ${rallyDrivers.length} 隊 · 領先4分即36封王/否則40`;
-  game=makeGame(undefined,{axial:SHAPES.superisle,...opt,target:36,roundCap:128,pieces:{...RALLY_PIECES},deckMul:RALLY_DECK,rally:{...RALLY_CFG}});
+  game=makeGame(undefined,{axial:SHAPES.superisle,...opt,target:36,roundCap:128,pieces:{...RALLY_PIECES},deckMul:RALLY_DECK,rally:{...RALLY_CFG,tax:effectiveTax()}});
   game.players.forEach((p,k)=>{p.affinity=league.drivers[rallyDrivers[k]].affinity;p.leaseLeft=RALLY_CFG.leaseUses});
   game.leases=[];
   {const nb=new Set(game.tiles.map(t=>t.q+','+t.r));  // 兩個內陸黃金地段（離海岸遠：六面都有鄰地）
@@ -1573,7 +1582,7 @@ function renderRallyHall(){const d=loadRally(),el=$('#rallyList');if(!el)return;
   el.innerHTML=fast+d.champs.map((c,i)=>`<div class="rec-row"><span class="dot" style="background:${c.color}"></span><b>${c.name}</b><small>${c.rounds!=null?c.rounds+' 輪':'逼和'}</small></div>`).join('')}
 
 /* ============ 事件綁定 ============ */
-const VERSION='5.62';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
+const VERSION='5.63';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
 $('#exhibitBtn').onclick=startExhibition;
 {const c=$('#commentaryChk');if(c){c.checked=commentaryOn;c.addEventListener('change',()=>{commentaryOn=c.checked;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');if(!commentaryOn)_cClear()})}}
 $('#commentary')?.addEventListener('click',()=>setCommentary(!commentaryOn));
@@ -1599,6 +1608,10 @@ $('#backupBtn')?.addEventListener('click',openBackup);
 $('#statsBtn')?.addEventListener('click',()=>{renderStats();$('#statsDialog').showModal()});
 $('#closeStats')?.addEventListener('click',()=>$('#statsDialog').close());
 $('#renameBtn')?.addEventListener('click',renameTeam);
+$('#taxBtn')?.addEventListener('click',()=>{renderTaxPanel();$('#rulesDialog')?.close();$('#taxDialog').showModal()});
+$('#closeTax')?.addEventListener('click',()=>$('#taxDialog').close());
+$('#taxSave')?.addEventListener('click',()=>{saveTaxPanel();$('#taxDialog').close()});
+$('#taxReset')?.addEventListener('click',()=>{saveTaxCfg({});renderTaxPanel();toast('⚙️ 已還原預設稅制')});
 $('#colorBtn')?.addEventListener('click',()=>{if(league){renderColorPicker();$('#colorDialog').showModal()}});
 $('#colorPick2')?.addEventListener('click',e=>{const b=e.target.closest('[data-color]');if(!b||!league)return;
   const color=b.dataset.color,style=b.dataset.style||'solid',alt=b.dataset.alt||null,me=league.drivers[0];
