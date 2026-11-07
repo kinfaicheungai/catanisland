@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,canTarget,turboRoll,reclaimTile,reclaimCost,reclaimCandidates,deckCounts,buildDeckN,shuffleDeck,capWinner,rallyBundle,rallySurcharge,canExchange,doExchange,raidTargets,raidCandidates,canRaid,doRaid,canLease,doLease,rentFor,rentBase,leaseRenter,leaseWouldAccept,leaseReservation,leaseAcceptsOffer,eliminateLast,merchantActive,portBuildings,canMerchant,doMerchant,spawnMerchant,powerKind,canPower,doPower,powerCost,taxForPlayer,applyTax}from'./engine.js?v=5.64';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,canTarget,turboRoll,reclaimTile,reclaimCost,reclaimCandidates,deckCounts,buildDeckN,shuffleDeck,capWinner,rallyBundle,rallySurcharge,canExchange,doExchange,raidTargets,raidCandidates,canRaid,doRaid,canLease,doLease,rentFor,rentBase,leaseRenter,leaseWouldAccept,leaseReservation,leaseAcceptsOffer,eliminateLast,merchantActive,portBuildings,canMerchant,doMerchant,spawnMerchant,powerKind,canPower,doPower,powerCost,taxForPlayer,applyTax}from'./engine.js?v=5.65';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 let VX=260,VY=245,VS=49;const sx=x=>VX+x*VS,sy=y=>VY+y*VS,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -221,7 +221,7 @@ function saveLeague(){try{localStorage.setItem(LKEY,JSON.stringify(league))}catc
 /* 進行中對局存檔（中途離開可續玩）*/
 const LIVEKEY='frontier-live';
 // 超級拉力盃（聯賽季中盃賽：用聯賽車隊、成績唔計聯賽積分、頭4名准決賽+1）
-let rallyActive=false,rallyDrivers=null;
+let rallyActive=false,rallyDrivers=null,rallyExhibition=false;
 const RALLYKEY='frontier-rally';
 const RALLY_CFG={bundleEach:2,discGap:4,discMul:0.5,escA:0.3,escP:2,raidCost:{ore:2,grain:2,wool:1},raidUses:2,turbo:6,kit:2,land:3,leaseTurns:4,leaseUses:3,lessorMin:3,leaseMinMul:0.5,leaseDefMul:0.6,leaseMaxMul:0.83,reclaimBase:3,reclaimStep:3,hardBonus:4,powerStep:1,tax:{hiC:24,hiV:11,midC:14,midV:6,loC:0,loV:0,r1:6,r2:4,r3:2,road:4,settle:6,city:9}};
 // 稅制可由遊戲內「⚙️ 稅制」面板調整，存落 localStorage；startRally 會合併覆蓋 RALLY_CFG.tax
@@ -235,13 +235,13 @@ function renderTaxPanel(){const host=$('#taxBody');if(!host)return;const cur=eff
 function saveTaxPanel(){const o={};$('#taxBody').querySelectorAll('input[data-k]').forEach(i=>{const v=parseInt(i.value,10);if(!isNaN(v)&&v>=0)o[i.dataset.k]=v});saveTaxCfg(o);toast('⚙️ 稅制已儲存，下次開拉力賽生效')}
 const RALLY_PIECES={roads:26,settlements:8,cities:6};   // 村 8 城 6（建築極限 20 分，留空間畀卡/換分）
 const RALLY_DECK=2.5;                                     // 10 隊牌庫加量
-function saveLive(){try{localStorage.setItem(LIVEKEY,JSON.stringify({game,raceDrivers,rallyDrivers,leagueActive,rallyActive,playoffStage,kitArmed,kitH,kitHit,humanPack,raceSprint,raceMelee,landArmed,raceCity,raceStation,aiKitDriver,aiKitSettleLeft,aiKitRoadLeft}))}catch{}}
+function saveLive(){try{localStorage.setItem(LIVEKEY,JSON.stringify({game,raceDrivers,rallyDrivers,rallyExhibition,leagueActive,rallyActive,playoffStage,kitArmed,kitH,kitHit,humanPack,raceSprint,raceMelee,landArmed,raceCity,raceStation,aiKitDriver,aiKitSettleLeft,aiKitRoadLeft}))}catch{}}
 function clearLive(){try{localStorage.removeItem(LIVEKEY)}catch{}}
 function restoreLive(){
   let raw;try{raw=localStorage.getItem(LIVEKEY)}catch{return false}
   if(!raw)return false;let d;try{d=JSON.parse(raw)}catch{return false}
   if(!d||!d.game||d.game.winner!==null||!Array.isArray(d.game.tiles))return false;
-  game=d.game;raceDrivers=d.raceDrivers||null;rallyDrivers=d.rallyDrivers||null;leagueActive=!!d.leagueActive;rallyActive=!!d.rallyActive;playoffStage=d.playoffStage||null;
+  game=d.game;raceDrivers=d.raceDrivers||null;rallyDrivers=d.rallyDrivers||null;rallyExhibition=!!d.rallyExhibition;leagueActive=!!d.leagueActive;rallyActive=!!d.rallyActive;playoffStage=d.playoffStage||null;
   kitArmed=!!d.kitArmed;kitH=d.kitH||{rs:0,rr:0,as:0,ar:0,rc:0,ac:0};kitHit=d.kitHit||{};humanPack=d.humanPack||null;raceSprint=!!d.raceSprint;raceMelee=!!d.raceMelee;landArmed=!!d.landArmed;if(d.raceCity)raceCity=d.raceCity;if(d.raceStation)raceStation=d.raceStation;aiKitDriver=(d.aiKitDriver===undefined?null:d.aiKitDriver);aiKitSettleLeft=!!d.aiKitSettleLeft;aiKitRoadLeft=!!d.aiKitRoadLeft;
   if(leagueActive||rallyActive){const L=loadLeague();if(L)league=L}
   busy=false;mode=null;setup=null;endHandled=false;
@@ -986,13 +986,14 @@ function showEnd(){
   if(rallyActive){
     rallyActive=false;clearLive();
     const ord=finishOrder(game),myPos=ord.indexOf(0),champ=game.players[ord[0]];
-    if(league&&rallyDrivers){league.drivers.forEach(d=>d.rallyTop4=false);ord.slice(0,4).forEach(bid=>{const di=rallyDrivers[bid];if(league.drivers[di])league.drivers[di].rallyTop4=true});league.rallyPlayed=true;league.rallyChampion=league.drivers[rallyDrivers[ord[0]]].name;saveLeague()}
-    recordRally(champ,game.cappedOut?null:game.round);
+    if(!rallyExhibition&&league&&rallyDrivers){league.drivers.forEach(d=>d.rallyTop4=false);ord.slice(0,4).forEach(bid=>{const di=rallyDrivers[bid];if(league.drivers[di])league.drivers[di].rallyTop4=true});league.rallyPlayed=true;league.rallyChampion=league.drivers[rallyDrivers[ord[0]]].name;saveLeague()}
+    if(!rallyExhibition)recordRally(champ,game.cappedOut?null:game.round);
     const medal=['🥇','🥈','🥉'][myPos]||('第 '+(myPos+1)+' 名');
-    $('#endTitle').textContent=`超級拉力盃 · ${medal}`;
+    $('#endTitle').textContent=(rallyExhibition?'試玩拉力盃 · ':'超級拉力盃 · ')+medal;
     const top5=ord.slice(0,5).map((bid,i)=>`${['🥇','🥈','🥉','4.','5.'][i]} ${game.players[bid].name} ${totalScore(game,bid)}分`).join('　');
-    $('#endText').textContent=(game.winner===0?'你贏咗季中拉力盃 🏆！':`${champ.name} 封盃。`)+`（${game.round} 輪${game.cappedOut?'·逼和':''}）　前五：${top5}　🎖 頭 4 名若打入季後賽準決賽，開局 +1 勝利點。成績唔影響聯賽積分。`;
-    $('#playAgain').textContent='返回聯賽 →';$('#playAgain').onclick=()=>{$('#endDialog').close();renderHub();$('#leagueDialog').showModal()};
+    $('#endText').textContent=(game.winner===0?'你贏咗拉力盃 🏆！':`${champ.name} 封盃。`)+`（${game.round} 輪${game.cappedOut?'·逼和':''}）　前五：${top5}`+(rallyExhibition?'　（試玩，唔影響任何紀錄）':'　🎖 頭 4 名若打入季後賽準決賽，開局 +1 勝利點。成績唔影響聯賽積分。');
+    const ex=rallyExhibition;
+    $('#playAgain').textContent=ex?'再玩一次 →':'返回聯賽 →';$('#playAgain').onclick=()=>{$('#endDialog').close();if(ex){rallyActive=false;$('#startDialog').showModal()}else{renderHub();$('#leagueDialog').showModal()}};
     presentEnd();return;
   }
   // 季後賽（淘汰賽）人類嗰場
@@ -1576,17 +1577,28 @@ function startExhibition(){
 }
 /* ============ 超級拉力盃（聯賽季中盃：用聯賽車隊、前 10 名、成績唔計聯賽積分）============ */
 function rallyEligible(){if(!league||league.playoff||league.rallyPlayed)return false;const half=Math.floor(league.cities.length/2);if(league.round<half)return false;return standingsSorted().slice(0,10).map(d=>d.i).includes(0)}
-function startRally(){
-  if(!league){toast('🏆 拉力盃要喺聯賽入面打');return}
-  const top10=standingsSorted().slice(0,10).map(d=>d.i);
-  if(!top10.includes(0)){toast('🏆 要打入總榜前 10 名先可以參加季中拉力盃');return}
-  rallyDrivers=[0,...top10.filter(i=>i!==0)];                       // 人類第一，其餘 top10 車隊
+function startRally(exhibition=false){
+  let opt,affinities,labelName;
+  if(exhibition){                                                   // 試玩版：人類 + 9 隊 AI，無聯賽、唔記錄歷史
+    const nm=$('#playerName').value.trim()||'珊瑚拓荒團',ai=[...Array(9).keys()];
+    const names=[nm,...ai.map(i=>AI_NAMES[i])],colors=[pickedColor,...ai.map(i=>AI_COLORS[i])],strengths=[humanTier,...ai.map(i=>AI_STR[i])];
+    const styles=['solid',...ai.map(i=>AI_STYLE[i])],alts=[null,...ai.map(i=>AI_ALT[i])],personas=['balanced',...ai.map(i=>AI_PERSONA[i])];
+    affinities=['grain',...ai.map(i=>AI_AFFINITY[i])];
+    opt={names,colors,strengths,styles,alts,personas,bonusRes:strengths.map((s,k)=>s>=4?{type:affinities[k],amount:s>=5?2:1}:null)};
+    deClash(opt);rallyDrivers=names.map((_,k)=>k);labelName=nm;rallyExhibition=true;
+  }else{
+    if(!league){toast('🏆 拉力盃要喺聯賽入面打');return}
+    const top10=standingsSorted().slice(0,10).map(d=>d.i);
+    if(!top10.includes(0)){toast('🏆 要打入總榜前 10 名先可以參加季中拉力盃');return}
+    rallyDrivers=[0,...top10.filter(i=>i!==0)];                     // 人類第一，其餘 top10 車隊
+    opt=raceOpts(rallyDrivers,false);deClash(opt);                  // 用聯賽車隊屬性，無墊底補償/熱度扣分（盃賽獨立）
+    affinities=rallyDrivers.map(di=>league.drivers[di].affinity);labelName=league.drivers[0].name;rallyExhibition=false;
+  }
   initAudio();endHandled=false;leagueActive=false;playoffStage=null;rallyActive=true;prevArmy=null;prevRoad=null;prevLessor=null;
   forceDesert=false;humanPack=null;aiKitDriver=null;raceDrivers=null;raceSprint=false;raceMelee=false;prevLeader=null;nearSaid=false;closeSaid=false;humanKitEntry=null;reclaimVid=null;
-  const opt=raceOpts(rallyDrivers,false);deClash(opt);              // 用聯賽車隊屬性，無墊底補償/熱度扣分（盃賽獨立）
-  raceWeather='clear';raceCity='超級拉力盃';raceStation=`季中盃 · ${rallyDrivers.length} 隊 · 領先4分即36封王/否則40`;
+  raceWeather='clear';raceCity='超級拉力盃';raceStation=(exhibition?'試玩 · ':'季中盃 · ')+`${rallyDrivers.length} 隊 · 領先4分即36封王/否則40`;
   game=makeGame(undefined,{axial:SHAPES.superisle,...opt,target:36,roundCap:128,pieces:{...RALLY_PIECES},deckMul:RALLY_DECK,rally:{...RALLY_CFG,tax:effectiveTax()}});
-  game.players.forEach((p,k)=>{p.affinity=league.drivers[rallyDrivers[k]].affinity;p.leaseLeft=RALLY_CFG.leaseUses});
+  game.players.forEach((p,k)=>{p.affinity=affinities[k];p.leaseLeft=RALLY_CFG.leaseUses});
   game.leases=[];
   {const nb=new Set(game.tiles.map(t=>t.q+','+t.r));  // 兩個內陸黃金地段（離海岸遠：六面都有鄰地）
    const inland=game.tiles.filter(t=>t.type!=='desert'&&[[1,0],[-1,0],[0,1],[0,-1],[1,-1],[-1,1]].every(([dq,dr])=>nb.has((t.q+dq)+','+(t.r+dr))));
@@ -1600,7 +1612,8 @@ function startRally(){
   game.rallyLand=game.players.map(()=>RALLY_CFG.land);
   kitArmed=true;landArmed=true;kitHit={};kitH={rs:0,rr:0,as:RALLY_CFG.kit,ar:RALLY_CFG.kit,rc:0,ac:RALLY_CFG.kit};
   game.kitLeftHuman=RALLY_CFG.kit;game.landLeftHuman=RALLY_CFG.land;
-  saveLeague();clearLive();$('#playerLabel').textContent=league.drivers[0].name;$('#leagueDialog').close();beginSetup()
+  clearLive();if(!rallyExhibition)saveLeague();$('#playerLabel').textContent=labelName;
+  (rallyExhibition?$('#startDialog'):$('#leagueDialog'))?.close();beginSetup()
 }
 /* ---- 拉力冠軍殿堂（獨立 localStorage，唔影響聯賽）---- */
 // 改色揀色盤：列出全部可揀識別（你現用 + 各隊現有款 + 備用純色），揀邊個就同擁有者對調，確保唯一
@@ -1619,8 +1632,9 @@ function renderRallyHall(){const d=loadRally(),el=$('#rallyList');if(!el)return;
   el.innerHTML=fast+d.champs.map((c,i)=>`<div class="rec-row"><span class="dot" style="background:${c.color}"></span><b>${c.name}</b><small>${c.rounds!=null?c.rounds+' 輪':'逼和'}</small></div>`).join('')}
 
 /* ============ 事件綁定 ============ */
-const VERSION='5.64';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
+const VERSION='5.65';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
 $('#exhibitBtn').onclick=startExhibition;
+$('#rallyExhibitBtn')?.addEventListener('click',()=>startRally(true));
 {const c=$('#commentaryChk');if(c){c.checked=commentaryOn;c.addEventListener('change',()=>{commentaryOn=c.checked;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');if(!commentaryOn)_cClear();else{_spkUnlocked=false;unlockSpeech()}})}}
 $('#commentary')?.addEventListener('click',()=>setCommentary(!commentaryOn));
 function setCommentary(on){commentaryOn=on;localStorage.setItem('frontier-commentary',on?'1':'0');const c=$('#commentaryChk');if(c)c.checked=on;const b=$('#commentaryBtn');if(b){b.textContent=on?'🎙':'🔕';b.classList.toggle('off',!on)}if(!on)_cClear();else{_spkUnlocked=false;unlockSpeech()}toast(on?'🎙 旁述開':'🔕 旁述關')}
