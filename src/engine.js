@@ -315,9 +315,20 @@ export function reclaimTile(g,vid,resource,num,rng=Math.random){const c=reclaimC
   const costRes=rally?reclaimCostRes(g):null;if(rally&&!canAfford(p,costRes))return false;       // 拉力賽：要齊指定資源
   const n=rally?[5,6,8,9][Math.floor((rng()||0)*4)%4]:(num||8);                         // 拉力賽：點數隨機 5/6/8/9
   const t=spliceHex(g,c[0].q,c[0].r,resource,n);if(t===false)return false;
+  // 填海連帶：被新地覆蓋嘅港口（條邊依家夾喺兩塊地之間）消除，改喺新島近海邊重現
+  let portMoved=null;
+  if(g.ports&&g.ports.length){const nt=g.tiles[t];
+    const tilesOnEdge=eid=>g.tiles.reduce((s,tl)=>s+(tl.edges.includes(eid)?1:0),0);
+    const covered=g.ports.filter(port=>port.edge!=null&&tilesOnEdge(port.edge)>=2);   // 條邊夾喺兩塊地之間 = 被覆蓋
+    const coast=nt.edges.filter(eid=>tilesOnEdge(eid)===1);   // 新地仲貼住海嗰幾條邊
+    for(const port of covered){g.ports.splice(g.ports.indexOf(port),1);
+      const free=coast.find(eid=>!g.ports.some(pp=>pp.edge===eid));
+      if(free!=null){const e=g.edges[free];g.ports.push({edge:free,a:e.a,b:e.b,kind:port.kind,ratio:port.kind==='any'?3:2});portMoved={kind:port.kind}}}
+    if(covered.length)for(const pl of g.players)pl.ports=[...new Set(g.ports.filter(port=>g.vertices[port.a].owner===pl.id||g.vertices[port.b].owner===pl.id).map(port=>port.kind))];
+  }
   if(rally){pay(p,costRes);p.reclaimCount=(p.reclaimCount||0)+1;p.extraSettle=(p.extraSettle||0)+1}   // 扣指定資源、只 +1 村額度
   else{p.extraSettle=(p.extraSettle||0)+1;p.extraRoad=(p.extraRoad||0)+3}                    // 聯賽：舊行為
-  return{tile:t,num:n,cost:rally?reclaimCost(g):0,costRes}}
+  return{tile:t,num:n,cost:rally?reclaimCost(g):0,costRes,portMoved}}
 // 拆卸包「攻城」：拆一座港城（對手 −2 分）
 export function demolishCity(g,vid){const v=g.vertices[vid];if(!v||v.owner===null||v.level!==2)return false;const o=v.owner;
   if(!canTarget(g,o,'demolish'))return false;
