@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,canTarget,turboRoll,reclaimTile,reclaimCost,reclaimCandidates,deckCounts,buildDeckN,shuffleDeck,capWinner,rallyBundle,rallySurcharge,canExchange,doExchange,raidTargets,raidCandidates,canRaid,doRaid,canLease,doLease,rentFor,rentBase,leaseRenter,leaseWouldAccept,leaseReservation,leaseAcceptsOffer,eliminateLast,merchantActive,portBuildings,canMerchant,doMerchant,spawnMerchant,powerKind,canPower,doPower,powerCost,taxForPlayer,applyTax}from'./engine.js?v=5.68';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,canTarget,turboRoll,reclaimTile,reclaimCost,reclaimCostRes,reclaimCandidates,deckCounts,buildDeckN,shuffleDeck,capWinner,rallyBundle,rallySurcharge,canExchange,doExchange,raidTargets,raidCandidates,canRaid,doRaid,canLease,doLease,rentFor,rentBase,leaseRenter,leaseWouldAccept,leaseReservation,leaseAcceptsOffer,eliminateLast,merchantActive,portBuildings,canMerchant,doMerchant,spawnMerchant,powerKind,canPower,doPower,powerCost,taxForPlayer,applyTax}from'./engine.js?v=5.69';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 let VX=260,VY=245,VS=49;const sx=x=>VX+x*VS,sy=y=>VY+y*VS,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -223,7 +223,7 @@ const LIVEKEY='frontier-live';
 // 超級拉力盃（聯賽季中盃賽：用聯賽車隊、成績唔計聯賽積分、頭4名准決賽+1）
 let rallyActive=false,rallyDrivers=null,rallyExhibition=false;
 const RALLYKEY='frontier-rally';
-const RALLY_CFG={bundleEach:2,discGap:4,discMul:0.5,escA:0.3,escP:2,raidCost:{ore:2,grain:2,wool:1},raidUses:2,turbo:6,kit:2,land:3,leaseTurns:4,leaseUses:3,lessorMin:3,leaseMinMul:0.5,leaseDefMul:0.6,leaseMaxMul:0.83,reclaimBase:3,reclaimStep:3,hardBonus:4,powerStep:1,tax:{hiC:12,hiV:6,midC:7,midV:3,loC:0,loV:0,r1:3,r2:2,r3:1,road:4,settle:6,city:9}};
+const RALLY_CFG={bundleEach:2,discGap:4,discMul:0.5,escA:0.3,escP:2,raidCost:{ore:2,grain:2,wool:1},raidUses:2,turbo:6,kit:2,land:3,leaseTurns:4,leaseUses:3,lessorMin:3,leaseMinMul:0.5,leaseDefMul:0.6,leaseMaxMul:0.83,reclaimBase:3,reclaimStep:3,landCost:{wood:3,brick:3,grain:3,ore:3},hardBonus:4,powerStep:1,tax:{hiC:12,hiV:6,midC:7,midV:3,loC:0,loV:0,r1:3,r2:2,r3:1,road:4,settle:6,city:9}};
 // 稅制可由遊戲內「⚙️ 稅制」面板調整，存落 localStorage；startRally 會合併覆蓋 RALLY_CFG.tax
 const TAXKEY='frontier-taxcfg';
 function loadTaxCfg(){try{return JSON.parse(localStorage.getItem(TAXKEY))||{}}catch{return{}}}
@@ -494,14 +494,14 @@ let reclaimRes='wood',reclaimNum=8;
 function beginReclaim(){if(busy||!landArmed||game.phase==='roll'||blocked(game)||(rallyActive&&game.round<=10)){if(rallyActive&&game.round<=10)toast('🔒 技能要 10 輪後先解鎖');return}const vs=reclaimableVerts();if(!vs.length){toast('🏝 你冇島邊港口村莊可以填海');return}if(vs.length===1){reclaimVid=vs[0];openReclaimChooser()}else{mode='reclaim';game.log='🏝 填海：點一個發光嘅港口村莊';render();toast('🏝 揀一個港口村莊')}}
 function openReclaimChooser(){mode=null;reclaimRes='wood';reclaimNum=8;
   $('#reclaimRes').innerHTML=RESOURCES.map(r=>`<button type="button" data-r="${r}" class="${r===reclaimRes?'on':''}">${ICONS[r]} ${LABELS[r]}</button>`).join('');
-  if(rallyActive){const cost=reclaimCost(game,0);$('#reclaimNum').innerHTML=`<span class="rc-note">點數隨機抽（5／6／8／9）· 今次成本 ${cost} 份資源 · 只加 1 村額度</span>`}
+  if(rallyActive){const c=reclaimCostRes(game),txt=RESOURCES.filter(r=>c[r]).map(r=>LABELS[r]+' '+c[r]).join('・');$('#reclaimNum').innerHTML=`<span class="rc-note">點數隨機抽（5／6／8／9）· 成本 ${txt} · 只加 1 村額度</span>`}
   else{$('#reclaimNum').innerHTML=[2,3,4,5,6,8,9,10,11,12].map(n=>`<button type="button" data-n="${n}" class="${n===reclaimNum?'on':''}">${n}</button>`).join('');
     $$('#reclaimNum button').forEach(b=>b.onclick=()=>{reclaimNum=+b.dataset.n;$$('#reclaimNum button').forEach(x=>x.classList.toggle('on',x===b))})}
   $$('#reclaimRes button').forEach(b=>b.onclick=()=>{reclaimRes=b.dataset.r;$$('#reclaimRes button').forEach(x=>x.classList.toggle('on',x===b))});
   $('#reclaimDialog').showModal();render();
 }
 function doReclaim(){if(reclaimVid==null){$('#reclaimDialog').close();return}
-  if(rallyActive&&countResources(game.players[0])<reclaimCost(game,0)){$('#reclaimDialog').close();toast('🏝 資源唔夠填海（今次要 '+reclaimCost(game,0)+' 份）');return}
+  if(rallyActive&&!canAfford(game.players[0],reclaimCostRes(game))){const c=reclaimCostRes(game);$('#reclaimDialog').close();toast('🏝 資源唔夠填海（要 '+RESOURCES.filter(r=>c[r]).map(r=>LABELS[r]+c[r]).join('・')+'）');return}
   const r=reclaimTile(game,reclaimVid,reclaimRes,reclaimNum);$('#reclaimDialog').close();if(r===false){toast('🏝 呢度填唔到海');return}
   const num=(typeof r==='object'?r.num:reclaimNum);
   if(rallyActive){game.landLeftHuman=(game.landLeftHuman||1)-1;if(game.landLeftHuman<=0)landArmed=false}else landArmed=false;
@@ -1633,7 +1633,7 @@ function renderRallyHall(){const d=loadRally(),el=$('#rallyList');if(!el)return;
   el.innerHTML=fast+d.champs.map((c,i)=>`<div class="rec-row"><span class="dot" style="background:${c.color}"></span><b>${c.name}</b><small>${c.rounds!=null?c.rounds+' 輪':'逼和'}</small></div>`).join('')}
 
 /* ============ 事件綁定 ============ */
-const VERSION='5.68';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
+const VERSION='5.69';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
 $('#exhibitBtn').onclick=startExhibition;
 $('#rallyExhibitBtn')?.addEventListener('click',()=>startRally(true));
 {const c=$('#commentaryChk');if(c){c.checked=commentaryOn;c.addEventListener('change',()=>{commentaryOn=c.checked;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');if(!commentaryOn)_cClear();else{_spkUnlocked=false;unlockSpeech()}})}}

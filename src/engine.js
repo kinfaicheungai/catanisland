@@ -309,15 +309,15 @@ export function reclaimCandidates(g,vid){const V=g.vertices[vid];if(!V)return[];
     if(corner){seen.add(k);out.push({q:nq,r:nr})}}
   return out;}
 // 填海成本（拉力賽）：遞增 —— base + step × 已填次數
-export function reclaimCost(g,ownerId){const base=(g.rally&&g.rally.reclaimBase)||3,step=(g.rally&&g.rally.reclaimStep)||3;return base+step*((g.players[ownerId]&&g.players[ownerId].reclaimCount)||0)}
+export function reclaimCostRes(g){return (g.rally&&g.rally.landCost)||{wood:3,brick:3,grain:3,ore:3};}   // 拉力賽填海成本：指定資源（預設木磚糧礦各 3）
+export function reclaimCost(g,ownerId){const c=reclaimCostRes(g);return RESOURCES.reduce((s,r)=>s+(c[r]||0),0);}   // 總份數（兼容舊呼叫）
 export function reclaimTile(g,vid,resource,num,rng=Math.random){const c=reclaimCandidates(g,vid);if(!c.length)return false;const owner=g.vertices[vid]&&g.vertices[vid].owner;if(owner==null)return false;const p=g.players[owner],rally=!!g.rally;
-  const cost=rally?reclaimCost(g,owner):0;if(rally&&countResources(p)<cost)return false;
+  const costRes=rally?reclaimCostRes(g):null;if(rally&&!canAfford(p,costRes))return false;       // 拉力賽：要齊指定資源
   const n=rally?[5,6,8,9][Math.floor((rng()||0)*4)%4]:(num||8);                         // 拉力賽：點數隨機 5/6/8/9
   const t=spliceHex(g,c[0].q,c[0].r,resource,n);if(t===false)return false;
-  if(rally){let need=cost;const ord=[...RESOURCES].sort((a,b)=>p.resources[b]-p.resources[a]);for(const r of ord){while(need>0&&p.resources[r]>0){p.resources[r]--;need--}}
-    p.reclaimCount=(p.reclaimCount||0)+1;p.extraSettle=(p.extraSettle||0)+1}                // 拉力賽：遞增成本、只 +1 村額度
+  if(rally){pay(p,costRes);p.reclaimCount=(p.reclaimCount||0)+1;p.extraSettle=(p.extraSettle||0)+1}   // 扣指定資源、只 +1 村額度
   else{p.extraSettle=(p.extraSettle||0)+1;p.extraRoad=(p.extraRoad||0)+3}                    // 聯賽：舊行為
-  return{tile:t,num:n,cost}}
+  return{tile:t,num:n,cost:rally?reclaimCost(g):0,costRes}}
 // 拆卸包「攻城」：拆一座港城（對手 −2 分）
 export function demolishCity(g,vid){const v=g.vertices[vid];if(!v||v.owner===null||v.level!==2)return false;const o=v.owner;
   if(!canTarget(g,o,'demolish'))return false;
