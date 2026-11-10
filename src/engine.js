@@ -417,20 +417,24 @@ export function taxForVertex(g,vid){const v=g.vertices[vid];if(!v||v.owner===nul
   let due=0;for(const t of g.tiles){if(t.num==null||!t.vertices.includes(vid))continue;let cc,ss;if(TAX_HI.includes(t.num)){cc=hiC;ss=hiV}else if(TAX_MID.includes(t.num)){cc=midC;ss=midV}else{cc=loC;ss=loV}due+=(v.level===2?cc:ss)}
   return due;}
 export function taxForPlayer(g,id){let due=0;for(const v of g.vertices)if(v.owner===id)due+=taxForVertex(g,v.id);return due;}
-export function applyTax(g){const rep=[],c=(g.rally&&g.rally.tax)||{},cr={road:c.road??4,settle:c.settle??6,city:c.city??9};
+export function applyTax(g,topN){const rep=[],c=(g.rally&&g.rally.tax)||{},cr={road:c.road??4,settle:c.settle??6,city:c.city??9};
   // 名次稅：當下第一名再加 r1，第二名 r2，第三名 r3
   const rank=g.players.filter(p=>!p.retired).map(p=>p.id).sort((a,b)=>totalScore(g,b)-totalScore(g,a));
-  const rx={};if(rank[0]!=null)rx[rank[0]]=c.r1??6;if(rank[1]!=null)rx[rank[1]]=c.r2??4;if(rank[2]!=null)rx[rank[2]]=c.r3??2;
-  for(const p of g.players){if(p.retired)continue;const id=p.id,due=taxForPlayer(g,id)+(rx[id]||0);if(due<=0){rep.push({id,due:0,paid:0,lost:[],rank:(rx[id]||0)});continue}
+  const rx={};if(rank[0]!=null)rx[rank[0]]=c.r1??3;if(rank[1]!=null)rx[rank[1]]=c.r2??2;if(rank[2]!=null)rx[rank[2]]=c.r3??1;
+  const taxed=new Set(rank.slice(0,topN||rank.length));   // 只有頭 topN 名要繳稅，其餘豁免
+  for(const p of g.players){if(p.retired)continue;const id=p.id;
+    if(!taxed.has(id)){rep.push({id,due:0,paid:0,lost:[],rank:0,exempt:true});continue}
+    const due=taxForPlayer(g,id)+(rx[id]||0);if(due<=0){rep.push({id,due:0,paid:0,lost:[],rank:(rx[id]||0)});continue}
     let paid=0;while(paid<due){const r=RESOURCES.slice().sort((x,y)=>p.resources[y]-p.resources[x])[0];if(p.resources[r]<=0)break;p.resources[r]--;paid++}
     let short=due-paid,lost=[];
-    if(short>0){const roads=g.edges.filter(e=>e.owner===id);                                   // 先上繳道路（損失最細）
-      while(short>0&&roads.length){const e=roads.pop();e.owner=null;short-=cr.road;lost.push('road')}
+    if(short>0){const roads=g.edges.filter(e=>e.owner===id);                                   // 先上繳道路，但保留至少 2 條
+      while(short>0&&roads.length>2){const e=roads.pop();e.owner=null;short-=cr.road;lost.push('road')}
       const bldg=()=>g.vertices.filter(v=>v.owner===id).length;
+      const startB=bldg(),floor=Math.max(2,Math.ceil(startB/2));   // 保護網：一次最多上繳一半建築，至少保留 2 座
       if(short>0){const st=g.vertices.filter(v=>v.owner===id&&v.level===1).sort((a,b)=>taxForVertex(g,a.id)-taxForVertex(g,b.id));  // 再上繳最低產值嘅村
-        while(short>0&&bldg()>1&&st.length){const v=st.shift();v.owner=null;v.level=0;p.score=Math.max(0,p.score-1);short-=cr.settle;lost.push('settle')}}
+        while(short>0&&bldg()>floor&&st.length){const v=st.shift();v.owner=null;v.level=0;p.score=Math.max(0,p.score-1);short-=cr.settle;lost.push('settle')}}
       if(short>0){const ct=g.vertices.filter(v=>v.owner===id&&v.level===2).sort((a,b)=>taxForVertex(g,a.id)-taxForVertex(g,b.id));  // 最後上繳最低產值嘅城
-        while(short>0&&bldg()>1&&ct.length){const v=ct.shift();v.owner=null;v.level=0;p.score=Math.max(0,p.score-2);short-=cr.city;lost.push('city')}}
+        while(short>0&&bldg()>floor&&ct.length){const v=ct.shift();v.owner=null;v.level=0;p.score=Math.max(0,p.score-2);short-=cr.city;lost.push('city')}}
     }
     rep.push({id,due,paid,lost,rank:(rx[id]||0)});}
   for(const p of g.players)recomputePlayerAssets(g,p.id);updateBonuses(g);return rep;}
