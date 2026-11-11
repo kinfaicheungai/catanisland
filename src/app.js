@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,canTarget,turboRoll,reclaimTile,reclaimCost,reclaimCostRes,reclaimCandidates,deckCounts,buildDeckN,shuffleDeck,capWinner,rallyBundle,rallySurcharge,canExchange,doExchange,raidTargets,raidCandidates,canRaid,doRaid,canLease,doLease,rentFor,rentBase,leaseRenter,leaseWouldAccept,leaseReservation,leaseAcceptsOffer,eliminateLast,merchantActive,portBuildings,canMerchant,doMerchant,spawnMerchant,powerKind,canPower,doPower,powerCost,taxForPlayer,applyTax}from'./engine.js?v=5.70';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,canTarget,turboRoll,reclaimTile,reclaimCost,reclaimCostRes,reclaimCandidates,deckCounts,buildDeckN,shuffleDeck,capWinner,rallyBundle,rallySurcharge,canExchange,doExchange,raidTargets,raidCandidates,canRaid,doRaid,canLease,doLease,rentFor,rentBase,leaseRenter,leaseWouldAccept,leaseReservation,leaseAcceptsOffer,eliminateLast,merchantActive,portBuildings,canMerchant,doMerchant,spawnMerchant,powerKind,canPower,doPower,powerCost,taxForPlayer,applyTax,taxSurrenderPiece}from'./engine.js?v=5.71';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 let VX=260,VY=245,VS=49;const sx=x=>VX+x*VS,sy=y=>VY+y*VS,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -223,7 +223,7 @@ const LIVEKEY='frontier-live';
 // 超級拉力盃（聯賽季中盃賽：用聯賽車隊、成績唔計聯賽積分、頭4名准決賽+1）
 let rallyActive=false,rallyDrivers=null,rallyExhibition=false;
 const RALLYKEY='frontier-rally';
-const RALLY_CFG={bundleEach:2,discGap:4,discMul:0.5,escA:0.3,escP:2,raidCost:{ore:2,grain:2,wool:1},raidUses:2,turbo:6,kit:2,land:3,leaseTurns:4,leaseUses:3,lessorMin:3,leaseMinMul:0.5,leaseDefMul:0.6,leaseMaxMul:0.83,reclaimBase:3,reclaimStep:3,landCost:{wood:3,brick:3,grain:3,ore:3},hardBonus:4,powerStep:1,tax:{hiC:12,hiV:6,midC:7,midV:3,loC:0,loV:0,r1:3,r2:2,r3:1,road:4,settle:6,city:9}};
+const RALLY_CFG={bundleEach:2,discGap:4,discMul:0.5,escA:0.3,escP:2,raidCost:{ore:2,grain:2,wool:1},raidUses:2,turbo:6,kit:2,land:3,leaseTurns:4,leaseUses:3,lessorMin:3,leaseMinMul:0.5,leaseDefMul:0.6,leaseMaxMul:0.83,reclaimBase:3,reclaimStep:3,landCost:{wood:3,brick:3,grain:3,ore:3},kitRevivalCost:4,hardBonus:4,powerStep:1,tax:{hiC:12,hiV:6,midC:7,midV:3,loC:0,loV:0,r1:3,r2:2,r3:1,road:4,settle:6,city:9}};
 // 稅制可由遊戲內「⚙️ 稅制」面板調整，存落 localStorage；startRally 會合併覆蓋 RALLY_CFG.tax
 const TAXKEY='frontier-taxcfg';
 function loadTaxCfg(){try{return JSON.parse(localStorage.getItem(TAXKEY))||{}}catch{return{}}}
@@ -466,13 +466,18 @@ function setHighlights(){
     if(rLeft>0)game.edges.forEach(e=>{if(e.owner!=null&&e.owner!==0&&!prot(e.owner))svg.querySelector(`[data-edge="${e.id}"]`)?.classList.add('legal')})}
   else if(mode==='reclaim')for(const id of reclaimableVerts())svg.querySelector(`[data-vertex="${id}"]`)?.classList.add('legal')
   else if(mode==='lease')for(const id of leasableVerts())svg.querySelector(`[data-vertex="${id}"]`)?.classList.add('legal')
+  else if(mode==='taxpay'){const keep=game.vertices.filter(v=>v.owner===0&&v.level>=1).length>1;
+    game.edges.forEach(e=>{if(e.owner===0)svg.querySelector(`[data-edge="${e.id}"]`)?.classList.add('legal')});
+    if(keep)game.vertices.forEach(v=>{if(v.owner===0&&v.level>=1)svg.querySelector(`[data-vertex="${v.id}"]`)?.classList.add('legal')})}
 }
 
 /* ============ 棋盤點擊 ============ */
 function chooseEdge(id){
   if(dragged)return;
   if(busy)return;
-  if(mode==='demo'){const rKey=demoAny?'ar':'rr';if(kitH[rKey]>0){const e=game.edges[id];if(e&&e.owner!=null&&e.owner!==0){const o=demolishRoad(game,id);if(o!==false){sfx.build();flashEdge(id);logSkill('💣 你拆咗 '+game.players[o].name+' 一條航線');commentary('demolish',{n:game.players[0].name,v:game.players[o].name},.7);if(humanKitEntry&&humanKitEntry.to==null&&raceDrivers)humanKitEntry.to=raceDrivers[o];kitH[rKey]--;rallyKitSpend();saveLeague();afterDemolish()}}}return}
+  if(mode==='taxpay'){const e=game.edges[id];if(!e||e.owner!==0){toast('🏛 撳你自己嘅航線上繳');return}
+    const val=taxSurrenderPiece(game,0,{kind:'road',eid:id});if(val>0){sfx.build();flashEdge(id);taxOwe-=val;logSkill('🏛 你上繳咗一條航線抵稅（抵 '+val+' 份）');taxPayStep()}return}
+  if(mode==='demo'){const rKey=demoAny?'ar':'rr';if(kitH[rKey]>0){const e=game.edges[id];if(e&&e.owner!=null&&e.owner!==0){if(!kitCanPay()){toast('💣 復蘇後拆卸要 '+kitDemoCost()+' 份資源，你唔夠');return}const o=demolishRoad(game,id);if(o!==false){kitPay();sfx.build();flashEdge(id);logSkill('💣 你拆咗 '+game.players[o].name+' 一條航線'+(kitDemoCost()?'（付 '+kitDemoCost()+' 資源）':''));commentary('demolish',{n:game.players[0].name,v:game.players[o].name},.7);if(humanKitEntry&&humanKitEntry.to==null&&raceDrivers)humanKitEntry.to=raceDrivers[o];kitH[rKey]--;rallyKitSpend();saveLeague();afterDemolish()}}}return}
   if(mode==='initRoad'){if(placeInitialRoad(game,0,id)){mode=null;render();flashEdge(id);sfx.build();setup.idx++;advanceSetup()}return}
   if(mode==='road'){const wasFree=game.freeRoads>0;if(placeRoad(game,0,id)){flashEdge(id);sfx.build();if(wasFree&&game.freeRoads>0){render();toast('免費築路：仲可以起多一條');return}mode=null;render()}}
 }
@@ -523,11 +528,16 @@ function beginRobber(msg){mode='robber';busy=false;game.log=msg||'揀一塊島�
 function chooseVertex(id){
   if(dragged)return;
   if(busy)return;
+  if(mode==='taxpay'){const v=game.vertices[id];if(!v||v.owner!==0||v.level<1){toast('🏛 撳你自己嘅村／城上繳');return}
+    const wasCity=v.level===2,val=taxSurrenderPiece(game,0,{kind:wasCity?'city':'settle',vid:id});
+    if(val>0){sfx.build();flashVertex(id);taxOwe-=val;logSkill('🏛 你上繳咗一座'+(wasCity?'港城':'村莊')+'抵稅（抵 '+val+' 份）');taxPayStep()}
+    else toast('🏛 至少要保留一座建築');return}
   if(mode==='demo'){const v=game.vertices[id];if(!v||v.owner==null||v.owner===0)return;
     if(rallyActive&&(game.kitLeftHuman||0)<=0){toast('💣 拆卸已用晒（本局 2 次）');return}
+    if((v.level===2||v.level===1)&&!kitCanPay()){toast('💣 復蘇後拆卸要 '+kitDemoCost()+' 份資源，你唔夠');return}
     const sKey=demoAny?'as':'rs',cKey=demoAny?'ac':'rc';
-    if(v.level===2&&kitH[cKey]>0&&kitCanCity(v.owner)){const o=demolishCity(game,id);if(o!==false){sfx.build();flashVertex(id);logSkill('💣 你拆咗 '+game.players[o].name+' 一座港城（−2 分）');commentary('demolish',{n:game.players[0].name,v:game.players[o].name},.95);if(humanKitEntry&&humanKitEntry.to==null&&raceDrivers)humanKitEntry.to=raceDrivers[o];kitH[cKey]--;kitMark(o,'c');rallyKitSpend();saveLeague();afterDemolish()}return}
-    if(v.level===1&&kitH[sKey]>0&&kitCanSettle(v.owner)){const o=demolishSettlement(game,id);if(o!==false){sfx.build();flashVertex(id);logSkill('💣 你拆咗 '+game.players[o].name+' 一座村莊');commentary('demolish',{n:game.players[0].name,v:game.players[o].name},.9);if(humanKitEntry&&humanKitEntry.to==null&&raceDrivers)humanKitEntry.to=raceDrivers[o];kitH[sKey]--;kitMark(o,'s');rallyKitSpend();saveLeague();afterDemolish()}return}
+    if(v.level===2&&kitH[cKey]>0&&kitCanCity(v.owner)){const o=demolishCity(game,id);if(o!==false){kitPay();sfx.build();flashVertex(id);logSkill('💣 你拆咗 '+game.players[o].name+' 一座港城（−2 分）'+(kitDemoCost()?'（付 '+kitDemoCost()+' 資源）':''));commentary('demolish',{n:game.players[0].name,v:game.players[o].name},.95);if(humanKitEntry&&humanKitEntry.to==null&&raceDrivers)humanKitEntry.to=raceDrivers[o];kitH[cKey]--;kitMark(o,'c');rallyKitSpend();saveLeague();afterDemolish()}return}
+    if(v.level===1&&kitH[sKey]>0&&kitCanSettle(v.owner)){const o=demolishSettlement(game,id);if(o!==false){kitPay();sfx.build();flashVertex(id);logSkill('💣 你拆咗 '+game.players[o].name+' 一座村莊'+(kitDemoCost()?'（付 '+kitDemoCost()+' 資源）':''));commentary('demolish',{n:game.players[0].name,v:game.players[o].name},.9);if(humanKitEntry&&humanKitEntry.to==null&&raceDrivers)humanKitEntry.to=raceDrivers[o];kitH[sKey]--;kitMark(o,'s');rallyKitSpend();saveLeague();afterDemolish()}return}
     return}
   if(mode==='lease'){const v=game.vertices[id];if(!v||v.owner==null||v.owner===0){toast('🤝 揀一個對手嘅村/城');return}
     if(leaseReservation(game,v.owner)==null){toast('🤝 '+game.players[v.owner].name+' 唔肯租（位置太前／快封王）');return}
@@ -541,6 +551,7 @@ function chooseVertex(id){
 /* ============ 主畫面 ============ */
 function modePrompt(){
   if(mode==='robber')return '揀一塊發光島嶼，放置海盜封鎖佢生產（並掠奪一份物資）。';
+  if(mode==='taxpay')return '🏛 繳稅不足：撳你自己發光嘅航線（抵 '+(((game.rally&&game.rally.tax)||{}).road??4)+'）／村莊（抵 '+(((game.rally&&game.rally.tax)||{}).settle??6)+'）／港城（抵 '+(((game.rally&&game.rally.tax)||{}).city??9)+'）上繳，仲欠 '+taxOwe+' 份。至少保留一座建築，上繳到冇得再上繳餘數會豁免。';
   if(mode==='demo')return demoPrompt();
   if(mode==='reclaim')return '🏝 填海：點一個發光嘅港口村莊，喺佢旁邊海面造新地。';
   if(mode==='lease')return '🤝 租借：點一個對手嘅發光村/城，付一次性租金，租期內佢嘅產出歸你。';
@@ -815,7 +826,22 @@ async function rallyAiActs(id){
   let t=0;while(t++<2&&game.winner===null&&canExchange(game,id))doExchange(game,id);
   render();
 }
+/* === 繳稅上繳：資源唔夠時，玩家自己揀邊啲路／村／城上繳（唔再一次過被政府拎走）=== */
+let taxOwe=0,taxResolve=null;
+function humanTaxSurrender(owe){return new Promise(res=>{taxOwe=owe;taxResolve=res;mode='taxpay';busy=false;
+  if(!taxHasPiece()){toast('🏛 你冇得再上繳，餘數 '+owe+' 份豁免');finishTaxPay();return}
+  render();});}
+function taxHasPiece(){return game.edges.some(e=>e.owner===0)||game.vertices.filter(v=>v.owner===0&&v.level>=1).length>1;}
+function taxPayStep(){saveLive();
+  if(taxOwe<=0){toast('🏛 已繳足，多謝合作！');finishTaxPay();return}
+  if(!taxHasPiece()){toast('🏛 你冇得再上繳，餘數 '+taxOwe+' 份豁免');finishTaxPay();return}
+  toast('🏛 仲欠 '+taxOwe+' 份 — 繼續撳你嘅棋子上繳');render();}
+function finishTaxPay(){mode=null;taxOwe=0;render();const r=taxResolve;taxResolve=null;if(r)r();}
 function rallyKitSpend(){if(!rallyActive)return;game.kitLeftHuman=(game.kitLeftHuman||1)-1;if(game.kitLeftHuman<=0){kitH.as=kitH.ar=kitH.ac=0;kitArmed=false}}
+/* === 拆卸復蘇成本：30 輪（第 2 批）起，每次拆卸要畀最低資源（當係抽卡入場費）=== */
+function kitDemoCost(){return rallyActive&&game.round>=30?(RALLY_CFG.kitRevivalCost||4):0;}
+function kitCanPay(){return countResources(game.players[0])>=kitDemoCost();}
+function kitPay(){let need=kitDemoCost();if(need<=0)return;const p=game.players[0],ord=[...RESOURCES].sort((a,b)=>p.resources[b]-p.resources[a]);for(const r of ord){while(need>0&&p.resources[r]>0){p.resources[r]--;need--}}}
 function humanExchange(){if(busy||!rallyActive)return;if(!canExchange(game,0)){const bd=rallyBundle(game,0)||{},e=bd.wood||2,sur=rallySurcharge(game,0);toast('🏦 換 1 分要每樣各 '+e+' 份'+(sur>0?('，再加 '+sur+' 份任何資源（越換越貴）'):'')+'（木磚糧羊礦要齊）');return}doExchange(game,0);sfx.coin();logSkill('🏦 你用一籃子資源換咗 1 勝利分！');render();if(game.winner!==null){showEnd();return}saveLive()}
 function costStr(c){return RESOURCES.filter(r=>c[r]>0).map(r=>c[r]+' '+LABELS[r]).join('＋')}
 function doHumanRaid(victim){const r=doRaid(game,0,victim);if(r){sfx.build();logSkill('🏴 你向第 '+r.rank+' 名 '+game.players[r.victim].name+' 劫走 1 分！');render();if(game.winner!==null){showEnd();return}saveLive()}}
@@ -874,12 +900,15 @@ async function schedule(){
     if(game.round>32&&!game.elim32){game.elim32=true;await doEliminate(32);if(game.winner!==null){busy=false;render();sfx.win();return}}
     if(game.round>64&&!game.elim64){game.elim64=true;await doEliminate(64);if(game.winner!==null){busy=false;render();sfx.win();return}}
     // 每 20 輪強制繳稅：按建築所在數字島繳資源，唔夠就上繳棋子抵銷
-    if(game.round%20===0&&game.taxedAt!==game.round){game.taxedAt=game.round;if(game.rally)game.rally.tax=effectiveTax();const topN=game.round===20?6:8;const rep=applyTax(game,topN);const mine=rep.find(r=>r.id===0);saveLive();
+    if(game.round%20===0&&game.taxedAt!==game.round){game.taxedAt=game.round;if(game.rally)game.rally.tax=effectiveTax();
+      const active=game.players.filter(p=>!p.retired).length;const topN=game.round===20?6:Math.max(1,active-1);   // 20 輪收前 6；之後永遠豁免最尾一名（80 輪起淨返 8 隊 → 收前 7）
+      const rep=applyTax(game,topN,new Set([0]));const mine=rep.find(r=>r.id===0);saveLive();   // 玩家唔自動上繳，交畀自己揀
       if(mine){if(mine.exempt)toast('🏛 第 '+game.round+' 輪繳稅：你喺尾段排名，獲豁免！');
-        else if(mine.due>0){const nr=mine.lost.filter(x=>x==='road').length,nv=mine.lost.filter(x=>x==='settle').length,nc=mine.lost.filter(x=>x==='city').length;
-          const lost=(nr||nv||nc)?('，資源唔夠 → 上繳 '+[nr?nr+' 路':'',nv?nv+' 村':'',nc?nc+' 城':''].filter(Boolean).join('／')+' 抵數'):'（資源找數）';
-          toast('🏛 第 '+game.round+' 輪繳稅：你共欠 '+mine.due+' 份'+(mine.rank?'（含名次稅 +'+mine.rank+'）':'')+lost);}}
-      logSkill('🏛 第 '+game.round+' 輪繳稅（只收前 '+topN+' 名；尾段豁免。稅額已減半）');
+        else if(mine.due>0){
+          if((mine.owe||0)>0){toast('🏛 第 '+game.round+' 輪繳稅：共欠 '+mine.due+' 份'+(mine.rank?'（含名次稅 +'+mine.rank+'）':'')+'，資源扣咗 '+mine.paid+' 份，仲差 '+mine.owe+' 份要上繳棋子');
+            render();await humanTaxSurrender(mine.owe);saveLive();}
+          else toast('🏛 第 '+game.round+' 輪繳稅：共欠 '+mine.due+' 份'+(mine.rank?'（含名次稅 +'+mine.rank+'）':'')+'，資源找數搞掂');}}
+      logSkill('🏛 第 '+game.round+' 輪繳稅（只收前 '+topN+' 名；尾名永久豁免。資源唔夠時你自己揀上繳邊啲棋子）');
       render();if(game.winner!==null){busy=false;sfx.win();return}}
     // 每 30 輪復蘇劫分／拆卸次數（還原到原本）
     if(game.round%30===0&&game.refreshAt!==game.round){game.refreshAt=game.round;
@@ -1633,7 +1662,7 @@ function renderRallyHall(){const d=loadRally(),el=$('#rallyList');if(!el)return;
   el.innerHTML=fast+d.champs.map((c,i)=>`<div class="rec-row"><span class="dot" style="background:${c.color}"></span><b>${c.name}</b><small>${c.rounds!=null?c.rounds+' 輪':'逼和'}</small></div>`).join('')}
 
 /* ============ 事件綁定 ============ */
-const VERSION='5.70';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
+const VERSION='5.71';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
 $('#exhibitBtn').onclick=startExhibition;
 $('#rallyExhibitBtn')?.addEventListener('click',()=>startRally(true));
 {const c=$('#commentaryChk');if(c){c.checked=commentaryOn;c.addEventListener('change',()=>{commentaryOn=c.checked;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');if(!commentaryOn)_cClear();else{_spkUnlocked=false;unlockSpeech()}})}}

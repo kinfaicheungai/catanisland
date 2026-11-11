@@ -428,7 +428,7 @@ export function taxForVertex(g,vid){const v=g.vertices[vid];if(!v||v.owner===nul
   let due=0;for(const t of g.tiles){if(t.num==null||!t.vertices.includes(vid))continue;let cc,ss;if(TAX_HI.includes(t.num)){cc=hiC;ss=hiV}else if(TAX_MID.includes(t.num)){cc=midC;ss=midV}else{cc=loC;ss=loV}due+=(v.level===2?cc:ss)}
   return due;}
 export function taxForPlayer(g,id){let due=0;for(const v of g.vertices)if(v.owner===id)due+=taxForVertex(g,v.id);return due;}
-export function applyTax(g,topN){const rep=[],c=(g.rally&&g.rally.tax)||{},cr={road:c.road??4,settle:c.settle??6,city:c.city??9};
+export function applyTax(g,topN,manualIds){const rep=[],c=(g.rally&&g.rally.tax)||{},cr={road:c.road??4,settle:c.settle??6,city:c.city??9};
   // 名次稅：當下第一名再加 r1，第二名 r2，第三名 r3
   const rank=g.players.filter(p=>!p.retired).map(p=>p.id).sort((a,b)=>totalScore(g,b)-totalScore(g,a));
   const rx={};if(rank[0]!=null)rx[rank[0]]=c.r1??3;if(rank[1]!=null)rx[rank[1]]=c.r2??2;if(rank[2]!=null)rx[rank[2]]=c.r3??1;
@@ -438,6 +438,7 @@ export function applyTax(g,topN){const rep=[],c=(g.rally&&g.rally.tax)||{},cr={r
     const due=taxForPlayer(g,id)+(rx[id]||0);if(due<=0){rep.push({id,due:0,paid:0,lost:[],rank:(rx[id]||0)});continue}
     let paid=0;while(paid<due){const r=RESOURCES.slice().sort((x,y)=>p.resources[y]-p.resources[x])[0];if(p.resources[r]<=0)break;p.resources[r]--;paid++}
     let short=due-paid,lost=[];
+    if(manualIds&&manualIds.has(id)){rep.push({id,due,paid,owe:short,lost,rank:(rx[id]||0),manual:true});continue}   // 交畀 UI：玩家自己揀上繳邊啲棋子
     if(short>0){const roads=g.edges.filter(e=>e.owner===id);                                   // 先上繳道路，但保留至少 2 條
       while(short>0&&roads.length>2){const e=roads.pop();e.owner=null;short-=cr.road;lost.push('road')}
       const bldg=()=>g.vertices.filter(v=>v.owner===id).length;
@@ -449,6 +450,13 @@ export function applyTax(g,topN){const rep=[],c=(g.rally&&g.rally.tax)||{},cr={r
     }
     rep.push({id,due,paid,lost,rank:(rx[id]||0)});}
   for(const p of g.players)recomputePlayerAssets(g,p.id);updateBonuses(g);return rep;}
+// 玩家自揀上繳一件棋子抵稅：sel={kind:'road',eid} 或 {kind:'settle'|'city',vid}，回傳抵到嘅稅額（0=唔合法）
+export function taxSurrenderPiece(g,id,sel){const c=(g.rally&&g.rally.tax)||{},cr={road:c.road??4,settle:c.settle??6,city:c.city??9};const p=g.players[id];let val=0;
+  if(sel.kind==='road'){const e=g.edges[sel.eid];if(!e||e.owner!==id)return 0;e.owner=null;p.roads=Math.max(0,p.roads-1);val=cr.road}
+  else{const v=g.vertices[sel.vid];if(!v||v.owner!==id||v.level<1)return 0;
+    if(g.vertices.filter(x=>x.owner===id&&x.level>=1).length<=1)return 0;   // 至少保留一座建築
+    val=v.level===2?cr.city:cr.settle;p.score=Math.max(0,p.score-(v.level===2?2:1));v.owner=null;v.level=0}
+  recomputePlayerAssets(g,id);updateBonuses(g);return val}
 // 名次：由高分到低分（勝者總分必最高），平手用回合物資做次序
 export function finishOrder(g){return g.players.map(p=>p.id).sort((a,b)=>((g.players[a].retired?1:0)-(g.players[b].retired?1:0))||totalScore(g,b)-totalScore(g,a)||countResources(g.players[b])-countResources(g.players[a])||a-b)}
 export function checkWinner(g){updateBonuses(g);const t=g.target||10;
