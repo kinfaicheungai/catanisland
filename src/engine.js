@@ -237,7 +237,9 @@ export function playCard(g,id,idx,opts={}){
   return null
 }
 /* ---------- 獎盃：最大軍閥 / 最長道路 ---------- */
-export const LARGEST_ARMY_MIN=3,LONGEST_ROAD_MIN=5;
+export const LARGEST_ARMY_MIN=3,LONGEST_ROAD_MIN=5,PORT_KING_MIN=5;
+// 港口王用：數玩家「擁有」幾多個實體港口（有村／城喺港口兩端其中一點）。填海令港口村變內陸就自然唔再計（因為 port.a/b 已移去新海岸）。
+export function portCountOf(g,id){let n=0;for(const port of g.ports){const a=g.vertices[port.a],b=g.vertices[port.b];if((a&&a.owner===id)||(b&&b.owner===id))n++}return n}
 // 玩家最長連續航線長度（可經過自己或空置交點，被對手村莊截斷）。
 export function longestRoadLength(g,id){
   const es=g.edges.filter(e=>e.owner===id);if(!es.length)return 0;
@@ -271,8 +273,16 @@ export function updateBonuses(g){
   const Lmin=(g.rally&&g.rally.lessorMin)||3;
   let mx=0,who=[];for(const p of g.players)if(!p.retired){const c=p.leasedOut||0;if(c>mx){mx=c;who=[p.id]}else if(c===mx&&c>0)who.push(p.id)}
   g.topLessor=(mx>=Lmin&&who.length===1)?who[0]:null;
+  // 港口王：擁有最多實體港口（≥5），嚴格超越現任先易手；平手保留現任
+  const Ps=g.players.map(p=>p.retired?0:portCountOf(g,p.id)),maxP=Math.max(0,...Ps);
+  if(maxP<PORT_KING_MIN)g.portKing=null;
+  else{const cur=g.portKing,curOk=cur!=null&&!g.players[cur].retired;
+    if(curOk&&Ps[cur]===maxP){/* 現任仍最多（含平手）→ 保留 */}
+    else{const top=g.players.filter((p,i)=>!p.retired&&Ps[i]===maxP).map(p=>p.id);
+      if(top.length===1)g.portKing=top[0];                                          // 有唯一更多 → 易手
+      else if(!curOk||Ps[cur]<PORT_KING_MIN)g.portKing=top.length?top[0]:null;}}     // 現任冇咗 → 另立；平手保留現任
 }
-export function bonusPoints(g,id){return (g.largestArmy===id?2:0)+(g.longestRoad===id?2:0)+(g.topLessor===id?2:0)}
+export function bonusPoints(g,id){return (g.largestArmy===id?2:0)+(g.longestRoad===id?2:0)+(g.topLessor===id?2:0)+(g.portKing===id?2:0)}
 // 負面技能保護：每玩家每輪最多被一項負面技能命中；拆卸唔可以連續兩輪
 export function canTarget(g,id,kind){const p=g.players[id];if(!p||p.retired)return false;
   if(!g.rally)return true;                                    // 只喺拉力賽先有呢啲保護
@@ -388,6 +398,32 @@ export function doLease(g,id,vid,mul){if(!canLease(g,id,vid,mul))return false;co
   p.leaseLeft=(p.leaseLeft!=null?p.leaseLeft:0)-1;checkWinner(g);
   const paid=Math.max(3,Math.round(rentBase(g,vid)*(mul!=null?mul:(g.rally.leaseDefMul||0.6))));
   g.log=`${p.name} 向 ${o.name} 租借咗一座${v.level===2?'港城':'村莊'}（${(g.rally.leaseTurns)||4} 輪）。`;return {owner,rent:paid}}
+// ===== 放租（你做業主，掛牌出租自己物業，睇邊個電腦肯租）=====
+// 業主能唔能夠掛牌：拉力賽、>10 輪、自己有村/城、未被租緊（唔使消耗「租借次數」，嗰個係做租客用）
+export function canLeaseOut(g,ownerId,vid){if(!g.rally||g.round<=10||g.phase!=='action'||g.winner!==null)return false;
+  const v=g.vertices[vid];return !!v&&v.owner===ownerId&&v.level>=1&&leaseRenter(g,vid)==null}
+// 某個電腦租客 renterId 會唔會肯用 mul 倍率租下 vid（純自利：抵、畀得起、唔會快封王）
+export function renterInterest(g,renterId,vid,mul){const r=g.players[renterId],v=g.vertices[vid];
+  if(!g.rally||g.winner!==null||!r||r.retired||!v||v.owner===renterId||v.owner==null||v.level<1)return false;
+  if(g.round<=10||leaseRenter(g,vid)!=null)return false;
+  if((r.leaseLeft!=null?r.leaseLeft:0)<=0)return false;                 // 租客自己仲有租借次數
+  const rent=rentFor(g,vid,mul);
+  if(countResources(r)<rent+2)return false;                            // 畀得起 + 留啲 buffer
+  if(totalScore(g,renterId)>=(g.target||30)-3)return false;            // 快封王唔分心
+  const base=rentBase(g,vid);if(base<4)return false;                   // 太廢嘅物業唔租
+  const turns=(g.rally.leaseTurns)||4;
+  const value=base*turns*0.45;                                         // 估租期內實際有效產值
+  const slack=countResources(r)>=rent+6?1.15:1;                        // 手頭鬆動可以畀多少少
+  return rent<=value*slack}                                            // 夠抵先租
+// 搵一個最想租你 vid（以 mul 計）嘅電腦：最落後者優先（最想追）
+export function findRenter(g,vid,mul){const owner=g.vertices[vid].owner;
+  const cands=g.players.filter(p=>!p.retired&&p.id!==owner&&renterInterest(g,p.id,vid,mul));
+  if(!cands.length)return null;
+  cands.sort((a,b)=>totalScore(g,a.id)-totalScore(g,b.id));
+  return cands[0].id}
+// 成交：電腦 renterId 租你（ownerId）嘅 vid。重用 doLease（佢會處理租金過數、leasedOut++、租客 leaseLeft--）
+export function doLeaseOut(g,ownerId,vid,mul){const renter=findRenter(g,vid,mul);if(renter==null)return null;
+  const r=doLease(g,renter,vid,mul);return r?{renter,rent:r.rent}:null}
 // 劫分突襲：要落後目標 >=4 分先可以劫；可劫第一名（原價）或第二名（成本翻倍）；偷 1 分
 function scaleCost(cost,m){const o={};for(const k in cost)o[k]=(cost[k]||0)*m;return o}
 export function raidCandidates(g,id){if(!g.rally||g.winner!==null)return [];
