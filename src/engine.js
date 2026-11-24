@@ -219,10 +219,14 @@ function buildDeck(rng,mul){const d=[];for(const c in DECK_COMPOSITION){const n=
 export function buildDeckN(n,rng=Math.random){const tot=Object.values(DECK_COMPOSITION).reduce((s,v)=>s+v,0),d=[];for(const c in DECK_COMPOSITION){const cnt=Math.round(DECK_COMPOSITION[c]/tot*n);for(let i=0;i<cnt;i++)d.push(c)}while(d.length<n)d.push('騎士');while(d.length>n)d.pop();return shuffle(d,rng)}
 export function shuffleDeck(d,rng=Math.random){return shuffle(d,rng)}
 export function deckCounts(g){const c={騎士:0,豐收:0,築路:0,勝利點:0};for(const x of (g.deck||[]))c[x]=(c[x]||0)+1;return c}
+// 抽卡成本：一般係 COSTS.card（1糧1羊1礦）。拉力賽第二輪（50 輪釋放後）開始，每隊自己每抽多一次就貴一組資源（累加防囤積）。
+export function cardCostFor(g,id){const base=COSTS.card;if(!(g.rally&&g.cardWave2))return base;const n=((g.players[id].w2draws)||0)+1;const c={};for(const k in base)c[k]=base[k]*n;return c}
 export function drawCard(g,id,rng=Math.random){
-  const p=g.players[id];if(blocked(g)||g.phase!=='action'||!canAfford(p,COSTS.card))return null;
+  const p=g.players[id];if(blocked(g)||g.phase!=='action')return null;
   if(!g.deck||!g.deck.length)return null;                       // 牌庫抽光：唔可以再抽
-  pay(p,COSTS.card);const card=g.deck.pop();p.cards.push(card);
+  const cost=cardCostFor(g,id);if(!canAfford(p,cost))return null;
+  pay(p,cost);const card=g.deck.pop();p.cards.push(card);
+  if(g.rally&&g.cardWave2)p.w2draws=((p.w2draws)||0)+1;         // 第二輪：記低呢隊抽咗幾多次，下次更貴
   if(card==='勝利點')p.score++;
   g.log=`${p.name} 抽到一張航海卡。`;checkWinner(g);return card
 }
@@ -567,7 +571,7 @@ export function aiPlan(g,id){
   const cityMove=()=>cities.length&&canAfford(p,COSTS.city)?{type:'city',vid:smart?bestBy(cities,v=>vVal(g,v)):cities[0]}:null;
   const settMove=()=>setts.length&&canAfford(p,COSTS.settlement)?{type:'settlement',vid:genius?bestBy(setts,v=>vValFor(g,v,p)):(smart?bestBy(setts,v=>vVal(g,v)):setts[0])}:null;
   const roadMove=()=>roads.length&&canAfford(p,COSTS.road)?{type:'road',eid:roadPick()}:null;
-  const cardMove=()=>canAfford(p,COSTS.card)&&(g.deck&&g.deck.length)?{type:'card'}:null;
+  const cardMove=()=>canAfford(p,cardCostFor(g,id))&&(g.deck&&g.deck.length)?{type:'card'}:null;
   const knightMove=()=>held.includes('騎士')?{type:'knight',idx:held.indexOf('騎士')}:null;
   // 豐收：優先補夠下一個 VP 建設所缺嘅資源，其次補零
   const plentyMove=()=>{if(!held.includes('豐收'))return null;const want=cities.length?COSTS.city:(setts.length?COSTS.settlement:COSTS.road);const def=RESOURCES.filter(x=>p.resources[x]<(want[x]||0)),z=RESOURCES.filter(x=>p.resources[x]===0),pk=def.length?def:(z.length?z:RESOURCES);return{type:'plenty',idx:held.indexOf('豐收'),picks:[pk[0],pk[1]||pk[0]]}};
