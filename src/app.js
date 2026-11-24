@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,canTarget,turboRoll,reclaimTile,reclaimCost,reclaimCostRes,reclaimCandidates,deckCounts,buildDeckN,shuffleDeck,capWinner,rallyBundle,rallySurcharge,canExchange,doExchange,raidTargets,raidCandidates,canRaid,doRaid,canLease,doLease,rentFor,rentBase,leaseRenter,leaseWouldAccept,leaseReservation,leaseAcceptsOffer,eliminateLast,merchantActive,portBuildings,canMerchant,doMerchant,spawnMerchant,powerKind,canPower,doPower,powerCost,taxForPlayer,applyTax,taxSurrenderPiece,canLeaseOut,doLeaseOut,findRenter,portCountOf,PORT_KING_MIN,pieceCounts,PIECES,cardCostFor}from'./engine.js?v=5.75';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,canTarget,turboRoll,reclaimTile,reclaimCost,reclaimCostRes,reclaimCandidates,deckCounts,buildDeckN,shuffleDeck,capWinner,rallyBundle,rallySurcharge,canExchange,doExchange,raidTargets,raidCandidates,canRaid,doRaid,canLease,doLease,rentFor,rentBase,leaseRenter,leaseWouldAccept,leaseReservation,leaseAcceptsOffer,eliminateLast,merchantActive,portBuildings,canMerchant,doMerchant,spawnMerchant,powerKind,canPower,doPower,powerCost,taxForPlayer,applyTax,taxSurrenderPiece,canLeaseOut,doLeaseOut,findRenter,portCountOf,PORT_KING_MIN,pieceCounts,PIECES,cardCostFor,canGamble,doGamble}from'./engine.js?v=5.76';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 let VX=260,VY=245,VS=49;const sx=x=>VX+x*VS,sy=y=>VY+y*VS,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -223,7 +223,7 @@ const LIVEKEY='frontier-live';
 // 超級拉力盃（聯賽季中盃賽：用聯賽車隊、成績唔計聯賽積分、頭4名准決賽+1）
 let rallyActive=false,rallyDrivers=null,rallyExhibition=false;
 const RALLYKEY='frontier-rally';
-const RALLY_CFG={bundleEach:2,discGap:4,discMul:0.5,escA:0.3,escP:2,raidCost:{ore:2,grain:2,wool:1},raidUses:2,turbo:6,kit:2,land:3,leaseTurns:4,leaseUses:3,lessorMin:3,leaseMinMul:0.5,leaseDefMul:0.6,leaseMaxMul:0.83,reclaimBase:3,reclaimStep:3,landCost:{wood:3,brick:3,grain:3,ore:3},kitRevivalCost:4,hardBonus:4,powerStep:1,tax:{hiC:12,hiV:6,midC:7,midV:3,loC:0,loV:0,r1:3,r2:2,r3:1,road:4,settle:6,city:9}};
+const RALLY_CFG={bundleEach:2,discGap:4,discMul:0.5,escA:0.3,escP:2,raidCost:{ore:2,grain:2,wool:1},raidUses:2,turbo:6,kit:2,land:3,leaseTurns:4,leaseUses:3,lessorMin:3,leaseMinMul:0.5,leaseDefMul:0.6,leaseMaxMul:0.83,reclaimBase:3,reclaimStep:3,landCost:{wood:3,brick:3,grain:3,ore:3},kitRevivalCost:4,gambleCost:20,gambleRound:80,gambleScore:12,gambleP0:0.38,gambleP2:0.05,hardBonus:4,powerStep:1,tax:{hiC:12,hiV:6,midC:7,midV:3,loC:0,loV:0,r1:3,r2:2,r3:1,road:4,settle:6,city:9}};
 // 稅制可由遊戲內「⚙️ 稅制」面板調整，存落 localStorage；startRally 會合併覆蓋 RALLY_CFG.tax
 const TAXKEY='frontier-taxcfg';
 function loadTaxCfg(){try{return JSON.parse(localStorage.getItem(TAXKEY))||{}}catch{return{}}}
@@ -603,6 +603,7 @@ function render(){
   {const stb=$('#statusBtn');if(stb)stb.hidden=!rallyActive}
   {const mb=$('#merchantBtn');if(mb){const show=rallyActive&&merchantActive(game)&&portBuildings(game,0)>=2&&!game.merchant.claimed.includes(0);mb.hidden=!show||demo;if(show){const nd=game.merchant.need;$('#merchantNeed').textContent=RESOURCES.filter(r=>nd[r]).map(r=>nd[r]+ICONS[r]).join('');mb.disabled=busy||!action||blk||!canMerchant(game,0)}}}
   {const pb=$('#powerBtn');if(pb){const k=rallyActive?powerKind(game,0):null;pb.hidden=!k||demo;if(k){$('#powerProg').textContent=(k==='gold'?(me.powerG||0):(me.powerR||0))+'/3'+(k==='gold'?'·金':'');pb.disabled=busy||!action||blk||!canPower(game,0)}}}
+  {const gb=$('#gambleBtn');if(gb){const cfg=game.rally||{},unlock=rallyActive&&game.round>=(cfg.gambleRound||80)&&totalScore(game,0)>=(cfg.gambleScore||12);gb.hidden=!unlock||demo;if(unlock){$('#gambleInfo').textContent=(cfg.gambleCost||20)+'份→0/1/2分';gb.disabled=busy||!action||blk||!canGamble(game,0)}}}
   {const rb=$('#retireBtn');if(rb)rb.hidden=!((leagueActive||rallyActive)&&game.winner===null&&!setup)}  // 放棄本場（聯賽/季後賽/拉力賽進行中先顯示）
   {const pc=pieceCounts(game,0),cap=game.pieces||PIECES,rem={road:(cap.roads+(me.extraRoad||0))-pc.roads,settlement:(cap.settlements+(me.extraSettle||0))-pc.settlements,city:cap.cities-pc.cities},map={road:'#remRoad',settlement:'#remSettle',city:'#remCity'};
    for(const k in map){const el=$(map[k]);if(el){const n=Math.max(0,rem[k]);el.textContent='剩 '+n;el.classList.toggle('none',n<=0)}}}
@@ -831,6 +832,9 @@ async function rallyAiActs(id){
   if(canPower(game,id)&&countResources(p)>=powerCost(game,id)+3){const r=doPower(game,id);if(r){render();sfx.build();if(r.scored)logSkill('🔋 '+p.name+' 發電'+(r.kind==='gold'?'（黃金）':'')+'儲夠，+'+r.scored+' 分！');await sleep(420);if(game.winner!==null)return}}
   // 7) 換分：手上夠資源就買（最多 2 次／回合，靜靜地做，睇即時排位反映）
   let t=0;while(t++<2&&game.winner===null&&canExchange(game,id))doExchange(game,id);
+  // 8) 後期豪賭：夠分、第 80 輪後、手頭有大把 buffer 資源先博，而且唔係獨自領先先會賭
+  if(game.winner===null&&canGamble(game,id)){const cost=(game.rally.gambleCost||20),lead=Math.max(...game.players.map(q=>totalScore(game,q.id)));
+    if(countResources(p)>=cost+10&&totalScore(game,id)<=lead&&Math.random()<0.4){const r=doGamble(game,id);if(r){render();if(r.gain>0)sfx.coin();logSkill('🎲 '+p.name+' 豪賭 '+r.cost+' 份資源 → '+(r.gain===0?'冇分（槓龜）':'+'+r.gain+' 分'+(r.gain===2?'（極罕有大爆冷！）':''))); await sleep(460);if(game.winner!==null)return}}}
   render();
 }
 /* === 繳稅上繳：資源唔夠時，玩家自己揀邊啲路／村／城上繳（唔再一次過被政府拎走）=== */
@@ -851,6 +855,32 @@ function kitCanPay(){return countResources(game.players[0])>=kitDemoCost();}
 function kitPay(){let need=kitDemoCost();if(need<=0)return;const p=game.players[0],ord=[...RESOURCES].sort((a,b)=>p.resources[b]-p.resources[a]);for(const r of ord){while(need>0&&p.resources[r]>0){p.resources[r]--;need--}}}
 function humanExchange(){if(busy||!rallyActive)return;if(!canExchange(game,0)){const bd=rallyBundle(game,0)||{},e=bd.wood||2,sur=rallySurcharge(game,0);toast('🏦 換 1 分要每樣各 '+e+' 份'+(sur>0?('，再加 '+sur+' 份任何資源（越換越貴）'):'')+'（木磚糧羊礦要齊）');return}doExchange(game,0);sfx.coin();logSkill('🏦 你用一籃子資源換咗 1 勝利分！');render();if(game.winner!==null){showEnd();return}saveLive()}
 function costStr(c){return RESOURCES.filter(r=>c[r]>0).map(r=>c[r]+' '+LABELS[r]).join('＋')}
+/* ===== 🎲 後期豪賭：夠分（≥12）+ 第 80 輪後，一鋪傾 20 份資源博 0／1／2 分 ===== */
+function humanGamble(){if(busy||!rallyActive)return;
+  if(!canGamble(game,0)){const cfg=game.rally||{},need=cfg.gambleCost||20,mr=cfg.gambleRound||80,ms=cfg.gambleScore||12;
+    if(game.round<mr)toast('🎲 豪賭要第 '+mr+' 輪之後先開放');
+    else if(totalScore(game,0)<ms)toast('🎲 要夠 '+ms+' 分先可以豪賭');
+    else toast('🎲 資源唔夠（要 '+need+' 份先落得注）');return}
+  openGambleDialog()}
+function openGambleDialog(){const cfg=game.rally||{},need=cfg.gambleCost||20,p0=Math.round((cfg.gambleP0??0.38)*100),p2=Math.round((cfg.gambleP2??0.05)*100),p1=100-p0-p2;
+  $('#gambleBody').innerHTML='傾 <b>'+need+' 份資源</b>（由你最多嗰種起扣）落注，碰運氣搏勝利分。賭就係可能乜都冇 —— 睇彩數！';
+  $('#gambleOdds').innerHTML='<div class="od z"><b>0 分</b><span>'+p0+'%</span></div><div class="od o"><b>1 分</b><span>'+p1+'%</span></div><div class="od t"><b>2 分</b><span>'+p2+'%・極罕</span></div>';
+  $('#gambleRoll').hidden=true;$('#gambleResult').hidden=true;$('#gambleResult').className='gamble-result';
+  const cf=$('#confirmGamble');cf.hidden=false;cf.disabled=false;cf.textContent='🎲 落注！（'+need+' 份）';$('#cancelGamble').hidden=false;
+  $('#gambleDialog').showModal()}
+function runGamble(){if(!canGamble(game,0)){$('#gambleDialog').close();toast('🎲 而家賭唔到');return}
+  const cf=$('#confirmGamble');cf.disabled=true;$('#cancelGamble').hidden=true;
+  const roll=$('#gambleRoll');roll.hidden=false;sfx.dice();let n=0;const faces=['🎲','🎰','✨','🔮','🎲'];
+  const iv=setInterval(()=>{roll.textContent=faces[n++%faces.length]},110);
+  setTimeout(()=>{clearInterval(iv);const r=doGamble(game,0);const res=$('#gambleResult');roll.hidden=true;cf.hidden=true;
+    if(!r){$('#gambleDialog').close();render();return}
+    res.hidden=false;res.className='gamble-result '+(r.gain===0?'lose':r.gain===2?'jackpot':'win');
+    res.innerHTML=r.gain===0?('😵 '+r.cost+' 份資源化為烏有…冇分！'):r.gain===2?('🎉 大爆冷！<b>+2 分</b>！！'):('✅ 中咗 <b>+1 分</b>！');
+    if(r.gain===2)sfx.win();else if(r.gain===1)sfx.coin();
+    logSkill('🎲 你豪賭 '+r.cost+' 份資源 → '+(r.gain===0?'冇分（槓龜）':'+'+r.gain+' 分'+(r.gain===2?'（極罕有大爆冷！）':'')));
+    render();saveLive();
+    if(game.winner!==null){setTimeout(()=>{$('#gambleDialog').close();showEnd()},1000);return}
+    setTimeout(()=>{$('#gambleDialog').close()},1500)},820)}
 function doHumanRaid(victim){const r=doRaid(game,0,victim);if(r){sfx.build();logSkill('🏴 你向第 '+r.rank+' 名 '+game.players[r.victim].name+' 劫走 1 分！');render();if(game.winner!==null){showEnd();return}saveLive()}}
 function humanRaid(){if(busy||!rallyActive)return;
   const all=raidCandidates(game,0);
@@ -1685,7 +1715,7 @@ function renderRallyHall(){const d=loadRally(),el=$('#rallyList');if(!el)return;
   el.innerHTML=fast+d.champs.map((c,i)=>`<div class="rec-row"><span class="dot" style="background:${c.color}"></span><b>${c.name}</b><small>${c.rounds!=null?c.rounds+' 輪':'逼和'}</small></div>`).join('')}
 
 /* ============ 事件綁定 ============ */
-const VERSION='5.75';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
+const VERSION='5.76';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
 $('#exhibitBtn').onclick=startExhibition;
 $('#rallyExhibitBtn')?.addEventListener('click',()=>startRally(true));
 {const c=$('#commentaryChk');if(c){c.checked=commentaryOn;c.addEventListener('change',()=>{commentaryOn=c.checked;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');if(!commentaryOn)_cClear();else{_spkUnlocked=false;unlockSpeech()}})}}
@@ -1756,6 +1786,10 @@ $('#closeStatus')?.addEventListener('click',()=>$('#statusDialog').close());
 $('#closeLease2')?.addEventListener('click',()=>$('#leaseDialog').close());
 $('#rallyHallBtn')?.addEventListener('click',()=>{renderRallyHall();$('#rallyDialog').showModal()});
 $('#closeRally')?.addEventListener('click',()=>$('#rallyDialog').close());
+$('#gambleBtn')?.addEventListener('click',()=>{if(!busy&&game&&game.phase==='action')humanGamble()});
+$('#confirmGamble').onclick=runGamble;
+$('#cancelGamble').onclick=()=>$('#gambleDialog').close();
+$('#closeGamble').onclick=()=>$('#gambleDialog').close();
 $('#closeReclaim').onclick=()=>{$('#reclaimDialog').close()};
 function closeDrawers(){$('#buildPanel')?.classList.remove('open');$('#skillPanel')?.classList.remove('open');const bg=$('#drawerBg');if(bg)bg.hidden=true}
 function closePanel(){closeDrawers()}  // 向後兼容

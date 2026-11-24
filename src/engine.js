@@ -371,6 +371,15 @@ export function canExchange(g,id){const b=rallyBundle(g,id);if(!g.rally||g.round
 export function doExchange(g,id){if(!canExchange(g,id))return false;const p=g.players[id];pay(p,rallyBundle(g,id));
   let sur=rallySurcharge(g,id);const ord=[...RESOURCES].sort((a,b)=>p.resources[b]-p.resources[a]);for(const r of ord){while(sur>0&&p.resources[r]>0){p.resources[r]--;sur--}}
   p.score++;p.vpBought=(p.vpBought||0)+1;g.log=`${p.name} 用資源兌換咗 1 勝利分。`;checkWinner(g);return true}
+// ===== 後期豪賭：夠分（預設 ≥12）+ 第 80 輪後解鎖。一鋪傾一大堆資源，結果 0／1／2 分（0 有真實機會、2 極罕有）=====
+export function canGamble(g,id){const cfg=g.rally;if(!cfg||g.phase!=='action'||g.winner!==null)return false;
+  const need=cfg.gambleCost||20,minR=cfg.gambleRound||80,minS=cfg.gambleScore||12;
+  return g.round>=minR&&totalScore(g,id)>=minS&&countResources(g.players[id])>=need}
+export function doGamble(g,id,rng=Math.random){if(!canGamble(g,id))return null;const cfg=g.rally,p=g.players[id];
+  let need=cfg.gambleCost||20;const ord=[...RESOURCES].sort((a,b)=>p.resources[b]-p.resources[a]);for(const r of ord){while(need>0&&p.resources[r]>0){p.resources[r]--;need--}}
+  const pZero=cfg.gambleP0??0.38,pTwo=cfg.gambleP2??0.05,x=rng();let gain;if(x<pZero)gain=0;else if(x>=1-pTwo)gain=2;else gain=1;
+  if(gain>0)p.score+=gain;p.gambles=(p.gambles||0)+1;
+  g.log=`${p.name} 豪賭 ${cfg.gambleCost||20} 份資源 → ${gain} 分！`;checkWinner(g);return{gain,cost:cfg.gambleCost||20}}
 /* ===== 租借村城：一次性租金（視地塊骰子數字），租期內該座產出歸租客、分數擁有者同租客都唔計 ===== */
 export function leaseRenter(g,vid){if(!g.leases)return null;const L=g.leases.find(x=>x.vid===vid&&g.round<=x.until);return L?L.renter:null}
 export function leasedVP(g,id){if(!g.leases)return 0;let s=0;for(const L of g.leases){if(g.round<=L.until&&L.owner===id){const v=g.vertices[L.vid];if(v&&v.owner===id)s+=v.level}}return s}

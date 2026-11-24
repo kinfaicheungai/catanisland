@@ -124,6 +124,9 @@
 .drawer-body button b{color:#b5462f;margin-left:4px}
 .drawer-body button .rem{margin-left:6px;color:#0a6f54;background:#d9f3e6;border:1px solid #9bd9bf;border-radius:999px;padding:2px 8px;font-size:11px;font-weight:800;white-space:nowrap;flex:none}
 .drawer-body button .rem.none{color:#9b3224;background:#f6ddd6;border-color:#e3a99b}
+.gamble-odds{display:flex;gap:7px;margin:14px 0}.gamble-odds .od{flex:1;text-align:center;border-radius:12px;padding:10px 4px;border:1px solid #0000001c}.gamble-odds .od b{display:block;font-size:15px}.gamble-odds .od span{font-size:10px;color:#6a6a6a}.gamble-odds .od.z{background:#f6e0da}.gamble-odds .od.o{background:#dff0e5}.gamble-odds .od.t{background:#fdf3cf}
+.gamble-roll{text-align:center;font-size:58px;margin:10px 0;animation:gshake .5s infinite}@keyframes gshake{0%,100%{transform:rotate(-12deg)}50%{transform:rotate(12deg)}}
+.gamble-result{text-align:center;font-size:19px;font-weight:800;margin:12px 0;padding:14px;border-radius:14px}.gamble-result.lose{background:#f3dcd7;color:#9b3224}.gamble-result.win{background:#d9f3e6;color:#0a6f54}.gamble-result.jackpot{background:linear-gradient(135deg,#ffe9a8,#ffd24d);color:#9a6b00;animation:pulse .5s 3 alternate}
 .drawer-body button:disabled{opacity:.42}
 .drawer-body button.selected{outline:2px solid #e0a500;background:#fff6df}
 @media(min-width:760px){.edgetab{top:auto;bottom:120px}}
