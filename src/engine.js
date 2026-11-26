@@ -112,9 +112,19 @@ export function pickAiInitialSettlement(g,id,rng=Math.random){
 }
 
 /* ---------- 擲骰同生產 ---------- */
+// 星級擲骰偏向：最高星車隊「大半」機率擲到自己島上嘅數字（體現星級差距）；3★/2★/1★ 純隨機。可由 g.starRollBias 覆蓋。
+export const STAR_ROLL_BIAS={5:0.6,4:0.3,3:0,2:0,1:0};
+function starBiasChance(g,id){const s=(g.players[id]&&g.players[id].strength)||3;const ov=g.starRollBias;return (ov&&ov[s]!=null?ov[s]:STAR_ROLL_BIAS[s])||0}
+// 按擲骰者手上建築產量加權，揀一個「自己island」嘅目標數字；冇建築就回 null（照隨機）
+function biasedTargetNum(g,id,rng){const chance=starBiasChance(g,id);if(chance<=0||rng()>=chance)return null;
+  const w={};for(const tile of g.tiles){if(tile.num==null||tile.id===g.robber)continue;let lv=0;for(const vid of tile.vertices){const v=g.vertices[vid];if(v&&v.owner===id)lv+=v.level}if(lv>0)w[tile.num]=(w[tile.num]||0)+lv}
+  const nums=Object.keys(w).map(Number);if(!nums.length)return null;let tot=0;for(const k of nums)tot+=w[k];let r=rng()*tot;for(const k of nums){r-=w[k];if(r<0)return k}return nums[nums.length-1]}
+function dicePairFor(n,rng){const opts=[];for(let x=1;x<=6;x++){const y=n-x;if(y>=1&&y<=6)opts.push([x,y])}return opts[Math.floor(rng()*opts.length)]}
 export function roll(g,rng=Math.random){
   if(g.phase!=='roll')return null;
-  const a=1+Math.floor(rng()*6),b=1+Math.floor(rng()*6),n=a+b;
+  let a,b,n;const tgt=biasedTargetNum(g,g.turn,rng);
+  if(tgt!=null){const pr=dicePairFor(tgt,rng);a=pr[0];b=pr[1];n=tgt}        // 高星：偏向自己島數字
+  else{a=1+Math.floor(rng()*6);b=1+Math.floor(rng()*6);n=a+b}               // 其餘：純隨機
   g.dice=[a,b];g.lastRoll=n;g.production=[];g.steal=null;
   if(n===7){
     // 唔即刻自動棄牌：記低邊個要棄幾多，交由玩家自選；擲骰者之後移動海盜。
