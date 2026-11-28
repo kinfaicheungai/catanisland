@@ -1,4 +1,4 @@
-import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,canTarget,turboRoll,reclaimTile,reclaimCost,reclaimCostRes,reclaimCandidates,deckCounts,buildDeckN,shuffleDeck,capWinner,rallyBundle,rallySurcharge,canExchange,doExchange,raidTargets,raidCandidates,canRaid,doRaid,canLease,doLease,rentFor,rentBase,leaseRenter,leaseWouldAccept,leaseReservation,leaseAcceptsOffer,eliminateLast,merchantActive,portBuildings,canMerchant,doMerchant,spawnMerchant,powerKind,canPower,doPower,powerCost,taxForPlayer,applyTax,taxSurrenderPiece,canLeaseOut,doLeaseOut,findRenter,portCountOf,PORT_KING_MIN,pieceCounts,PIECES,cardCostFor,canGamble,doGamble}from'./engine.js?v=5.77';
+import{RESOURCES,LABELS,ICONS,COSTS,COLORS,makeGame,roll,countResources,canAfford,legalRoads,legalSettlements,legalCities,placeRoad,placeSettlement,placeCity,trade,tradeRatio,drawCard,legalInitialSettlements,placeInitialSettlement,legalInitialRoads,placeInitialRoad,pickAiInitialSettlement,aiPlan,applyAiAction,checkWinner,totalScore,bonusPoints,longestRoadLength,LONGEST_ROAD_MIN,LARGEST_ARMY_MIN,blocked,pendingDiscards,discardNeeded,discardCards,autoDiscard,legalRobberTiles,moveRobber,aiChooseRobber,playCard,finishOrder,aiTurn,LAYOUTS,demolishSettlement,demolishRoad,demolishCity,canTarget,turboRoll,reclaimTile,reclaimCost,reclaimCostRes,reclaimCandidates,deckCounts,buildDeckN,shuffleDeck,capWinner,rallyBundle,rallySurcharge,canExchange,doExchange,raidTargets,raidCandidates,canRaid,doRaid,canLease,doLease,rentFor,rentBase,leaseRenter,leaseWouldAccept,leaseReservation,leaseAcceptsOffer,eliminateLast,merchantActive,portBuildings,canMerchant,doMerchant,spawnMerchant,powerKind,canPower,doPower,powerCost,taxForPlayer,applyTax,taxSurrenderPiece,canLeaseOut,doLeaseOut,findRenter,portCountOf,PORT_KING_MIN,pieceCounts,PIECES,cardCostFor,canGamble,doGamble}from'./engine.js?v=5.78';
 
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),NS='http://www.w3.org/2000/svg',svg=$('#island');
 let VX=260,VY=245,VS=49;const sx=x=>VX+x*VS,sy=y=>VY+y*VS,sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -55,6 +55,10 @@ function bonusFor(d){return d.strength>=4?{type:d.affinity,amount:d.strength>=5?
 function heatOf(d){return Math.min(3,Math.max(0,((d&&d.winStreak)||0)-1))}
 // 墊底補償：連續 2 場包尾 → 帶 1 分，連續 3 場 → 2 分……上限 4 分，一唔包尾即歸零
 function compVP(d){return Math.min(4,Math.max(0,((d&&d.loseStreak)||0)-1))}
+// 五星特權「帶 1 分開始」：人類睇今站有冇揀用（humanHeadStart）＋仲有 token；AI 睇今站係咪佢預定站
+function headStartFor(i){const d=league&&league.drivers[i];if(!d||(d.strength||3)<5)return 0;
+  if(i===0)return (humanHeadStart&&(d.headLeft||0)>0)?1:0;
+  return (d.planHead&&d.planHead.includes(league.round))?1:0}
 // 一場比賽嘅 makeGame 選項（名/色/實力/資源型加成/上場贏家扣資源/連勝熱度/墊底補償）
 function raceOpts(ids,usePenalty){return{
   names:ids.map(i=>league.drivers[i].name),colors:ids.map(i=>league.drivers[i].color),
@@ -62,7 +66,7 @@ function raceOpts(ids,usePenalty){return{
   styles:ids.map(i=>league.drivers[i].style||'solid'),alts:ids.map(i=>league.drivers[i].alt||null),
   personas:ids.map(i=>league.drivers[i].persona||'balanced'),
   heats:ids.map(i=>heatOf(league.drivers[i])),  // 連勝熱度：海盜/拆卸包更針對
-  startVP:ids.map(i=>usePenalty?compVP(league.drivers[i]):0), // 墊底補償：帶勝利點開局（只常規賽）
+  startVP:ids.map(i=>(usePenalty?compVP(league.drivers[i]):0)+(usePenalty?headStartFor(i):0)), // 墊底補償 + 五星「帶 1 分開始」特權（只常規賽）
   penalties:ids.map(i=>(usePenalty&&league.drivers[i].wonLast?1:0)+heatOf(league.drivers[i])+(usePenalty?(league.drivers[i].lightNext||0):0))}}  // 上場贏家扣 1；熱度多扣；資源/turbo 包輕代價扣
 // 決定本站各隊用邊個技能包（人類睇 humanPack，電腦睇預先安排），同時扣起可用次數、安排下站代價、寫 log
 function activatePacks(ids,ri,city){
@@ -164,6 +168,7 @@ let kitH={rs:0,rr:0,as:0,ar:0,rc:0,ac:0};  // r=擲7先用 / a=隨時；s村 r�
 let kitHit={};                               // 本場對每個對手已拆：{owner:{s,c}}（同一對手 ≤2 村 或 ≤1 城）
 let humanPack=null;   // 本站玩家揀咗邊個技能包：'kit'|'res'|'turbo'|null
 let humanKitCity=false; // 拆卸包攻城模式（1 城 + 2 路）
+let humanHeadStart=false; // 五星特權：本站揀咗「帶 1 分開始」
 let demoAny=false;      // 當前拆卸係咪「隨時」模式（false = 擲到 7 嗰組）
 function kitRollLeft(){return kitH.rs+kitH.rr+kitH.rc}
 function kitAnyLeft(){return kitH.as+kitH.ar+kitH.ac}
@@ -181,8 +186,8 @@ function shuffleArr(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.ran
 function newLeague(name,color){
   const rat=loadRatings();
   const hs=rat.__you??humanTier;
-  const drivers=[{name,color,style:'solid',alt:null,strength:hs,persona:'balanced',affinity:'grain',wonLast:false,kit:true,resPack:hs>=4,turboPack:true,desertNext:false,lightNext:0,loseStreak:0,pts:0,wins:0,races:0,margin:0,fastest:null}];
-  for(let i=0;i<19;i++){const s=rat[AI_NAMES[i]]??AI_STR[i];drivers.push({name:AI_NAMES[i],color:AI_COLORS[i],style:AI_STYLE[i],alt:AI_ALT[i],strength:s,persona:AI_PERSONA[i],affinity:AI_AFFINITY[i],wonLast:false,kit:true,resPack:s>=4,turboPack:true,desertNext:false,lightNext:0,loseStreak:0,pts:0,wins:0,races:0,margin:0,fastest:null})}
+  const drivers=[{name,color,style:'solid',alt:null,strength:hs,persona:'balanced',affinity:'grain',wonLast:false,kit:true,resPack:hs>=4,turboPack:true,desertNext:false,lightNext:0,loseStreak:0,pts:0,wins:0,races:0,margin:0,fastest:null,headLeft:hs>=5?5:0}];
+  for(let i=0;i<19;i++){const s=rat[AI_NAMES[i]]??AI_STR[i];drivers.push({name:AI_NAMES[i],color:AI_COLORS[i],style:AI_STYLE[i],alt:AI_ALT[i],strength:s,persona:AI_PERSONA[i],affinity:AI_AFFINITY[i],wonLast:false,kit:true,resPack:s>=4,turboPack:true,desertNext:false,lightNext:0,loseStreak:0,pts:0,wins:0,races:0,margin:0,fastest:null,headLeft:s>=5?5:0})}
   const cities=shuffleArr(shuffleArr(CITY_POOL.map(c=>c)).slice(0,14).concat(SPECIAL_CITIES.map(c=>c)));   // 14 城市 + 4 特殊 = 18 站
   const idxPool=shuffleArr(cities.map((_,i)=>i));
   const melees=idxPool.slice(0,3).sort((a,b)=>a-b);                               // 每季 3 站大混戰（6-7 隊同場）
@@ -196,8 +201,10 @@ function newLeague(name,color){
 // 電腦隊預先安排各技能包用喺邊一站（一站一包：資源/turbo/拆卸 各揀唔同站）
 // 填海傾向（體現個性）：建設型鍾意填海造地、破壞型鍾意拆人
 const RECLAIM_PREF={builder:0.8,expander:0.7,trader:0.6,balanced:0.4,raider:0.05};
+function pickHeadStations(nSt){return shuffleArr([...Array(nSt).keys()]).slice(0,5).sort((a,b)=>a-b)}  // 隨機揀 5 站帶 1 分開始
 function planAiPacks(drivers,nSt){
   drivers.forEach((d,i)=>{
+    d.planHead=((d.strength||3)>=5&&i!==0)?pickHeadStations(nSt):[];                   // 五星特權：AI 預定 5 站帶 1 分開始（人類由 UI 自選）
     if(i===0){d.planRes=-1;d.planTurbo=-1;d.planKit=-1;d.planLand=-1;return}          // 人類由 UI 自選
     const slots=shuffleArr([...Array(nSt).keys()]);
     d.planRes=d.resPack?slots.pop():-1;
@@ -266,7 +273,9 @@ function migrateLeague(L){
   L.drivers.forEach((d,i)=>{d.strength=d.strength??3;d.affinity=d.affinity??(i===0?'grain':(AI_AFFINITY[i-1]||'grain'));
     d.wonLast=d.wonLast??false;d.margin=d.margin??0;d.fastest=d.fastest===undefined?null:d.fastest;
     d.wins=d.wins??0;d.races=d.races??0;d.pts=d.pts??0;d.winStreak=d.winStreak??0;d.style=d.style??(i===0?'solid':AI_STYLE[i-1]||'solid');d.alt=d.alt??(i===0?null:AI_ALT[i-1]||null);d.kit=d.kit??true;d.desertNext=d.desertNext??false;d.persona=d.persona??(i===0?'balanced':AI_PERSONA[i-1]||'balanced');
-    d.resPack=d.resPack??((d.strength??3)>=4);d.turboPack=d.turboPack??true;d.lightNext=d.lightNext??0;d.loseStreak=d.loseStreak??0;d.skipNext=d.skipNext??false;d.halfNext=d.halfNext??false});
+    d.resPack=d.resPack??((d.strength??3)>=4);d.turboPack=d.turboPack??true;d.lightNext=d.lightNext??0;d.loseStreak=d.loseStreak??0;d.skipNext=d.skipNext??false;d.halfNext=d.halfNext??false;
+    if(d.headLeft==null)d.headLeft=(d.strength??3)>=5?5:0;                                                   // 五星特權「帶 1 分開始」token（遷移）
+    if(d.planHead==null)d.planHead=((d.strength??3)>=5&&i!==0)?pickHeadStations((league.cities&&league.cities.length)||18):[]});
   if(L.drivers.some(d=>d.planRes===undefined||d.planLand===undefined))planAiPacks(L.drivers,L.cities.length);  // 舊存檔補電腦技能包安排（含填海傾向）
   L.landLog=L.landLog??[];
   if(L.colorVer!==COLOR_VER){const ni={};AI_NAMES.forEach((n,i)=>ni[n]=i);   // 配色方案更新：將現有聯賽嘅電腦車隊重新套用新配色／格仔（唔使重開賽季；人類自選色不變）
@@ -1472,7 +1481,7 @@ function renderStandingsPanel(){
 let hubRound=-1;
 function renderHub(){
   if(league.playoff){renderPlayoffHub();return;}
-  if(hubRound!==league.round){hubRound=league.round;humanPack=null;humanKitCity=false}  // 新一站：重設技能包選擇
+  if(hubRound!==league.round){hubRound=league.round;humanPack=null;humanKitCity=false;humanHeadStart=false}  // 新一站：重設技能包同特權選擇
   const [city,ly]=league.cities[league.round],quad=humanQuad(),opp=quad.filter(i=>i!==0).map(i=>`<span class="dchip" style="--dc:${league.drivers[i].color}"><span class="csw" style="background:${cssPaint(league.drivers[i])}"></span>${league.drivers[i].name} <i class="st">${'★'.repeat(league.drivers[i].strength)}${league.drivers[i].strength>=4?RESICON[league.drivers[i].affinity]:''}</i>${heatOf(league.drivers[i])>0?`<i class="heat">🔥${heatOf(league.drivers[i])}</i>`:''}<span class="kitflag">${league.drivers[i].planLand>=0?'🏝填海派':'💣拆卸派'}${league.drivers[i].kit?'':'·已用'}</span><span class="persona">${PERSONA_NAME[league.drivers[i].persona]||''}</span></span>`).join('');
   $('#leagueTitle').textContent=`第 ${league.round+1} / ${league.cities.length} 站`;
   $('#leagueSub').textContent=`${city}分站 · ${isMelee(league.round)?'⚔ 大混戰（6-7 隊・超大島・42 輪・前四 5/3/2/1）':SHAPE_NAME[ly]}`;
@@ -1494,6 +1503,9 @@ function renderHub(){
     picker+='</div>';
   }else picker='<div class="kit-used">🎒 你嘅技能包本季已用晒</div>';
   if(compVP(me0)>0)picker+=`<div class="comp-note">🆙 你連續包尾 ${me0.loseStreak} 場，本站帶 ${compVP(me0)} 分開局！一唔包尾即清零。</div>`;
+  if(me0.strength>=5){const hl=me0.headLeft||0;
+    if(hl>0)picker+=`<button type="button" id="headStartBtn" class="pp-opt headstart${humanHeadStart?' on':''}" style="margin-top:6px">🎯 五星特權：本站帶 1 分開始<small>${humanHeadStart?'✓ 已選用本站':'撳一下用喺今場'} · 本季仲剩 ${hl}/5 次</small></button>`;
+    else picker+=`<div class="comp-note dim">🎯 五星特權「帶 1 分開始」本季 5 次已用晒。</div>`;}
   $('#nextRace').innerHTML+=picker;
   // 季中超級拉力盃入口（聯賽過半開放，限總榜前 10 名；一季一次）
   {const half=Math.floor(league.cities.length/2),myRank=standingsSorted().findIndex(d=>d.i===0)+1;
@@ -1502,7 +1514,8 @@ function renderHub(){
      if(myRank<=10)$('#nextRace').innerHTML+=`<button type="button" id="rallyCupBtn" class="wide rallybtn" style="margin-top:8px">🏆 打季中超級拉力盃（前 10 名 · 10 隊混戰）</button>`;
      else $('#nextRace').innerHTML+=`<div class="cup-note">🏆 季中拉力盃開放緊，但淨限總榜前 10 名（你而家第 ${myRank}，追上去就玩到）。</div>`;
    }else $('#nextRace').innerHTML+=`<div class="cup-note dim">🏆 季中超級拉力盃將於聯賽過半（第 ${half+1} 站）開放畀前 10 名。</div>`;}
-  $$('.pp-opt').forEach(b=>b.onclick=()=>{const v=b.dataset.pack;humanPack=(v==='none')?null:v;if(humanPack!=='kit')humanKitCity=false;renderHub()});
+  $$('.pp-opt').forEach(b=>{if(b.id==='headStartBtn')return;b.onclick=()=>{const v=b.dataset.pack;humanPack=(v==='none')?null:v;if(humanPack!=='kit')humanKitCity=false;renderHub()}});
+  {const hb=$('#headStartBtn');if(hb)hb.onclick=()=>{humanHeadStart=!humanHeadStart;renderHub()}}
   {const rcb=$('#rallyCupBtn');if(rcb)rcb.onclick=()=>{if(window.confirm('出戰季中超級拉力盃？\n\n• 前 10 名車隊、超大島、目標 30 分、持久戰\n• 全技能包多次用 + 換分／劫分／租借\n• 成績唔影響聯賽積分\n• 頭 4 名若打入季後賽準決賽，準決賽開局 +1 勝利點'))startRally()}}
   {const cc=$('#kitCityChk');if(cc)cc.onchange=()=>{humanKitCity=cc.checked}}
   renderStandingsPanel();
@@ -1623,7 +1636,8 @@ function playLeagueRace(){
   if(humanPack==='land'&&!landEligible())humanPack=null;
   const useKit=humanPack==='kit',useLand=humanPack==='land';
   const prevDesert=!!me0.desertNext,prevSkip=!!me0.skipNext,prevHalf=!!me0.halfNext; // 上站種落嘅沙漠 / 首輪停擺 / 填海資源減半
-  const opt=raceOpts(raceDrivers,true);deClash(opt);  // 讀今站 penalties(含輕代價) + startVP + 避免撞色
+  const opt=raceOpts(raceDrivers,true);deClash(opt);  // 讀今站 penalties(含輕代價) + startVP(含五星帶分) + 避免撞色
+  if(humanHeadStart&&me0.strength>=5&&(me0.headLeft||0)>0){me0.headLeft--;humanHeadStart=false;toast('🎯 五星特權：本站帶 1 分開始！本季仲剩 '+me0.headLeft+'/5')}
   raceDrivers.forEach(di=>{league.drivers[di].lightNext=0});       // 消耗今站輕代價
   const half=raceDrivers.map(di=>!!league.drivers[di].desertNext||!!league.drivers[di].halfNext); // 今站沙漠或填海減半（人類同對手）
   raceDrivers.forEach(di=>{league.drivers[di].desertNext=false;league.drivers[di].skipNext=false;league.drivers[di].halfNext=false});  // 消耗今站沙漠/停擺/減半
@@ -1715,7 +1729,7 @@ function renderRallyHall(){const d=loadRally(),el=$('#rallyList');if(!el)return;
   el.innerHTML=fast+d.champs.map((c,i)=>`<div class="rec-row"><span class="dot" style="background:${c.color}"></span><b>${c.name}</b><small>${c.rounds!=null?c.rounds+' 輪':'逼和'}</small></div>`).join('')}
 
 /* ============ 事件綁定 ============ */
-const VERSION='5.77';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
+const VERSION='5.78';{const v=document.getElementById('ver');if(v)v.textContent='v'+VERSION;const sv=document.getElementById('startVer');if(sv)sv.textContent='v'+VERSION;}
 $('#exhibitBtn').onclick=startExhibition;
 $('#rallyExhibitBtn')?.addEventListener('click',()=>startRally(true));
 {const c=$('#commentaryChk');if(c){c.checked=commentaryOn;c.addEventListener('change',()=>{commentaryOn=c.checked;localStorage.setItem('frontier-commentary',commentaryOn?'1':'0');if(!commentaryOn)_cClear();else{_spkUnlocked=false;unlockSpeech()}})}}
